@@ -86,8 +86,9 @@
 - 阶段：**P1（最小课堂）**
 - ✅ T1 完成（2026-08-20）：CSL schema + 第一课（7 页/27 句/3 检查点）
 - ✅ T2 完成（2026-08-20）：TTS provider 抽象 + 第一课 27 句音频（实测无 403）
-- ✅ T3 完成（2026-08-20）：前端骨架（Vite8/React19/TS/Tailwind4）+ reveal.js 课件渲染，7 页可视化（dev: `cd apps/web && pnpm dev`，先跑 `apps/scripts/sync-courses.sh`）。已知债：TS 类型手写，T5 换 OpenAPI 生成
-- ▶️ 下一步 T4：音画同步引擎（音频 ended→fragment 步进/翻页）+ 播放控制 + 断点续播
+- ✅ T3 完成（2026-08-20）：前端骨架 + reveal.js 课件渲染；三套可配置主题（默认墨蓝青）
+- ✅ T4 完成（2026-08-20）：音画同步引擎（usePlayback 状态机）、播放控制条、检查点自动弹层（T6 接批改）、断点续播。已知债：TS 类型手写，T5 换 OpenAPI 生成
+- ▶️ 下一步 T5：FastAPI 答疑接口（SSE）+ assistant-ui 对话区——含 agent 循环板块，动手前先讲设计思想（四象限②特例）
 
 ---
 
