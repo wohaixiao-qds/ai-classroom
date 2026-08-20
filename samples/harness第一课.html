@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>harness 是什么 · 第一课</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+:root{
+  --bg:#0E1116; --surface:#161B22; --surface2:#1D242E;
+  --text:#E6E9EF; --muted:#8A93A3;
+  --accent:#F5A524; --blue:#6CB6FF;
+  --line:rgba(138,147,163,.25);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:"Noto Sans SC","PingFang SC",sans-serif;
+  overflow:hidden;
+}
+.deck{position:relative;height:100%}
+.slide{
+  position:absolute;inset:0;display:none;
+  flex-direction:column;justify-content:center;
+  padding:6vh 9vw;
+}
+.slide.active{display:flex;animation:fade .45s ease}
+@keyframes fade{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.slide.active{animation:none}}
+
+/* ---- 入场编排:页内元素依次浮现 ---- */
+.rv{opacity:0}
+.slide.active .rv{animation:rise .55s cubic-bezier(.22,.9,.3,1) forwards}
+.slide.active .rv:nth-child(1){animation-delay:.05s}
+.slide.active .rv:nth-child(2){animation-delay:.18s}
+.slide.active .rv:nth-child(3){animation-delay:.32s}
+.slide.active .rv:nth-child(4){animation-delay:.46s}
+.slide.active .rv:nth-child(5){animation-delay:.60s}
+.slide.active .rv:nth-child(6){animation-delay:.74s}
+@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.rv,.slide.active .rv{opacity:1;animation:none}}
+
+/* 公式逐项浮现 */
+.slide.active .formula span{opacity:0;animation:pop .5s cubic-bezier(.34,1.5,.5,1) forwards}
+.slide.active .formula span:nth-child(1){animation-delay:.3s}
+.slide.active .formula span:nth-child(2){animation-delay:.75s}
+.slide.active .formula span:nth-child(3){animation-delay:1.0s}
+.slide.active .formula span:nth-child(4){animation-delay:1.5s}
+.slide.active .formula span:nth-child(5){animation-delay:1.75s}
+@keyframes pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.formula span{opacity:1!important;animation:none!important}}
+
+/* 汽车图:部件依次登场 */
+.slide.active .car-body{opacity:0;animation:fadePart .5s ease .2s forwards}
+.slide.active .car-cabin{opacity:0;animation:fadePart .5s ease .5s forwards}
+.slide.active .car-engine-glow{opacity:0;animation:engineIn .7s cubic-bezier(.34,1.5,.5,1) 1.0s forwards}
+.slide.active .car-engine{opacity:0;animation:fadePart .4s ease 1.0s forwards}
+.slide.active .car-wheel-l{opacity:0;animation:wheelIn .6s cubic-bezier(.34,1.5,.5,1) 1.4s forwards}
+.slide.active .car-wheel-r{opacity:0;animation:wheelIn .6s cubic-bezier(.34,1.5,.5,1) 1.6s forwards}
+.slide.active .car-caption{opacity:0;animation:fadePart .6s ease 1.9s forwards}
+@keyframes fadePart{from{opacity:0}to{opacity:1}}
+@keyframes engineIn{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}
+@keyframes wheelIn{from{opacity:0;transform:translateY(-26px)}to{opacity:1;transform:none}}
+.slide.active .car-engine{transform-origin:272px 150px}
+.slide.active .car-engine-glow{transform-origin:272px 150px}
+@media (prefers-reduced-motion:reduce){
+  .car-body,.car-cabin,.car-engine,.car-engine-glow,.car-wheel-l,.car-wheel-r,.car-caption{opacity:1!important;animation:none!important}
+}
+
+/* 代码逐行浮现 */
+.slide.active pre{opacity:1}
+.slide.active .codeline{display:block;opacity:0;animation:coderise .4s ease forwards}
+.slide.active .codeline:nth-child(1){animation-delay:.3s}
+.slide.active .codeline:nth-child(2){animation-delay:.7s}
+.slide.active .codeline:nth-child(3){animation-delay:1.1s}
+.slide.active .codeline:nth-child(4){animation-delay:1.5s}
+.slide.active .codeline:nth-child(5){animation-delay:1.9s}
+.slide.active .codeline:nth-child(6){animation-delay:2.3s}
+@keyframes coderise{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.codeline{opacity:1!important;animation:none!important}}
+
+/* 表格行依次浮现 */
+.slide.active tbody tr{opacity:0;animation:rowIn .5s ease forwards}
+.slide.active tbody tr:nth-child(1){animation-delay:.35s}
+.slide.active tbody tr:nth-child(2){animation-delay:.75s}
+.slide.active tbody tr:nth-child(3){animation-delay:1.15s}
+@keyframes rowIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){tbody tr{opacity:1!important;animation:none!important}}
+
+/* 测验题依次滑入,带一点节奏差 */
+.slide.active .quiz-item{opacity:0;animation:quizIn .55s cubic-bezier(.22,.9,.3,1) forwards}
+.slide.active .quiz-item:nth-child(1){animation-delay:.4s}
+.slide.active .quiz-item:nth-child(2){animation-delay:.9s}
+.slide.active .quiz-item:nth-child(3){animation-delay:1.4s}
+@keyframes quizIn{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.quiz-item{opacity:1!important;animation:none!important}}
+
+/* 封面:标题先落,公式后亮 */
+.slide.active h1{opacity:0;animation:titleIn .7s cubic-bezier(.22,.9,.3,1) .1s forwards}
+@keyframes titleIn{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){h1{opacity:1!important;animation:none!important}}
+
+/* typography */
+.eyebrow{
+  font-family:"JetBrains Mono",monospace;font-size:.8rem;
+  letter-spacing:.25em;color:var(--accent);text-transform:uppercase;
+  margin-bottom:1.6rem;
+}
+h1{font-size:clamp(2.4rem,6vw,4.6rem);font-weight:900;line-height:1.15;text-wrap:balance}
+h2{font-size:clamp(1.8rem,4vw,3rem);font-weight:700;line-height:1.25;text-wrap:balance;margin-bottom:2.2rem}
+.big{font-size:clamp(1.4rem,3vw,2.2rem);line-height:1.6;color:var(--text)}
+.muted{color:var(--muted)}
+.accent{color:var(--accent)}
+.blue{color:var(--blue)}
+em{font-style:normal;color:var(--accent)}
+
+/* cover */
+.cover-equation{
+  font-family:"JetBrains Mono",monospace;
+  font-size:clamp(1.2rem,2.6vw,2rem);
+  margin-top:2.4rem;color:var(--blue);
+}
+.cover-meta{margin-top:3.5rem;display:flex;gap:2.5rem;color:var(--muted);font-size:.95rem}
+.cover-meta span b{color:var(--text);font-weight:500}
+
+/* formula slide */
+.formula{
+  font-family:"JetBrains Mono",monospace;
+  font-size:clamp(1.8rem,4.5vw,3.4rem);font-weight:700;
+  display:flex;gap:.6em;align-items:baseline;flex-wrap:wrap;
+  margin-bottom:2.6rem;
+}
+.tag{font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.18em;
+  padding:.3em .8em;border:1px solid var(--line);border-radius:999px;color:var(--muted)}
+
+/* car diagram */
+.diagram{display:grid;grid-template-columns:1fr 1fr;gap:2.5rem;align-items:center}
+.diagram svg{width:100%;max-width:520px;height:auto}
+.legend{display:flex;flex-direction:column;gap:1.4rem}
+.legend-row{display:flex;gap:1.1rem;align-items:flex-start}
+.legend-swatch{width:14px;height:14px;border-radius:3px;margin-top:.45rem;flex:none}
+.legend-row b{display:block;font-size:1.05rem;margin-bottom:.15rem}
+.legend-row p{color:var(--muted);font-size:.92rem;line-height:1.6}
+
+/* rules vs execution */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:1.8rem}
+.card{
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  padding:1.8rem 2rem;
+}
+.card h3{font-size:1.15rem;margin-bottom:.9rem}
+.card h3 .tag{margin-left:.6rem}
+.card p{color:var(--muted);line-height:1.75;font-size:.98rem}
+.card p b{color:var(--text);font-weight:500}
+
+/* code */
+pre{
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  padding:1.6rem 1.8rem;font-family:"JetBrains Mono",monospace;
+  font-size:clamp(.8rem,1.35vw,1.02rem);line-height:1.9;
+  overflow-x:auto;
+}
+.cm{color:var(--muted)}
+.ck{color:var(--blue)}
+.cv{color:var(--accent)}
+.code-note{margin-top:1.4rem;color:var(--muted);font-size:.95rem;line-height:1.7}
+.code-note b{color:var(--text);font-weight:500}
+
+/* layers table */
+table{border-collapse:collapse;width:100%;font-size:clamp(.85rem,1.5vw,1.05rem)}
+th{font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.15em;
+  color:var(--muted);text-transform:uppercase;text-align:left;
+  padding:0 .9rem 1rem;border-bottom:1px solid var(--line)}
+td{padding:1.1rem .9rem;border-bottom:1px solid var(--line);line-height:1.65;vertical-align:top}
+td:first-child{font-weight:700;white-space:nowrap}
+td small{display:block;color:var(--muted);font-weight:400;margin-top:.2rem}
+
+/* quiz */
+.quiz{display:flex;flex-direction:column;gap:1.5rem;max-width:760px}
+.quiz-item{display:flex;gap:1.2rem;align-items:baseline}
+.quiz-n{font-family:"JetBrains Mono",monospace;color:var(--accent);font-weight:700;flex:none}
+.quiz-item p{font-size:clamp(1.05rem,2vw,1.35rem);line-height:1.6}
+.hint{margin-top:2.5rem;color:var(--muted);font-size:.9rem}
+
+/* chrome */
+.progress{position:fixed;top:0;left:0;height:3px;background:var(--accent);
+  transition:width .3s ease;z-index:10}
+.pager{
+  position:fixed;bottom:1.4rem;right:1.8rem;z-index:10;
+  font-family:"JetBrains Mono",monospace;font-size:.8rem;color:var(--muted);
+}
+.deck-title{
+  position:fixed;bottom:1.4rem;left:1.8rem;z-index:10;
+  font-family:"JetBrains Mono",monospace;font-size:.75rem;
+  letter-spacing:.18em;color:var(--muted);
+}
+/* speaker notes */
+.notes{
+  position:fixed;left:0;right:0;bottom:0;z-index:20;
+  background:var(--surface2);border-top:2px solid var(--accent);
+  padding:1.1rem 9vw 1.4rem;display:none;
+}
+.notes.show{display:block;animation:none}
+.notes-label{font-family:"JetBrains Mono",monospace;font-size:.7rem;
+  letter-spacing:.2em;color:var(--accent);margin-bottom:.45rem}
+.notes p{color:var(--text);font-size:.95rem;line-height:1.75;max-width:920px}
+button:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<div class="deck" id="deck">
+
+<section class="slide">
+  <p class="eyebrow rv">Agent 入门 · 第 1 课</p>
+  <h1>harness 是什么</h1>
+  <div class="cover-equation rv">agent = LLM + harness</div>
+  <div class="cover-meta rv">
+    <span>讲师 <b>AI 老师</b></span>
+    <span>来源 <b>你的学习知识库</b></span>
+    <span>时长 <b>约 8 分钟</b></span>
+  </div>
+  <aside class="notes"><div class="notes-label">讲稿 · TTS 播放内容</div>
+  <p>欢迎来到 Agent 入门第一课。今天只讲一个问题：harness 是什么。学完这节课，你要能回答一句话——agent 里，除了大模型以外的所有东西，都叫 harness。我们开始。</p></aside>
+</section>
+
+<section class="slide">
+  <p class="eyebrow rv">核心公式</p>
+  <h2 class="rv">一个公式，先背下来</h2>
+  <div class="formula rv">
+    <span>agent</span><span class="muted">=</span><span class="blue">LLM</span><span class="muted">+</span><span class="accent">harness</span>
+  </div>
+  <p class="big rv">LLM 是<b class="accent">发动机</b>，harness 是<b class="accent">除发动机外的所有零部件</b>。</p>
+  <p class="big muted" style="margin-top:1.4rem;font-size:clamp(1rem,2vw,1.4rem)">移项一下：harness = agent − LLM —— 把大脑拿掉，剩下的都是它。</p>
+  <aside class="notes"><div class="notes-label">讲稿 · TTS 播放内容</div>
+  <p>记住这个公式：agent 等于 LLM 加 harness。用汽车做类比：LLM 是发动机，harness 是除发动机外的所有零部件——底盘、轮子、方向盘。注意措辞：是"除发动机外"，因为发动机本身也是零件。所以 harness 等于 agent 减 LLM，把大脑拿掉，剩下的都是 harness。你自己开发的部分，就是这块。</p></aside>
+</section>
+
+<section class="slide">
+  <p class="eyebrow rv">心智模型</p>
+  <h2 class="rv">汽车类比</h2>
+  <div class="diagram rv">
+    <svg viewBox="0 0 520 300" role="img" aria-label="汽车与 agent 的对应关系图">
+      <rect class="car-body" x="40" y="90" width="440" height="120" rx="18" fill="#1D242E" stroke="rgba(138,147,163,.35)"/>
+      <rect class="car-cabin" x="120" y="40" width="260" height="70" rx="14" fill="#161B22" stroke="rgba(138,147,163,.35)"/>
+      <rect class="car-engine-glow" x="225" y="118" width="90" height="64" rx="8" fill="#F5A524" opacity=".18"/>
+      <rect class="car-engine" x="233" y="126" width="74" height="48" rx="6" fill="none" stroke="#F5A524" stroke-width="2"/>
+      <text class="car-engine" x="272" y="155" text-anchor="middle" fill="#F5A524" font-family="JetBrains Mono" font-size="13">LLM</text>
+      <circle class="car-wheel-l" cx="130" cy="218" r="34" fill="#0E1116" stroke="#6CB6FF" stroke-width="3"/>
+      <circle class="car-wheel-l" cx="130" cy="218" r="12" fill="#6CB6FF" opacity=".3"/>
+      <circle class="car-wheel-r" cx="400" cy="218" r="34" fill="#0E1116" stroke="#6CB6FF" stroke-width="3"/>
+      <circle class="car-wheel-r" cx="400" cy="218" r="12" fill="#6CB6FF" opacity=".3"/>
+      <text class="car-caption" x="272" y="285" text-anchor="middle" fill="#8A93A3" font-family="Noto Sans SC" font-size="14">整辆车 = agent</text>
+      <text class="car-caption" x="272" y="70" text-anchor="middle" fill="#8A93A3" font-family="Noto Sans SC" font-size="13">车身 / 底盘 / 方向盘 = harness</text>
+    </svg>
+    <div class="legend">
+      <div class="legend-row"><span class="legend-swatch" style="background:var(--accent)"></span>
+        <div><b>发动机 = LLM</b><p>只会"读文字、吐文字"，没有手，不能自己干活。</p></div></div>
+      <div class="legend-row"><span class="legend-swatch" style="background:var(--blue)"></span>
+        <div><b>其余零件 = harness</b><p>轮子、方向盘……让发动机的力真正落到地上的一切。</p></div></div>
+      <div class="legend-row"><span class="legend-swatch" style="background:var(--line)"></span>
+        <div><b>整辆车 = agent</b><p>零件相加才是整体——所以 harness 是 agent 的零件，不能反过来说。</p></div></div>
+    </div>
+  </div>
+  <aside class="notes"><div class="notes-label">讲稿 · TTS 播放内容</div>
+  <p>看这张图。整辆车是 agent；橙色方块是发动机，也就是 LLM——它只会读文字吐文字，没有手；蓝色的是轮子，代表 harness 的各个部件，让发动机的力真正落地。这里有个常见的坑：等式装反，记成 harness 等于 agent 加 LLM。零件不能包含整体，方向别搞反。</p></aside>
+</section>
+
+<section class="slide">
+  <p class="eyebrow rv">关键区分</p>
+  <h2 class="rv">规则 ≠ 执行</h2>
+  <div class="duo rv">
+    <div class="card">
+      <h3>规则 <span class="tag">静态 · 菜单</span></h3>
+      <p>纸上写着：<b>"当 agent 说 open，就打开文件"</b>。它躺在配置里，<b>本身什么都不干</b>——就像菜单说应该怎样做菜。</p>
+    </div>
+    <div class="card">
+      <h3>执行 <span class="tag">动态 · 厨师</span></h3>
+      <p>真的有代码去<b>打开文件、把内容塞回去</b>。模型只会"说"，执行就是<b>替它动手的那双手</b>。</p>
+    </div>
+  </div>
+  <p class="big" style="margin-top:2.2rem;font-size:clamp(1.1rem,2.2vw,1.6rem)">harness = 规则（菜单）<span class="muted">+</span> 执行（厨师）——<em>缺一样都动不起来</em></p>
+  <aside class="notes"><div class="notes-label">讲稿 · TTS 播放内容</div>
+  <p>很多人以为 harness 只是一套规则、一份规则手册。方向对，但漏了关键一半。规则是静态的，像菜单，只说"应该怎样"；执行是动态的，像厨师，真的动手做。模型只会输出文字，没有手，harness 的执行部分就是替它动手的那双手。规则加执行，合起来才是完整的 harness。</p></aside>
+</section>
+
+<section class="slide">
+  <p class="eyebrow rv">眼见为实</p>
+  <h2 class="rv">最小 harness 长这样</h2>
+<pre><span class="codeline"><span class="cm"># 任何 agent 框架，本质都是这个循环的变体</span></span>
+<span class="codeline"><span class="ck">while not</span> done:</span>
+<span class="codeline">    resp  = llm(messages)        <span class="cm"># 决策 → LLM        </span></span>
+<span class="codeline">    cmd   = parse(resp)          <span class="cm"># 解析 → 你写       </span></span>
+<span class="codeline">    result = execute(cmd)        <span class="cm"># 执行 → 你写       </span></span>
+<span class="codeline">    messages.append(result)      <span class="cm"># 反馈 → 你写       </span></span>
+<span class="codeline">    done  = check(result)        <span class="cm"># 终止 → 你写       </span></span></pre>
+  <p class="code-note rv">五行里只有一行是 LLM，<b>其余四行全是 harness</b>。所以一个 agent 项目里，<b>约 80% 的代码其实在写 harness</b>。</p>
+  <aside class="notes"><div class="notes-label">讲稿 · TTS 播放内容</div>
+  <p>我们看代码。一个最小的 harness 就是这个 while 循环：LLM 负责决策，输出想干什么；你写的部分负责解析它说了什么、真的去执行、把结果塞回对话、并判断什么时候停。注意看：五行里只有一行是模型，其余四行都是你写的。这就是为什么说 agent 项目百分之八十的代码其实在写 harness。</p></aside>
+</section>
+
+<section class="slide">
+  <p class="eyebrow rv">往下一课预告</p>
+  <h2 class="rv">harness 内部：三层架构</h2>
+  <table class="rv">
+    <tr><th>层</th><th>何时存在</th><th>干什么</th></tr>
+    <tr><td>Scaffolding<small>搭</small></td><td>跑之前（编码期）</td><td>提前摆好的静态材料：工具 / prompt / skills / 配置</td></tr>
+    <tr><td>Runtime<small>跑</small></td><td>跑的时候（运行期）</td><td>让材料转起来的发动机：循环 / 解析 / 执行 / 上下文 / 终止</td></tr>
+    <tr><td>Eval<small>验</small></td><td>全流程</td><td>拿一批任务反复测：真做对了吗？有没有退步？</td></tr>
+  </table>
+  <p class="code-note rv" style="margin-top:2rem">⚠️ 三层不是三个 harness，是<b>同一辆车的造 / 跑 / 验</b>——一个东西的三个阶段。</p>
+  <aside class="notes"><div class="notes-label">讲稿 · TTS 播放内容</div>
+  <p>harness 里面还可以分三层：Scaffolding 是跑之前摆好的材料，Runtime 是跑起来让材料转动的发动机，Eval 是造完之后拿一批任务验证它行不行。用造车来记：造车、开车、年检——同一辆车的三个阶段，不是三辆车。这三层就是下一课的内容。</p></aside>
+</section>
+
+<section class="slide">
+  <p class="eyebrow rv">自测 · 学会了吗</p>
+  <h2 class="rv">合上课件，你能答上来吗？</h2>
+  <div class="quiz rv">
+    <div class="quiz-item"><span class="quiz-n">Q1</span><p>harness、agent、LLM，谁大谁小？用一句话说清关系。</p></div>
+    <div class="quiz-item"><span class="quiz-n">Q2</span><p>"规则"和"执行"差在哪？为什么说 harness 缺一个都不行？</p></div>
+    <div class="quiz-item"><span class="quiz-n">Q3</span><p>tool / skill 是"执行"吗？</p></div>
+  </div>
+  <p class="hint rv">💬 答不出来？随时在右侧对话框问 AI 老师——比如"再讲一遍汽车类比"。</p>
+  <aside class="notes"><div class="notes-label">讲稿 · TTS 播放内容</div>
+  <p>课程讲完了，来自测三道题。第一题，三者谁大谁小；第二题，规则和执行的区别；第三题是个陷阱题，工具和技能是执行的核心零件，但不等于执行——执行还包括调度它们的整套机制。答不上来就在右边对话框问我，我可以换个讲法再讲一遍。第一课到这里。</p></aside>
+</section>
+
+</div>
+<div class="deck-title">AGENT 入门 · HARNESS</div>
+<div class="pager" id="pager">1 / 7</div>
+<div class="notes" id="notesBar">
+  <div class="notes-label">讲稿 · TTS 播放内容（按 S 键显示 / 隐藏）</div>
+  <p id="notesText"></p>
+</div>
+<script>
+const slides=[...document.querySelectorAll('.slide')];
+let cur=0;
+function show(i){
+  slides[cur].classList.remove('active');
+  cur=Math.max(0,Math.min(slides.length-1,i));
+  slides[cur].classList.add('active');
+  document.getElementById('pager').textContent=(cur+1)+' / '+slides.length;
+  document.getElementById('progress').style.width=((cur+1)/slides.length*100)+'%';
+  const n=slides[cur].querySelector('.notes p');
+  document.getElementById('notesText').textContent=n?n.textContent:'';
+}
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown')show(cur+1);
+  else if(e.key==='ArrowLeft'||e.key==='PageUp')show(cur-1);
+  else if(e.key.toLowerCase()==='s')document.getElementById('notesBar').classList.toggle('show');
+});
+document.addEventListener('click',e=>{
+  if(e.target.closest('button'))return;
+  show(e.clientX>innerWidth/2?cur+1:cur-1);
+});
+show(0);
+document.getElementById('notesBar').classList.add('show');
+</script>
+</body>
+</html>

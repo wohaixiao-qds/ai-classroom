@@ -1,0 +1,15 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+
+# 杂项
+.DS_Store
+.env
+*.mp3
