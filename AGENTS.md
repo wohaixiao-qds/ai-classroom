@@ -85,8 +85,9 @@
 
 - 阶段：**P1（最小课堂）**
 - ✅ T1 完成（2026-08-20）：CSL schema + 第一课（7 页/27 句/3 检查点）
-- ✅ T2 完成（2026-08-20）：TTS provider 抽象 + edge-tts 实现 + 第一课 27 句音频全量生成（实测本机网络无 403，风险排除；mp3 不入 git，.gitignore 已排除）
-- ▶️ 下一步 T3：前端骨架（Vite+React+TS+Tailwind+shadcn）+ reveal.js 载入 CSL 渲染课件，主题套用已验证设计 token
+- ✅ T2 完成（2026-08-20）：TTS provider 抽象 + 第一课 27 句音频（实测无 403）
+- ✅ T3 完成（2026-08-20）：前端骨架（Vite8/React19/TS/Tailwind4）+ reveal.js 课件渲染，7 页可视化（dev: `cd apps/web && pnpm dev`，先跑 `apps/scripts/sync-courses.sh`）。已知债：TS 类型手写，T5 换 OpenAPI 生成
+- ▶️ 下一步 T4：音画同步引擎（音频 ended→fragment 步进/翻页）+ 播放控制 + 断点续播
 
 ---
 
