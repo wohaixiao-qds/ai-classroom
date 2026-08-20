@@ -7,10 +7,10 @@
   --surface: #161b22;
   --surface2: #1d242e;
   --text: #e6e9ef;
-  --muted: #8a93a3;
+  --muted: #a8b2c1; /* 从 #8a93a3 提亮: 对 bg 对比度 4.8→6.6:1,小字号可读 */
   --accent: #f5a524;
   --blue: #6cb6ff;
-  --line: rgba(138, 147, 163, 0.25);
+  --line: rgba(168, 178, 193, 0.28);
 }
 
 html,

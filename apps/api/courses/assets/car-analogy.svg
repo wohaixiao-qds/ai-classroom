@@ -10,6 +10,6 @@
     <circle cx="400" cy="218" r="34" fill="#0E1116" stroke="#6CB6FF" stroke-width="3"/>
     <circle cx="400" cy="218" r="12" fill="#6CB6FF" opacity=".3"/>
   </g>
-  <text id="car-caption" x="272" y="285" text-anchor="middle" fill="#8A93A3" font-family="Noto Sans SC" font-size="14">整辆车 = agent</text>
-  <text id="car-caption2" x="272" y="70" text-anchor="middle" fill="#8A93A3" font-family="Noto Sans SC" font-size="13">车身 / 底盘 / 方向盘 = harness</text>
+  <text id="car-caption" x="272" y="285" text-anchor="middle" fill="#a8b2c1" font-family="Noto Sans SC" font-size="14">整辆车 = agent</text>
+  <text id="car-caption2" x="272" y="70" text-anchor="middle" fill="#a8b2c1" font-family="Noto Sans SC" font-size="13">车身 / 底盘 / 方向盘 = harness</text>
 </svg>
