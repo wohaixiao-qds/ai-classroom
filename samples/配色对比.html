@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>AI 课堂 · 配色三方案</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+body{margin:0;font-family:"Noto Sans SC",sans-serif;background:#090b0f;color:#e6e9ef;padding:40px}
+h1{font-size:1.4rem;margin-bottom:6px}
+.sub{color:#8a93a3;font-size:.9rem;margin-bottom:32px}
+.row{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.pal{border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+.pal-head{padding:10px 18px;font-family:"JetBrains Mono",monospace;font-size:.75rem;letter-spacing:.15em}
+.slide{aspect-ratio:16/10;padding:28px;display:flex;flex-direction:column;justify-content:center;gap:14px}
+.eyebrow{font-family:"JetBrains Mono",monospace;font-size:.68rem;letter-spacing:.25em;text-transform:uppercase}
+h2{font-size:1.5rem;font-weight:900;margin:0}
+.formula{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:1.6rem;display:flex;gap:.5em}
+.body-text{font-size:.95rem;line-height:1.7}
+.card{border-radius:12px;padding:16px 18px;font-size:.9rem}
+.card b{display:block;margin-bottom:4px}
+.pill{font-family:"JetBrains Mono",monospace;font-size:.65rem;border-radius:99px;padding:.25em .8em;border:1px solid}
+.note{color:inherit;opacity:.65;font-size:.85rem}
+.tagline{padding:12px 18px;font-size:.82rem;line-height:1.6;background:#0d1017;color:#a8b2c1}
+
+/* 方案A: 现行方案提亮版(石墨蓝+琥珀,层级加强) */
+.pal-a .slide{background:#0e1116}
+.pal-a .pal-head{background:#161b22;color:#f5a524}
+.pal-a .eyebrow{color:#f5a524}
+.pal-a h2{color:#f2f5fa}
+.pal-a .formula .t1{color:#6cb6ff}.pal-a .formula .t2{color:#ffb224}.pal-a .formula .op{color:#8f99a8}
+.pal-a .body-text{color:#c6cedb}
+.pal-a .card{background:#1a222d;border:1px solid rgba(255,255,255,.14);color:#b8c2d0}
+.pal-a .pill{color:#ffb224;border-color:rgba(255,178,36,.4)}
+
+/* 方案B: 冷调墨蓝+青强调(科技感更强) */
+.pal-b .slide{background:#0b1020}
+.pal-b .pal-head{background:#131a30;color:#4ddbc4}
+.pal-b .eyebrow{color:#4ddbc4}
+.pal-b h2{color:#f0f4ff}
+.pal-b .formula .t1{color:#7dc4ff}.pal-b .formula .t2{color:#4ddbc4}.pal-b .formula .op{color:#93a0b8}
+.pal-b .body-text{color:#c9d3e6}
+.pal-b .card{background:#141c33;border:1px solid rgba(125,196,255,.22);color:#b9c5dd}
+.pal-b .pill{color:#4ddbc4;border-color:rgba(77,219,196,.4)}
+
+/* 方案C: 暖纸深色+奶白字+橙红强调(编辑感,最"高对比") */
+.pal-c .slide{background:#1a1712}
+.pal-c .pal-head{background:#241f18;color:#ff8a4c}
+.pal-c .eyebrow{color:#ff8a4c}
+.pal-c h2{color:#faf6ee}
+.pal-c .formula .t1{color:#ffb35c}.pal-c .formula .t2{color:#ff8a4c}.pal-c .formula .op{color:#a89e8c}
+.pal-c .body-text{color:#ded5c3}
+.pal-c .card{background:#26211a;border:1px solid rgba(255,178,92,.25);color:#d0c6b2}
+.pal-c .pill{color:#ffb35c;border-color:rgba(255,179,92,.45)}
+</style>
+</head>
+<body>
+<h1>AI 课堂 · 配色三方案</h1>
+<p class="sub">同样内容三种皮肤,重点看:标题/正文/次要文字是否分层清晰,和背景是否还「融为一体」</p>
+
+<div class="row">
+
+<div class="pal pal-a">
+  <div class="pal-head">A · 石墨蓝+琥珀(现行·层级加强)</div>
+  <div class="slide">
+    <p class="eyebrow">核心公式</p>
+    <h2>一个公式,先背下来</h2>
+    <div class="formula"><span class="t1">agent</span><span class="op">=</span><span class="t1">LLM</span><span class="op">+</span><span class="t2">harness</span></div>
+    <p class="body-text">LLM 是<b>发动机</b>,harness 是<b>除发动机外的所有零部件</b>。</p>
+    <div class="card"><b>规则 <span class="pill">静态 · 菜单</span></b>纸上写着「当 agent 说 open,就打开文件」。它躺在配置里,本身什么都不干。</div>
+    <p class="note">次要文字:这样还融吗?</p>
+  </div>
+  <div class="tagline">保留现有身份;正文/边框全面提亮,卡片面加深与背景拉开,琥珀换更亮的 #ffb224 做强调。</div>
+</div>
+
+<div class="pal pal-b">
+  <div class="pal-head">B · 墨蓝+青(科技感)</div>
+  <div class="slide">
+    <p class="eyebrow">核心公式</p>
+    <h2>一个公式,先背下来</h2>
+    <div class="formula"><span class="t1">agent</span><span class="op">=</span><span class="t1">LLM</span><span class="op">+</span><span class="t2">harness</span></div>
+    <p class="body-text">LLM 是<b>发动机</b>,harness 是<b>除发动机外的所有零部件</b>。</p>
+    <div class="card"><b>规则 <span class="pill">静态 · 菜单</span></b>纸上写着「当 agent 说 open,就打开文件」。它躺在配置里,本身什么都不干。</div>
+    <p class="note">次要文字:这样还融吗?</p>
+  </div>
+  <div class="tagline">更冷更「工程」的气质,青色强调在深底上极醒目;但丢掉了「发动机琥珀」的隐喻。</div>
+</div>
+
+<div class="pal pal-c">
+  <div class="pal-head">C · 暖纸深底+奶白+橙红(最高对比)</div>
+  <div class="slide">
+    <p class="eyebrow">核心公式</p>
+    <h2>一个公式,先背下来</h2>
+    <div class="formula"><span class="t1">agent</span><span class="op">=</span><span class="t1">LLM</span><span class="op">+</span><span class="t2">harness</span></div>
+    <p class="body-text">LLM 是<b>发动机</b>,harness 是<b>除发动机外的所有零部件</b>。</p>
+    <div class="card"><b>规则 <span class="pill">静态 · 菜单</span></b>纸上写着「当 agent 说 open,就打开文件」。它躺在配置里,本身什么都不干。</div>
+    <p class="note">次要文字:这样还融吗?</p>
+  </div>
+  <div class="tagline">暖色底反差最大、阅读最舒服(接近「深色纸书」),奶白字零融合感;但整体气质从「科技」变「人文」。</div>
+</div>
+
+</div>
+</body>
+</html>

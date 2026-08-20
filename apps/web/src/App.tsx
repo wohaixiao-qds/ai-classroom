@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { SlideDeck } from "./features/player/SlideDeck";
+import { ThemeSwitcher } from "./features/player/ThemeSwitcher";
 import type { Course } from "./types/csl";
 
 const COURSE_URL = "/courses/harness-01.csl.json";
@@ -29,5 +30,10 @@ export default function App() {
   if (!course)
     return <div className="flex h-full items-center justify-center muted">课件加载中…</div>;
 
-  return <SlideDeck course={course} />;
+  return (
+    <>
+      <ThemeSwitcher />
+      <SlideDeck course={course} />
+    </>
+  );
 }
