@@ -16,7 +16,6 @@ export function ChatPanel({
   course: Course;
   playback: ReturnType<typeof usePlayback>;
 }) {
-  const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -76,21 +75,11 @@ export function ChatPanel({
     setBusy(false);
   }
 
-  if (!open)
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed top-4 right-4 z-50 rounded-full border border-(--line) bg-(--surface) px-4 py-2 text-sm shadow-lg"
-      >
-        💬 提问
-      </button>
-    );
-
   return (
-    <div className="fixed top-4 right-4 bottom-20 z-50 flex w-96 max-w-[85vw] flex-col rounded-2xl border border-(--line) bg-(--surface) shadow-2xl">
+    <aside className="flex h-full w-80 shrink-0 flex-col border-l border-(--line) bg-(--surface2)">
       <div className="flex items-center justify-between border-b border-(--line) px-4 py-3">
         <span className="text-sm font-medium">AI 老师 · 答疑</span>
-        <div className="flex gap-2">
+        <div>
           {!playback.state.playing && (
             <button
               onClick={playback.play}
@@ -99,9 +88,6 @@ export function ChatPanel({
               ▶ 继续上课
             </button>
           )}
-          <button onClick={() => setOpen(false)} className="muted px-2 text-sm">
-            ✕
-          </button>
         </div>
       </div>
 
@@ -151,6 +137,6 @@ export function ChatPanel({
           发送
         </button>
       </div>
-    </div>
+    </aside>
   );
 }
