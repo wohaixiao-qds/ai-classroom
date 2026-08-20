@@ -22,7 +22,7 @@ export interface Checkpoint {
 
 export type PageContent =
   | { kind: "cover"; equation: string | null; meta: [string, string][] }
-  | { kind: "formula"; items: string[]; conclusion: string }
+  | { kind: "formula"; items: string[]; conclusion: string; derived: string | null }
   | { kind: "diagram"; asset: string; legend: LegendItem[] }
   | { kind: "duo"; left: DuoCard; right: DuoCard }
   | { kind: "code"; language: string; lines: CodeLine[]; note: string | null }

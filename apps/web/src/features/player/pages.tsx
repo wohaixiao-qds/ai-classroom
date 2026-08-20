@@ -36,7 +36,7 @@ function PageBody({ page }: { page: Page }) {
     case "cover":
       return <Cover page={page} />;
     case "formula":
-      return <Formula content={c} />;
+      return <Formula page={page} content={c} />;
     case "diagram":
       return <Diagram content={c} />;
     case "duo":
@@ -77,7 +77,8 @@ function Cover({ page }: { page: Page }) {
   );
 }
 
-function Formula({ content }: { content: Extract<PageContent, { kind: "formula" }> }) {
+function Formula({ page, content }: { page: Page; content: Extract<PageContent, { kind: "formula" }> }) {
+  const step = (t: string) => stepOf(page.fragments, t);
   return (
     <div>
       <div className="mb-10 flex flex-wrap items-baseline gap-3 font-mono text-3xl font-bold md:text-5xl">
@@ -91,9 +92,18 @@ function Formula({ content }: { content: Extract<PageContent, { kind: "formula" 
           </span>
         ))}
       </div>
-      <p className="fragment step text-xl md:text-2xl leading-relaxed" data-page-id="conclusion">
+      <p className="fragment step text-xl md:text-2xl leading-relaxed" {...step("conclusion")}>
         {md(content.conclusion)}
       </p>
+      {content.derived && (
+        <p
+          className="fragment step accent mt-6 font-mono text-2xl font-bold md:text-3xl"
+          {...step("derived")}
+          data-anim="pop"
+        >
+          {content.derived}
+        </p>
+      )}
     </div>
   );
 }

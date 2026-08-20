@@ -75,7 +75,8 @@
           "+",
           "harness"
         ],
-        "conclusion": "LLM 是发动机，harness 是除发动机外的所有零部件"
+        "conclusion": "LLM 是发动机，harness 是除发动机外的所有零部件",
+        "derived": "harness = agent − LLM"
       },
       "script": [
         {
@@ -124,6 +125,11 @@
         {
           "effect": "rise",
           "target": "conclusion",
+          "after_sentence": 3
+        },
+        {
+          "effect": "pop",
+          "target": "derived",
           "after_sentence": 3
         }
       ],
