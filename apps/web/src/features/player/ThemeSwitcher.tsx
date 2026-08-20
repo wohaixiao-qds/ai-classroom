@@ -10,11 +10,11 @@ const THEMES: { id: ThemeId; label: string }[] = [
 
 const KEY = "classroom-theme";
 
-/** 三套配色切换:写到 <html data-theme>,localStorage 持久化 */
+/** 三套配色切换:写到 <html data-theme>,localStorage 持久化。默认 B(墨蓝青) */
 export function ThemeSwitcher() {
   const [theme, setTheme] = useState<ThemeId>(() => {
     const saved = localStorage.getItem(KEY);
-    return saved === "b" || saved === "c" ? saved : "a";
+    return saved === "a" || saved === "b" || saved === "c" ? saved : "b";
   });
 
   useEffect(() => {

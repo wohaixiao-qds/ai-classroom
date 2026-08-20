@@ -2,8 +2,20 @@
 @import "reveal.js/reveal.css";
 
 /* ---- 设计 token(与样例课件一致,Linear 式深色) ---- */
-/* ---- 三套主题 token(A 默认;B/C 由 html[data-theme] 切换) ---- */
+/* ---- 三套主题 token(B 默认;A/C 由 html[data-theme] 切换) ---- */
 :root,
+[data-theme="b"] {
+  /* B · 墨蓝+青(科技感,用户选定默认) */
+  --bg: #0b1020;
+  --surface: #141c33;
+  --surface2: #131a30;
+  --text: #f0f4ff;
+  --muted: #b9c5dd;
+  --accent: #4ddbc4;
+  --blue: #7dc4ff;
+  --line: rgba(125, 196, 255, 0.22);
+}
+
 [data-theme="a"] {
   /* A · 石墨蓝+琥珀(层级加强版) */
   --bg: #0e1116;
@@ -14,18 +26,6 @@
   --accent: #ffb224;
   --blue: #6cb6ff;
   --line: rgba(255, 255, 255, 0.14);
-}
-
-[data-theme="b"] {
-  /* B · 墨蓝+青(科技感) */
-  --bg: #0b1020;
-  --surface: #141c33;
-  --surface2: #131a30;
-  --text: #f0f4ff;
-  --muted: #b9c5dd;
-  --accent: #4ddbc4;
-  --blue: #7dc4ff;
-  --line: rgba(125, 196, 255, 0.22);
 }
 
 [data-theme="c"] {
