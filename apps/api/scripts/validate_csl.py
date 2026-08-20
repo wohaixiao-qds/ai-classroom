@@ -22,10 +22,10 @@ def validate(path: Path) -> int:
         # 每个动画必须挂在有效讲稿句之后
         n = len(page.script)
         for f in page.fragments:
-            if not 0 <= f.after_sentence < n:
+            if not 0 <= f.with_sentence < n:
                 errors.append(
                     f"第{i}页 {page.id}: fragment({f.effect},{f.target}) 挂在第 "
-                    f"{f.after_sentence} 句,但讲稿只有 {n} 句"
+                    f"{f.with_sentence} 句,但讲稿只有 {n} 句"
                 )
         if not page.script:
             errors.append(f"第{i}页 {page.id}: 讲稿为空")

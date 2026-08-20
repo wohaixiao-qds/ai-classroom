@@ -67,6 +67,10 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
         return;
       }
       if (!audioRef.current) audioRef.current = new Audio();
+      // 「讲到什么,亮什么」:本句开讲前,先触发挂在本句上的动画
+      const frags = course.pages[page]?.fragments.filter((f) => f.with_sentence === sentence) ?? [];
+      for (const _f of frags) deck()?.next();
+
       const audio = audioRef.current;
       audio.src = url;
       loadedRef.current = `${page}:${sentence}`;
@@ -74,7 +78,7 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
       setState((s) => ({ ...s, playing: true, page, sentence }));
       saveProgress(page, sentence);
     },
-    [saveProgress],
+    [course.pages, deck, saveProgress],
   );
 
   /** 一句播完后的推进逻辑(引擎心脏) */
@@ -86,10 +90,6 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
     advancedRef.current = key;
     const pageData = course.pages[page];
     if (!pageData) return;
-
-    // 1) 触发挂在本句的 fragments(reveal 按 DOM 序步进,数量即调用次数)
-    const frags = pageData.fragments.filter((f) => f.after_sentence === sentence).length;
-    for (let i = 0; i < frags; i++) deck()?.next();
 
     // 2) 还有下一句 → 播下一句
     if (sentence + 1 < pageData.script.length) {
@@ -153,7 +153,7 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
       setState((s) => ({ ...s, page, sentence: 0, checkpointOpen: false, playing: false }));
       saveProgress(page, 0);
     },
-    [saveProgress],
+    [course.pages, deck, saveProgress],
   );
 
   /** 重讲本页:句子归零重播(fragments 保持已显示) */

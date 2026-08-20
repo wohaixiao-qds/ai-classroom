@@ -21,15 +21,15 @@ class Sentence(BaseModel):
 
 
 class Fragment(BaseModel):
-    """一个动画步进单元：讲稿第 after_sentence 句播完 → 触发本动画。
+    """一个动画步进单元：讲稿第 with_sentence 句**开讲时**触发本动画。
 
-    一句讲稿可以带多个 fragment（如公式两项一起弹出），
-    所以用显式挂载点而非数量对齐。
+    时序原则「讲到什么,亮什么」:元素在提到它的那句话开始时出现,
+    而不是念完才出现。一句可带多个 fragment(如公式五项一起弹出)。
     """
 
     effect: str = "fade"  # 前端动画类名：fade / pop / rise / coderise ...
     target: str | None = None  # 作用目标选择器（页内元素 id），None=整页
-    after_sentence: int  # 挂在第几句讲稿后（从 0 计）
+    with_sentence: int  # 挂在第几句讲稿上(从 0 计,句开讲时触发)
 
 
 class Checkpoint(BaseModel):

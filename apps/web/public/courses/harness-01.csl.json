@@ -47,17 +47,20 @@
         {
           "effect": "titleIn",
           "target": "title",
-          "after_sentence": 0
+          "after_sentence": 0,
+          "with_sentence": 0
         },
         {
           "effect": "pop",
           "target": "equation",
-          "after_sentence": 1
+          "after_sentence": 1,
+          "with_sentence": 0
         },
         {
           "effect": "rise",
           "target": "meta",
-          "after_sentence": 1
+          "after_sentence": 1,
+          "with_sentence": 1
         }
       ],
       "checkpoint": null
@@ -100,37 +103,44 @@
         {
           "effect": "pop",
           "target": "item-0",
-          "after_sentence": 0
+          "after_sentence": 0,
+          "with_sentence": 0
         },
         {
           "effect": "pop",
           "target": "item-1",
-          "after_sentence": 0
+          "after_sentence": 0,
+          "with_sentence": 0
         },
         {
           "effect": "pop",
           "target": "item-2",
-          "after_sentence": 1
+          "after_sentence": 1,
+          "with_sentence": 0
         },
         {
           "effect": "pop",
           "target": "item-3",
-          "after_sentence": 3
+          "after_sentence": 3,
+          "with_sentence": 0
         },
         {
           "effect": "pop",
           "target": "item-4",
-          "after_sentence": 3
+          "after_sentence": 3,
+          "with_sentence": 0
         },
         {
           "effect": "rise",
           "target": "conclusion",
-          "after_sentence": 3
+          "after_sentence": 3,
+          "with_sentence": 1
         },
         {
           "effect": "pop",
           "target": "derived",
-          "after_sentence": 3
+          "after_sentence": 3,
+          "with_sentence": 3
         }
       ],
       "checkpoint": {
@@ -184,24 +194,19 @@
       ],
       "fragments": [
         {
-          "effect": "fadePart",
-          "target": "car-body",
-          "after_sentence": 0
+          "effect": "rise",
+          "target": "legend-0",
+          "with_sentence": 1
         },
         {
-          "effect": "engineIn",
-          "target": "car-engine",
-          "after_sentence": 1
+          "effect": "rise",
+          "target": "legend-1",
+          "with_sentence": 2
         },
         {
-          "effect": "wheelIn",
-          "target": "car-wheels",
-          "after_sentence": 2
-        },
-        {
-          "effect": "fadePart",
-          "target": "car-caption",
-          "after_sentence": 3
+          "effect": "rise",
+          "target": "legend-2",
+          "with_sentence": 3
         }
       ],
       "checkpoint": null
@@ -245,22 +250,22 @@
         {
           "effect": "rise",
           "target": "card-left",
-          "after_sentence": 1
+          "with_sentence": 1
         },
         {
           "effect": "rise",
           "target": "card-right",
-          "after_sentence": 1
+          "with_sentence": 1
         },
         {
           "effect": "rise",
           "target": "conclusion",
-          "after_sentence": 3
+          "with_sentence": 3
         },
         {
           "effect": "pulse",
           "target": "conclusion",
-          "after_sentence": 3
+          "with_sentence": 3
         }
       ],
       "checkpoint": {
@@ -336,37 +341,44 @@
         {
           "effect": "coderise",
           "target": "line-0",
-          "after_sentence": 0
+          "after_sentence": 0,
+          "with_sentence": 0
         },
         {
           "effect": "coderise",
           "target": "line-1",
-          "after_sentence": 1
+          "after_sentence": 1,
+          "with_sentence": 1
         },
         {
           "effect": "coderise",
           "target": "line-2",
-          "after_sentence": 2
+          "after_sentence": 2,
+          "with_sentence": 2
         },
         {
           "effect": "coderise",
           "target": "line-3",
-          "after_sentence": 2
+          "after_sentence": 2,
+          "with_sentence": 2
         },
         {
           "effect": "coderise",
           "target": "line-4",
-          "after_sentence": 3
+          "after_sentence": 3,
+          "with_sentence": 2
         },
         {
           "effect": "coderise",
           "target": "line-5",
-          "after_sentence": 4
+          "after_sentence": 4,
+          "with_sentence": 2
         },
         {
           "effect": "rise",
           "target": "note",
-          "after_sentence": 4
+          "after_sentence": 4,
+          "with_sentence": 3
         }
       ],
       "checkpoint": null
@@ -423,22 +435,26 @@
         {
           "effect": "rowIn",
           "target": "row-0",
-          "after_sentence": 1
+          "after_sentence": 1,
+          "with_sentence": 1
         },
         {
           "effect": "rowIn",
           "target": "row-1",
-          "after_sentence": 1
+          "after_sentence": 1,
+          "with_sentence": 1
         },
         {
           "effect": "rowIn",
           "target": "row-2",
-          "after_sentence": 1
+          "after_sentence": 1,
+          "with_sentence": 1
         },
         {
           "effect": "fadePart",
           "target": "note",
-          "after_sentence": 3
+          "after_sentence": 3,
+          "with_sentence": 3
         }
       ],
       "checkpoint": {
@@ -481,17 +497,20 @@
         {
           "effect": "quizIn",
           "target": "q-0",
-          "after_sentence": 0
+          "after_sentence": 0,
+          "with_sentence": 0
         },
         {
           "effect": "quizIn",
           "target": "q-1",
-          "after_sentence": 1
+          "after_sentence": 1,
+          "with_sentence": 1
         },
         {
           "effect": "quizIn",
           "target": "q-2",
-          "after_sentence": 3
+          "after_sentence": 3,
+          "with_sentence": 2
         }
       ],
       "checkpoint": null

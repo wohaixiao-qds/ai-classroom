@@ -11,7 +11,7 @@ export interface Sentence {
 export interface Fragment {
   effect: string; // fade/pop/rise/coderise/rowIn/quizIn/...
   target: string | null;
-  after_sentence: number;
+  with_sentence: number; // 挂在第几句讲稿上(句开讲时触发)
 }
 
 export interface Checkpoint {

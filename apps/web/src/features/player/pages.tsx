@@ -38,7 +38,7 @@ function PageBody({ page }: { page: Page }) {
     case "formula":
       return <Formula page={page} content={c} />;
     case "diagram":
-      return <Diagram content={c} />;
+      return <Diagram page={page} content={c} />;
     case "duo":
       return <Duo page={page} content={c} />;
     case "code":
@@ -108,13 +108,14 @@ function Formula({ page, content }: { page: Page; content: Extract<PageContent, 
   );
 }
 
-function Diagram({ content }: { content: Extract<PageContent, { kind: "diagram" }> }) {
+function Diagram({ page, content }: { page: Page; content: Extract<PageContent, { kind: "diagram" }> }) {
+  const step = (t: string) => stepOf(page.fragments, t);
   return (
     <div className="grid grid-cols-2 items-center gap-10">
       <object type="image/svg+xml" data={`/courses/assets/${content.asset}`} className="w-full max-w-xl" aria-label="图解" />
       <div className="flex flex-col gap-6">
-        {content.legend.map((l) => (
-          <div key={l.label} className="flex items-start gap-4">
+        {content.legend.map((l, i) => (
+          <div key={l.label} className="flex items-start gap-4" {...step(`legend-${i}`)}>
             <span
               className="mt-1.5 h-3.5 w-3.5 flex-none rounded-sm"
               style={{ background: `var(--${l.color})` } as CSSProperties}
