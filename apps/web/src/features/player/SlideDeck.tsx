@@ -24,15 +24,25 @@ export function SlideDeck({ course }: { course: Course }) {
       hash: false, // 节奏权交给播放引擎,不用 hash 记页
       controls: false, // 控制统一到底部控制条
       progress: true,
-      keyboard: true, // 方向键手动翻页仍可用
+      keyboard: { 32: () => {}, 78: () => {}, 80: () => {} }, // 方向键仍可用;空格/N/P 交给播放引擎
     });
     deckRef.current = deck;
     void deck.initialize().then(() => setReady(true));
+
+    // 空格 = 播放/暂停
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        e.preventDefault();
+        playback.toggle();
+      }
+    };
+    document.addEventListener("keydown", onKey);
 
     // 手动翻页(键盘) → 同步引擎状态
     const onSlide = (e: Event) => playback.gotoPage((e as unknown as { indexh: number }).indexh);
     deck.on("slidechanged", onSlide);
     return () => {
+      document.removeEventListener("keydown", onKey);
       deck.off("slidechanged", onSlide);
       void deck.destroy();
       deckRef.current = null;

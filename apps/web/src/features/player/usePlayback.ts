@@ -27,6 +27,8 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
   stRef.current = state;
   // 防重入:ended 可能重复触发(播放器怪癖/竞态),同一句只允许推进一次
   const advancedRef = useRef<string | null>(null);
+  // 当前 audio.src 已加载到哪句:暂停续播时同句原地续放,不重头念
+  const loadedRef = useRef<string | null>(null);
 
   const saveProgress = useCallback(
     (p: number, s: number) => {
@@ -67,6 +69,7 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
       if (!audioRef.current) audioRef.current = new Audio();
       const audio = audioRef.current;
       audio.src = url;
+      loadedRef.current = `${page}:${sentence}`;
       void audio.play();
       setState((s) => ({ ...s, playing: true, page, sentence }));
       saveProgress(page, sentence);
@@ -123,6 +126,12 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
   const play = useCallback(() => {
     const { page, sentence, checkpointOpen } = stRef.current;
     if (checkpointOpen) return;
+    // 同一句已在 audio 里 → 原地续放(保留暂停位置);否则才重新加载
+    if (loadedRef.current === `${page}:${sentence}` && audioRef.current) {
+      void audioRef.current.play();
+      setState((s) => ({ ...s, playing: true }));
+      return;
+    }
     playSentence(page, sentence);
   }, [playSentence]);
 
