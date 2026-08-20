@@ -53,6 +53,14 @@ body {
   overflow: hidden;
 }
 
+/* reveal 6 会给 body 挂 .reveal-viewport 并强写白底黑字(body.reveal-viewport
+   特异性高于 body),三套主题全被盖掉——这里压回去 */
+body.reveal-viewport,
+.reveal-viewport {
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
+}
+
 /* ---- reveal 全屏课件适配 ---- */
 .reveal {
   width: 100%;
