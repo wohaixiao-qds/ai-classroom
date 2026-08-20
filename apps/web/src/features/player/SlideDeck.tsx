@@ -5,6 +5,7 @@ import type { Course } from "../../types/csl";
 import { SlidePage } from "./pages";
 import { ControlsBar } from "./ControlsBar";
 import { CheckpointOverlay } from "./CheckpointOverlay";
+import { SubtitleBar } from "./SubtitleBar";
 import { usePlayback } from "./usePlayback";
 
 /** reveal.js 只负责翻页与 fragment 步进;React 负责 DOM 渲染;
@@ -48,6 +49,7 @@ export function SlideDeck({ course }: { course: Course }) {
           ))}
         </div>
       </div>
+      <SubtitleBar course={course} playback={playback} />
       <ControlsBar
         playback={playback}
         totalPages={course.pages.length}
