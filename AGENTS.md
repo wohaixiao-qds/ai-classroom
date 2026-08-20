@@ -84,8 +84,9 @@
 ## 3.2 当前状态（每完成一个任务更新本节）
 
 - 阶段：**P1（最小课堂）**
-- ✅ T1 完成（2026-08-20）：git 仓库初始化；CSL schema（`apps/api/app/schemas/csl.py`，7 种页型 + 复述检查点 + fragment 挂载句机制）；第一课 `apps/api/courses/harness-01.csl.json`（7 页/27 句讲稿/3 检查点，自学版）通过 `uv run python scripts/validate_csl.py` 校验
-- ▶️ 下一步 T2：TTS provider 抽象 + edge-tts 实现（重点实测大陆 403）+ 预生成第一课音频
+- ✅ T1 完成（2026-08-20）：CSL schema + 第一课（7 页/27 句/3 检查点）
+- ✅ T2 完成（2026-08-20）：TTS provider 抽象 + edge-tts 实现 + 第一课 27 句音频全量生成（实测本机网络无 403，风险排除；mp3 不入 git，.gitignore 已排除）
+- ▶️ 下一步 T3：前端骨架（Vite+React+TS+Tailwind+shadcn）+ reveal.js 载入 CSL 渲染课件，主题套用已验证设计 token
 
 ---
 
