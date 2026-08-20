@@ -43,7 +43,7 @@ def validate(path: Path) -> int:
 
     cp = sum(1 for p in course.pages if p.checkpoint)
     sents = sum(len(p.script) for p in course.pages)
-    print(f"✅ {path.name}: {len(course.pages)} 页 / {sents} 句讲稿 / {cp} 个检查点 / 场景={course.scenario}")
+    print(f"✅ {path.name}: {len(course.pages)} 页 / {sents} 句 / {cp} 检查点 / {course.scenario}")
     return 0
 
 

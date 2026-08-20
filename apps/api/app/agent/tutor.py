@@ -1,0 +1,117 @@
+"""答疑 Agent —— 最小 harness 骨架的落地。
+
+对照笔记《harness是什么》的最小骨架:
+    while not done:                 ← run() 的 for+break
+        resp = llm(messages)        ← client.messages.create (决策:LLM)
+        cmd = parse(resp)           ← stop_reason/tool_use 解析 (解析:你写)
+        result = execute(cmd)       ← execute_tool (执行:你写)
+        messages.append(result)     ← tool_result 回填 (反馈:你写)
+        done = check(result)        ← stop_reason != tool_use (终止:你写)
+
+Scaffolding 部分:SYSTEM_PROMPT(教学风格+引用规范) 与 build_context(上下文组装)。
+Eval 部分:轨迹落盘见 trace()。
+"""
+
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+
+from anthropic import Anthropic
+
+from app.agent.tools import TOOLS, execute_tool
+from app.core.config import settings
+
+SYSTEM_PROMPT = """你是「AI 老师」,在学员学习课件时提供答疑。规则:
+
+1. **课件优先**:问题能从课件内容回答的,基于课件答,注明「课件第N页」。
+2. **课件之外**:涉及最新实践/版本/课件没讲的知识,用 web_search 查,
+回答时用 [1][2] 标注来源,末尾列来源链接。
+3. **学员学过的**:判断问题可能与学员已有笔记相关时,可用 read_notes 检索其知识库,衔接旧知识讲解。
+4. **教学风格**:小步讲解、类比优先、宁少勿多;学员问概念时先给一句话核心,再按需展开,不一次灌完。
+5. **不瞎编**:查不到就说查不到,不编造来源。
+"""
+
+MAX_TURNS = 6  # 终止条件之二:防工具调用风暴
+
+
+def build_context(course_text: str, current_page: str | None) -> str:
+    """上下文组装:固定底料在前(缓存友好),动态状态在后。"""
+    ctx = f"## 课件全文\n{course_text}\n"
+    if current_page:
+        ctx += f"\n## 学员当前正在学的页\n{current_page}\n"
+    return ctx
+
+
+def trace(question: str, tool_calls: list[dict], answer: str, elapsed: float) -> None:
+    """Eval 层:问答轨迹落盘(JSONL,可复盘:查了什么/引了什么/答了什么)。"""
+    settings.traces_dir.mkdir(exist_ok=True)
+    rec = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "question": question,
+        "tool_calls": tool_calls,
+        "answer": answer,
+        "elapsed_s": round(elapsed, 1),
+    }
+    with (settings.traces_dir / "tutor.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+
+def run_tutor(
+    question: str,
+    history: list[dict],
+    course_text: str,
+    current_page: str | None,
+) -> tuple[str, list[dict]]:
+    """跑一轮答疑。返回 (最终回答, 工具调用轨迹)。"""
+    client = Anthropic(base_url=settings.llm_base_url, api_key=settings.llm_api_key or "not-set")
+    messages: list[dict] = [*history, {"role": "user", "content": question}]
+    tool_calls: list[dict] = []
+
+    for _ in range(MAX_TURNS):
+        resp = client.messages.create(  # 决策:LLM
+            model=settings.llm_model,
+            max_tokens=1024,
+            system=SYSTEM_PROMPT + "\n" + build_context(course_text, current_page),
+            messages=messages,
+            tools=TOOLS,
+        )
+        if resp.stop_reason != "tool_use":  # 终止:模型不再要工具
+            answer = "".join(b.text for b in resp.content if b.type == "text")
+            return answer, tool_calls
+
+        # 解析+执行+回填:模型要的每个工具都真跑一遍,结果塞回去
+        messages.append({"role": "assistant", "content": [b.model_dump() for b in resp.content]})
+        tool_results = []
+        for block in resp.content:
+            if block.type != "tool_use":
+                continue
+            t0 = time.time()
+            try:
+                result = execute_tool(block.name, dict(block.input))
+                err = None
+            except Exception as e:  # noqa: BLE001 错误回收:工具炸了不拖垮循环
+                result, err = f"(工具执行出错: {e})", str(e)
+            tool_calls.append({
+                "name": block.name, "args": dict(block.input),
+                "ms": round((time.time() - t0) * 1000), "error": err,
+            })
+            tool_results.append(
+                {"type": "tool_result", "tool_use_id": block.id, "content": result}
+            )
+        messages.append({"role": "user", "content": tool_results})
+
+    return "(达到工具调用上限,请换个更具体的问题)", tool_calls
+
+
+def course_text_of(course_id: str) -> str:
+    """课件全文(答疑底料):标题+每页 eyebrow/title/讲稿。"""
+    p: Path = settings.courses_dir / f"{course_id}.csl.json"
+    d = json.loads(p.read_text(encoding="utf-8"))
+    lines = [f"# {d['title']}"]
+    for i, page in enumerate(d["pages"], 1):
+        lines.append(f"\n[第{i}页] {page.get('eyebrow') or ''} {page.get('title') or ''}")
+        for s in page["script"]:
+            lines.append(f"  {s['text']}")
+    return "\n".join(lines)

@@ -6,10 +6,9 @@ CSL 是课件的唯一事实源（JSON）：备课 Agent 产出它，编译器�
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
-
 
 # ---------- 公共部分 ----------
 
@@ -105,10 +104,12 @@ class QuizContent(BaseModel):
     questions: list[str]  # 依次滑入的自测题
 
 
-PageContent = Annotated[
-    Union[CoverContent, FormulaContent, DiagramContent, DuoContent, CodeContent, TableContent, QuizContent],
-    Field(discriminator="kind"),
-]
+_ContentUnion = (
+    CoverContent | FormulaContent | DiagramContent
+    | DuoContent | CodeContent | TableContent | QuizContent
+)
+
+PageContent = Annotated[_ContentUnion, Field(discriminator="kind")]
 
 
 # ---------- 页与课程 ----------

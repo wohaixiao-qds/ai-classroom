@@ -4,8 +4,11 @@ version = "0.1.0"
 description = "AI 老师课堂 · FastAPI 后端"
 requires-python = ">=3.12"
 dependencies = [
+    "anthropic>=0.125.0",
     "edge-tts>=7.2.8",
+    "fastapi>=0.141.1",
     "pydantic>=2.7",
+    "uvicorn[standard]>=0.52.4",
 ]
 
 [dependency-groups]
