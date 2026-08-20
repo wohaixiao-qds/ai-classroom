@@ -14,7 +14,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.agent.tutor import course_text_of, run_tutor, trace
-from app.schemas.chat import ChatRequest
+from app.schemas.chat import ChatRequest, GradeRequest
+from app.services.grader import grade_recitation
 
 router = APIRouter(prefix="/api/v1", tags=["chat"])
 
@@ -53,3 +54,15 @@ def chat(req: ChatRequest) -> StreamingResponse:
             yield _sse("error", {"message": str(e)}, eid)
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@router.post("/grade")
+def grade(req: GradeRequest) -> dict:
+    try:
+        return grade_recitation(req.course_id, req.page_id, req.answer)
+    except KeyError as e:
+        raise HTTPException(404, str(e)) from None
+    except json.JSONDecodeError:
+        raise HTTPException(502, "批改返回格式异常,请重试") from None
+    except Exception as e:  # noqa: BLE001 LLM 认证/网络等,给可读信息
+        raise HTTPException(502, f"批改服务暂不可用: {e}") from None

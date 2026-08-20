@@ -70,6 +70,9 @@ export function SlideDeck({ course }: { course: Course }) {
       {playback.state.checkpointOpen && (
         <CheckpointOverlay
           question={course.pages[playback.state.page].checkpoint?.question ?? ""}
+          hint={course.pages[playback.state.page].checkpoint?.hint ?? null}
+          courseId={course.id}
+          pageId={course.pages[playback.state.page].id}
           onPass={playback.passCheckpoint}
         />
       )}
