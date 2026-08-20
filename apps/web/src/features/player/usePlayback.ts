@@ -25,6 +25,8 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const stRef = useRef(state); // 音频回调里读最新状态
   stRef.current = state;
+  // 防重入:ended 可能重复触发(播放器怪癖/竞态),同一句只允许推进一次
+  const advancedRef = useRef<string | null>(null);
 
   const saveProgress = useCallback(
     (p: number, s: number) => {
@@ -33,7 +35,7 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
     [course.id],
   );
 
-  // 恢复断点:reveal ready 后跳到上次页
+  // 恢复断点:仅挂载时执行一次(deck 为稳定引用)
   useEffect(() => {
     const saved = localStorage.getItem(progressKey(course.id));
     if (!saved) return;
@@ -46,7 +48,8 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
     } catch {
       /* 损坏的进度直接忽略 */
     }
-  }, [course.id, course.pages.length, deck]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅挂载恢复一次
+  }, []);
 
   const audioUrl = (page: number, sentence: number) => {
     const a = course.pages[page]?.script[sentence]?.audio;
@@ -73,7 +76,11 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
 
   /** 一句播完后的推进逻辑(引擎心脏) */
   const advance = useCallback(() => {
-    const { page, sentence } = stRef.current;
+    const { page, sentence, checkpointOpen } = stRef.current;
+    if (checkpointOpen) return; // 检查点未通过,引擎锁死
+    const key = `${page}:${sentence}`;
+    if (advancedRef.current === key) return; // 本句已推进过
+    advancedRef.current = key;
     const pageData = course.pages[page];
     if (!pageData) return;
 
@@ -133,6 +140,7 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
   const gotoPage = useCallback(
     (page: number) => {
       audioRef.current?.pause();
+      advancedRef.current = null;
       setState((s) => ({ ...s, page, sentence: 0, checkpointOpen: false, playing: false }));
       saveProgress(page, 0);
     },
@@ -142,12 +150,14 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
   /** 重讲本页:句子归零重播(fragments 保持已显示) */
   const replayPage = useCallback(() => {
     const { page } = stRef.current;
+    advancedRef.current = null; // 重讲允许句子重新推进
     playSentence(page, 0);
   }, [playSentence]);
 
   /** 检查点通过,继续 */
   const passCheckpoint = useCallback(() => {
     const { page } = stRef.current;
+    advancedRef.current = null;
     setState((s) => ({ ...s, checkpointOpen: false }));
     if (page + 1 >= course.pages.length) {
       setState((s) => ({ ...s, playing: false }));

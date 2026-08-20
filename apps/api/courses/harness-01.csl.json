@@ -46,12 +46,17 @@
       "fragments": [
         {
           "effect": "titleIn",
-          "target": null,
+          "target": "title",
           "after_sentence": 0
         },
         {
+          "effect": "pop",
+          "target": "equation",
+          "after_sentence": 1
+        },
+        {
           "effect": "rise",
-          "target": null,
+          "target": "meta",
           "after_sentence": 1
         }
       ],
@@ -114,6 +119,11 @@
         {
           "effect": "pop",
           "target": "item-4",
+          "after_sentence": 3
+        },
+        {
+          "effect": "rise",
+          "target": "conclusion",
           "after_sentence": 3
         }
       ],
@@ -345,6 +355,11 @@
         {
           "effect": "coderise",
           "target": "line-5",
+          "after_sentence": 4
+        },
+        {
+          "effect": "rise",
+          "target": "note",
           "after_sentence": 4
         }
       ],

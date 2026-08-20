@@ -4,18 +4,21 @@ import type { usePlayback } from "./usePlayback";
 export function ControlsBar({
   playback,
   totalPages,
+  ready,
 }: {
   playback: ReturnType<typeof usePlayback>;
   totalPages: number;
-  pageId?: string;
+  ready: boolean;
 }) {
   const { state, toggle, replayPage } = playback;
   return (
     <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-(--line) bg-(--surface) px-4 py-2 shadow-lg">
       <button
         onClick={toggle}
+        disabled:opacity-40
         className="flex h-9 w-9 items-center justify-center rounded-full bg-(--accent) text-(--bg) transition-transform hover:scale-105"
         title={state.playing ? "暂停(空格)" : "播放(空格)"}
+        disabled={!ready}
       >
         {state.playing ? "⏸" : "▶"}
       </button>

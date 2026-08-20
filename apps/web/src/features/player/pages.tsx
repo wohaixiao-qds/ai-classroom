@@ -18,8 +18,8 @@ function md(text: string): ReactNode[] {
 export function SlidePage({ page }: { page: Page }) {
   return (
     <section data-page-id={page.id}>
-      {page.eyebrow && <p className="eyebrow">{page.eyebrow}</p>}
-      {page.title && <h2 className="deck-h2">{page.title}</h2>}
+      {page.content.kind !== "cover" && page.eyebrow && <p className="eyebrow">{page.eyebrow}</p>}
+      {page.content.kind !== "cover" && page.title && <h2 className="deck-h2">{page.title}</h2>}
       <PageBody page={page} />
       {page.checkpoint && (
         <p className="muted mt-8 text-sm">

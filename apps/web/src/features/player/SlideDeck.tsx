@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Reveal from "reveal.js";
 import type { RevealApi } from "reveal.js";
 import type { Course } from "../../types/csl";
@@ -10,9 +10,12 @@ import { usePlayback } from "./usePlayback";
 /** reveal.js 只负责翻页与 fragment 步进;React 负责 DOM 渲染;
  * usePlayback 负责节奏(音频 ended → 步进/翻页/检查点)。 */
 export function SlideDeck({ course }: { course: Course }) {
+  const [ready, setReady] = useState(false);
   const deckEl = useRef<HTMLDivElement>(null);
   const deckRef = useRef<RevealApi | null>(null);
-  const playback = usePlayback(course, () => deckRef.current);
+  // 稳定的 deck 取值器:引用不变,避免下游 useEffect 依赖抖动导致重渲染循环
+  const getDeck = useCallback(() => deckRef.current, []);
+  const playback = usePlayback(course, getDeck);
 
   useEffect(() => {
     if (!deckEl.current) return;
@@ -23,7 +26,7 @@ export function SlideDeck({ course }: { course: Course }) {
       keyboard: true, // 方向键手动翻页仍可用
     });
     deckRef.current = deck;
-    void deck.initialize();
+    void deck.initialize().then(() => setReady(true));
 
     // 手动翻页(键盘) → 同步引擎状态
     const onSlide = (e: Event) => playback.gotoPage((e as unknown as { indexh: number }).indexh);
@@ -48,7 +51,7 @@ export function SlideDeck({ course }: { course: Course }) {
       <ControlsBar
         playback={playback}
         totalPages={course.pages.length}
-        pageId={course.pages[playback.state.page]?.id}
+        ready={ready}
       />
       {playback.state.checkpointOpen && (
         <CheckpointOverlay
