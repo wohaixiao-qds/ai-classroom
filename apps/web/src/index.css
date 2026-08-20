@@ -1,0 +1,160 @@
+@import "tailwindcss";
+@import "reveal.js/reveal.css";
+
+/* ---- 设计 token(与样例课件一致,Linear 式深色) ---- */
+:root {
+  --bg: #0e1116;
+  --surface: #161b22;
+  --surface2: #1d242e;
+  --text: #e6e9ef;
+  --muted: #8a93a3;
+  --accent: #f5a524;
+  --blue: #6cb6ff;
+  --line: rgba(138, 147, 163, 0.25);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Noto Sans SC", "PingFang SC", sans-serif;
+  overflow: hidden;
+}
+
+/* ---- reveal 全屏课件适配 ---- */
+.reveal {
+  width: 100%;
+  height: 100%;
+  font-size: clamp(16px, 1.6vw, 24px);
+}
+.reveal .slides {
+  text-align: left;
+}
+.reveal .slides section {
+  padding: 6vh 8vw;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.reveal .progress {
+  color: var(--accent);
+  height: 3px;
+}
+.reveal .controls {
+  color: var(--muted);
+}
+
+/* ---- 页元素样式 ---- */
+.eyebrow {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.8rem;
+  letter-spacing: 0.25em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 1.6rem;
+}
+.deck-h1 {
+  font-size: clamp(2.4rem, 6vw, 4.6rem);
+  font-weight: 900;
+  line-height: 1.15;
+}
+.deck-h2 {
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  font-weight: 700;
+  line-height: 1.25;
+  margin-bottom: 2.2rem;
+}
+.muted {
+  color: var(--muted);
+}
+.accent {
+  color: var(--accent);
+}
+.blue {
+  color: var(--blue);
+}
+
+/* fragment 步进元素:reveal 控制 .visible,动画由 data-anim 决定 */
+.step {
+  opacity: 0;
+}
+.step.visible {
+  animation: var(--anim, fadeUp) 0.55s cubic-bezier(0.22, 0.9, 0.3, 1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .step,
+  .step.visible {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes coderise {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes quizIn {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes wheelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+[data-anim="pop"] {
+  --anim: pop;
+}
+[data-anim="coderise"] {
+  --anim: coderise;
+}
+[data-anim="quizIn"] {
+  --anim: quizIn;
+}
+[data-anim="wheelIn"] {
+  --anim: wheelIn;
+}

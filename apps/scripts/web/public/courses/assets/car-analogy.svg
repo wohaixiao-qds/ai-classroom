@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 300" role="img" aria-label="汽车与 agent 的对应关系图">
+  <rect id="car-body" x="40" y="90" width="440" height="120" rx="18" fill="#1D242E" stroke="rgba(138,147,163,.35)"/>
+  <rect id="car-cabin" x="120" y="40" width="260" height="70" rx="14" fill="#161B22" stroke="rgba(138,147,163,.35)"/>
+  <rect id="car-engine-glow" x="225" y="118" width="90" height="64" rx="8" fill="#F5A524" opacity=".18"/>
+  <rect id="car-engine" x="233" y="126" width="74" height="48" rx="6" fill="none" stroke="#F5A524" stroke-width="2"/>
+  <text id="car-engine-text" x="272" y="155" text-anchor="middle" fill="#F5A524" font-family="JetBrains Mono" font-size="13">LLM</text>
+  <g id="car-wheels">
+    <circle cx="130" cy="218" r="34" fill="#0E1116" stroke="#6CB6FF" stroke-width="3"/>
+    <circle cx="130" cy="218" r="12" fill="#6CB6FF" opacity=".3"/>
+    <circle cx="400" cy="218" r="34" fill="#0E1116" stroke="#6CB6FF" stroke-width="3"/>
+    <circle cx="400" cy="218" r="12" fill="#6CB6FF" opacity=".3"/>
+  </g>
+  <text id="car-caption" x="272" y="285" text-anchor="middle" fill="#8A93A3" font-family="Noto Sans SC" font-size="14">整辆车 = agent</text>
+  <text id="car-caption2" x="272" y="70" text-anchor="middle" fill="#8A93A3" font-family="Noto Sans SC" font-size="13">车身 / 底盘 / 方向盘 = harness</text>
+</svg>

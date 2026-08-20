@@ -1,0 +1,479 @@
+{
+  "id": "harness-01",
+  "title": "harness 是什么",
+  "scenario": "自学",
+  "meta": {
+    "source_notes": [
+      "Agent/harness/01-核心概念/harness是什么.md",
+      "Agent/harness/01-核心概念/三层架构.md"
+    ],
+    "duration_min": 8,
+    "version": 1
+  },
+  "pages": [
+    {
+      "id": "p1-cover",
+      "eyebrow": "Agent 入门 · 第 1 课",
+      "title": "harness 是什么",
+      "content": {
+        "kind": "cover",
+        "equation": "agent = LLM + harness",
+        "meta": [
+          [
+            "讲师",
+            "AI 老师"
+          ],
+          [
+            "来源",
+            "学习知识库"
+          ],
+          [
+            "时长",
+            "约 8 分钟"
+          ]
+        ]
+      },
+      "script": [
+        {
+          "text": "欢迎来到 Agent 入门第一课。今天只讲一个问题：harness 是什么。",
+          "audio": "audio/harness-01/p1-cover-s0.mp3"
+        },
+        {
+          "text": "学完这节课，你要能回答一句话——agent 里，除了大模型以外的所有东西，都叫 harness。我们开始。",
+          "audio": "audio/harness-01/p1-cover-s1.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "titleIn",
+          "target": null,
+          "after_sentence": 0
+        },
+        {
+          "effect": "rise",
+          "target": null,
+          "after_sentence": 1
+        }
+      ],
+      "checkpoint": null
+    },
+    {
+      "id": "p2-formula",
+      "eyebrow": "核心公式",
+      "title": "一个公式，先背下来",
+      "content": {
+        "kind": "formula",
+        "items": [
+          "agent",
+          "=",
+          "LLM",
+          "+",
+          "harness"
+        ],
+        "conclusion": "LLM 是发动机，harness 是除发动机外的所有零部件"
+      },
+      "script": [
+        {
+          "text": "记住这个公式：agent 等于 LLM 加 harness。",
+          "audio": "audio/harness-01/p2-formula-s0.mp3"
+        },
+        {
+          "text": "用汽车做类比：LLM 是发动机，harness 是除发动机外的所有零部件——底盘、轮子、方向盘。",
+          "audio": "audio/harness-01/p2-formula-s1.mp3"
+        },
+        {
+          "text": "注意措辞：是「除发动机外」，因为发动机本身也是零件。",
+          "audio": "audio/harness-01/p2-formula-s2.mp3"
+        },
+        {
+          "text": "所以移项一下：harness 等于 agent 减 LLM——把大脑拿掉，剩下的都是 harness。你自己开发的部分，就是这块。",
+          "audio": "audio/harness-01/p2-formula-s3.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "pop",
+          "target": "item-0",
+          "after_sentence": 0
+        },
+        {
+          "effect": "pop",
+          "target": "item-1",
+          "after_sentence": 0
+        },
+        {
+          "effect": "pop",
+          "target": "item-2",
+          "after_sentence": 1
+        },
+        {
+          "effect": "pop",
+          "target": "item-3",
+          "after_sentence": 3
+        },
+        {
+          "effect": "pop",
+          "target": "item-4",
+          "after_sentence": 3
+        }
+      ],
+      "checkpoint": {
+        "question": "用你自己的话说说：harness、agent、LLM 三个谁大谁小？是什么关系？",
+        "hint": "想想汽车的例子",
+        "pass_rule": "能说出 agent=LLM+harness 的包含关系；若把等式方向说反（harness=agent+LLM）则不通过，这是笔记里记录过的典型坑"
+      }
+    },
+    {
+      "id": "p3-car",
+      "eyebrow": "心智模型",
+      "title": "汽车类比",
+      "content": {
+        "kind": "diagram",
+        "asset": "car-analogy.svg",
+        "legend": [
+          {
+            "label": "发动机 = LLM",
+            "color": "accent",
+            "note": "只会「读文字、吐文字」，没有手，不能自己干活"
+          },
+          {
+            "label": "其余零件 = harness",
+            "color": "blue",
+            "note": "轮子、方向盘……让发动机的力真正落到地上的一切"
+          },
+          {
+            "label": "整辆车 = agent",
+            "color": "line",
+            "note": "零件相加才是整体——harness 是 agent 的零件，不能反过来说"
+          }
+        ]
+      },
+      "script": [
+        {
+          "text": "看这张图。整辆车是 agent。",
+          "audio": "audio/harness-01/p3-car-s0.mp3"
+        },
+        {
+          "text": "橙色方块是发动机，也就是 LLM——它只会读文字吐文字，没有手。",
+          "audio": "audio/harness-01/p3-car-s1.mp3"
+        },
+        {
+          "text": "蓝色的是轮子，代表 harness 的各个部件，让发动机的力真正落地。",
+          "audio": "audio/harness-01/p3-car-s2.mp3"
+        },
+        {
+          "text": "这里有个常见的坑：等式装反，记成 harness 等于 agent 加 LLM。零件不能包含整体，方向别搞反。",
+          "audio": "audio/harness-01/p3-car-s3.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "fadePart",
+          "target": "car-body",
+          "after_sentence": 0
+        },
+        {
+          "effect": "engineIn",
+          "target": "car-engine",
+          "after_sentence": 1
+        },
+        {
+          "effect": "wheelIn",
+          "target": "car-wheels",
+          "after_sentence": 2
+        },
+        {
+          "effect": "fadePart",
+          "target": "car-caption",
+          "after_sentence": 3
+        }
+      ],
+      "checkpoint": null
+    },
+    {
+      "id": "p4-duo",
+      "eyebrow": "关键区分",
+      "title": "规则 ≠ 执行",
+      "content": {
+        "kind": "duo",
+        "left": {
+          "title": "规则",
+          "tag": "静态 · 菜单",
+          "body": "纸上写着：**「当 agent 说 open，就打开文件」**。它躺在配置里，**本身什么都不干**——就像菜单说应该怎样做菜。"
+        },
+        "right": {
+          "title": "执行",
+          "tag": "动态 · 厨师",
+          "body": "真的有代码去**打开文件、把内容塞回去**。模型只会「说」，执行就是**替它动手的那双手**。"
+        }
+      },
+      "script": [
+        {
+          "text": "很多人以为 harness 只是一套规则、一份规则手册。方向对，但漏了关键一半。",
+          "audio": "audio/harness-01/p4-duo-s0.mp3"
+        },
+        {
+          "text": "规则是静态的，像菜单，只说「应该怎样」；执行是动态的，像厨师，真的动手做。",
+          "audio": "audio/harness-01/p4-duo-s1.mp3"
+        },
+        {
+          "text": "模型只会输出文字，没有手，harness 的执行部分就是替它动手的那双手。",
+          "audio": "audio/harness-01/p4-duo-s2.mp3"
+        },
+        {
+          "text": "规则加执行，合起来才是完整的 harness——缺一样都动不起来。",
+          "audio": "audio/harness-01/p4-duo-s3.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "rise",
+          "target": "card-left",
+          "after_sentence": 1
+        },
+        {
+          "effect": "rise",
+          "target": "card-right",
+          "after_sentence": 1
+        },
+        {
+          "effect": "rise",
+          "target": "conclusion",
+          "after_sentence": 3
+        },
+        {
+          "effect": "pulse",
+          "target": "conclusion",
+          "after_sentence": 3
+        }
+      ],
+      "checkpoint": {
+        "question": "「规则」和「执行」差在哪？为什么说 harness 缺一个都不行？",
+        "hint": null,
+        "pass_rule": "能说出规则=静态说明/菜单、执行=动态动手/厨师，且 harness 需要两者结合；只答出其中一面算不完整"
+      }
+    },
+    {
+      "id": "p5-code",
+      "eyebrow": "眼见为实",
+      "title": "最小 harness 长这样",
+      "content": {
+        "kind": "code",
+        "language": "python",
+        "lines": [
+          {
+            "code": "while not done:",
+            "comment": "循环 → 你写",
+            "highlight": null
+          },
+          {
+            "code": "    resp = llm(messages)",
+            "comment": "决策 → LLM",
+            "highlight": "llm"
+          },
+          {
+            "code": "    cmd = parse(resp)",
+            "comment": "解析 → 你写",
+            "highlight": "harness"
+          },
+          {
+            "code": "    result = execute(cmd)",
+            "comment": "执行 → 你写",
+            "highlight": "harness"
+          },
+          {
+            "code": "    messages.append(result)",
+            "comment": "反馈 → 你写",
+            "highlight": "harness"
+          },
+          {
+            "code": "    done = check(result)",
+            "comment": "终止 → 你写",
+            "highlight": "harness"
+          }
+        ],
+        "note": "五行里只有一行是 LLM，其余四行全是 harness。一个 agent 项目约 80% 的代码其实在写 harness"
+      },
+      "script": [
+        {
+          "text": "我们看代码。一个最小的 harness 就是这个 while 循环。",
+          "audio": "audio/harness-01/p5-code-s0.mp3"
+        },
+        {
+          "text": "LLM 负责决策，输出想干什么。",
+          "audio": "audio/harness-01/p5-code-s1.mp3"
+        },
+        {
+          "text": "你写的部分负责解析它说了什么、真的去执行、把结果塞回对话、并判断什么时候停。",
+          "audio": "audio/harness-01/p5-code-s2.mp3"
+        },
+        {
+          "text": "注意看：五行里只有一行是模型，其余四行都是你写的。",
+          "audio": "audio/harness-01/p5-code-s3.mp3"
+        },
+        {
+          "text": "这就是为什么说 agent 项目百分之八十的代码其实在写 harness。",
+          "audio": "audio/harness-01/p5-code-s4.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "coderise",
+          "target": "line-0",
+          "after_sentence": 0
+        },
+        {
+          "effect": "coderise",
+          "target": "line-1",
+          "after_sentence": 1
+        },
+        {
+          "effect": "coderise",
+          "target": "line-2",
+          "after_sentence": 2
+        },
+        {
+          "effect": "coderise",
+          "target": "line-3",
+          "after_sentence": 2
+        },
+        {
+          "effect": "coderise",
+          "target": "line-4",
+          "after_sentence": 3
+        },
+        {
+          "effect": "coderise",
+          "target": "line-5",
+          "after_sentence": 4
+        }
+      ],
+      "checkpoint": null
+    },
+    {
+      "id": "p6-layers",
+      "eyebrow": "往下一课预告",
+      "title": "harness 内部：三层架构",
+      "content": {
+        "kind": "table",
+        "headers": [
+          "层",
+          "何时存在",
+          "干什么"
+        ],
+        "rows": [
+          [
+            "Scaffolding（搭）",
+            "跑之前（编码期）",
+            "提前摆好的静态材料：工具 / prompt / skills / 配置"
+          ],
+          [
+            "Runtime（跑）",
+            "跑的时候（运行期）",
+            "让材料转起来的发动机：循环 / 解析 / 执行 / 上下文 / 终止"
+          ],
+          [
+            "Eval（验）",
+            "全流程",
+            "拿一批任务反复测：真做对了吗？有没有退步？"
+          ]
+        ],
+        "note": "三层不是三个 harness，是同一辆车的造 / 跑 / 验——一个东西的三个阶段"
+      },
+      "script": [
+        {
+          "text": "harness 里面还可以分三层。",
+          "audio": "audio/harness-01/p6-layers-s0.mp3"
+        },
+        {
+          "text": "Scaffolding 是跑之前摆好的材料，Runtime 是跑起来让材料转动的发动机，Eval 是造完之后拿一批任务验证它行不行。",
+          "audio": "audio/harness-01/p6-layers-s1.mp3"
+        },
+        {
+          "text": "用造车来记：造车、开车、年检——同一辆车的三个阶段，不是三辆车。",
+          "audio": "audio/harness-01/p6-layers-s2.mp3"
+        },
+        {
+          "text": "这三层就是下一课的内容。",
+          "audio": "audio/harness-01/p6-layers-s3.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "rowIn",
+          "target": "row-0",
+          "after_sentence": 1
+        },
+        {
+          "effect": "rowIn",
+          "target": "row-1",
+          "after_sentence": 1
+        },
+        {
+          "effect": "rowIn",
+          "target": "row-2",
+          "after_sentence": 1
+        },
+        {
+          "effect": "fadePart",
+          "target": "note",
+          "after_sentence": 3
+        }
+      ],
+      "checkpoint": {
+        "question": "三层各用一句话概括？为什么说它们「不是三个 harness」？",
+        "hint": null,
+        "pass_rule": "三层各自内容大体对（Scaffolding=静态材料/Runtime=运行循环/Eval=批量验证）；能说出「同一东西的三个阶段/同一辆车的造跑验」即通过"
+      }
+    },
+    {
+      "id": "p7-quiz",
+      "eyebrow": "自测 · 学会了吗",
+      "title": "合上课件，你能答上来吗？",
+      "content": {
+        "kind": "quiz",
+        "questions": [
+          "harness、agent、LLM，谁大谁小？用一句话说清关系。",
+          "「规则」和「执行」差在哪？为什么说 harness 缺一个都不行？",
+          "tool / skill 是「执行」吗？（陷阱题）"
+        ]
+      },
+      "script": [
+        {
+          "text": "课程讲完了，来自测三道题。",
+          "audio": "audio/harness-01/p7-quiz-s0.mp3"
+        },
+        {
+          "text": "第一题，三者谁大谁小；第二题，规则和执行的区别。",
+          "audio": "audio/harness-01/p7-quiz-s1.mp3"
+        },
+        {
+          "text": "第三题是个陷阱题：工具和技能是执行的核心零件，但不等于执行——执行还包括调度它们的整套机制。",
+          "audio": "audio/harness-01/p7-quiz-s2.mp3"
+        },
+        {
+          "text": "答不上来就在右边对话框问我，我可以换个讲法再讲一遍。第一课到这里。",
+          "audio": "audio/harness-01/p7-quiz-s3.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "quizIn",
+          "target": "q-0",
+          "after_sentence": 0
+        },
+        {
+          "effect": "quizIn",
+          "target": "q-1",
+          "after_sentence": 1
+        },
+        {
+          "effect": "quizIn",
+          "target": "q-2",
+          "after_sentence": 3
+        }
+      ],
+      "checkpoint": null
+    }
+  ]
+}
