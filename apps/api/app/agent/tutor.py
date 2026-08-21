@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterator
 from pathlib import Path
 
 from app.agent.tools import TOOLS, execute_tool
@@ -70,8 +71,15 @@ def run_tutor(
     history: list[dict],
     course_text: str,
     current_page: str | None,
-) -> tuple[str, list[dict]]:
-    """跑一轮答疑。返回 (最终回答, 工具调用轨迹)。"""
+) -> Iterator[dict]:
+    """跑一轮答疑,以事件流产出(生成器)。
+
+    产出事件:
+      {"type":"tool_call", ...}                     工具执行了(实时告诉前端在查)
+      {"type":"delta","text":..}                    最终答案的一段 token(流式)
+      {"type":"final","answer":..,"tool_calls":[..]} 收尾(给落轨迹用)
+    工具轮的 token 不外发(那是模型思考要不要用工具);仅最终答案轮的文本逐段流式。
+    """
     client = get_llm_client()
     # 动态状态(当前页)放进首条 user 消息,不污染可缓存的 system 前缀
     first_user = question
@@ -82,29 +90,35 @@ def run_tutor(
 
     for turn in range(MAX_TURNS):
         last_turn = turn == MAX_TURNS - 1
-        # 兜底终止的「软着陆」:最后一轮不给工具,逼模型用已查到的信息收尾,
-        # 而不是撞上限硬摔、丢弃前几轮成果。提示并入末条 user 消息的 content
-        # (走到最后一轮时末条必是工具结果 user 消息,不能再另起 user,否则角色不交替)。
+        # 兜底终止的「软着陆」:最后一轮不给工具,逼模型用已查到的信息收尾。
         if last_turn and isinstance(messages[-1].get("content"), list):
             messages[-1]["content"].append({
                 "type": "text",
                 "text": "(已达查询上限,请基于目前已掌握的信息尽力作答;仍不确定的部分如实说明。)",
             })
-        resp = client.messages.create(  # 决策:LLM
+
+        # 流式调用:边收 token 边 yield,结束后取完整消息判 stop_reason
+        answer_parts: list[str] = []
+        with client.messages.stream(
             model=settings.llm_model,
             max_tokens=1024,
             system=build_system(course_text),
             messages=messages,
             tools=[] if last_turn else TOOLS,
-        )
-        if resp.stop_reason != "tool_use":  # 终止:模型不再要工具
-            answer = "".join(b.text for b in resp.content if b.type == "text")
-            return answer, tool_calls
+        ) as stream:
+            for text in stream.text_stream:
+                answer_parts.append(text)
+                yield {"type": "delta", "text": text}
+            final = stream.get_final_message()
 
-        # 解析+执行+回填:模型要的每个工具都真跑一遍,结果塞回去
-        messages.append({"role": "assistant", "content": [b.model_dump() for b in resp.content]})
+        if final.stop_reason != "tool_use":  # 终止:模型不再要工具
+            yield {"type": "final", "answer": "".join(answer_parts), "tool_calls": tool_calls}
+            return
+
+        # 工具轮:解析+执行+回填(此轮的 delta 是模型的思考文字,前端可忽略)
+        messages.append({"role": "assistant", "content": [b.model_dump() for b in final.content]})
         tool_results = []
-        for block in resp.content:
+        for block in final.content:
             if block.type != "tool_use":
                 continue
             t0 = time.time()
@@ -113,18 +127,19 @@ def run_tutor(
                 err = None
             except Exception as e:  # noqa: BLE001 错误回收:工具炸了不拖垮循环
                 result, err = f"(工具执行出错: {e})", str(e)
-            tool_calls.append({
+            tc = {
                 "name": block.name, "args": dict(block.input),
                 "ms": round((time.time() - t0) * 1000), "error": err,
-            })
+            }
+            tool_calls.append(tc)
+            yield {"type": "tool_call", **tc}  # 实时:老师正在查
             tool_results.append(
                 {"type": "tool_result", "tool_use_id": block.id, "content": result}
             )
         messages.append({"role": "user", "content": tool_results})
 
-    # 理论上到不了这里:最后一轮 tools=[] 必产出文本而非 tool_use。
-    # 兜底的兜底,防模型异常只回空:
-    return "(本轮信息有限,请换个更具体的问题再试)", tool_calls
+    fallback = "(本轮信息有限,请换个更具体的问题再试)"
+    yield {"type": "final", "answer": fallback, "tool_calls": tool_calls}
 
 
 def course_text_of(course_id: str) -> str:

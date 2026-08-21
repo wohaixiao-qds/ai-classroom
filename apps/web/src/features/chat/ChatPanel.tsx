@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import Markdown from "react-markdown";
 import type { Course } from "../../types/csl";
 import type { usePlayback } from "../player/usePlayback";
 
@@ -28,7 +29,6 @@ export function ChatPanel({
     if (!q || busy) return;
     setInput("");
     setMsgs((m) => [...m, { role: "user", text: q }]);
-    playback.pause(); // 提问自动暂停课堂
     setBusy(true);
     try {
       const history = msgs.slice(-6).map((m) => ({ role: m.role, content: m.text }));
@@ -59,8 +59,8 @@ export function ChatPanel({
           if (type === "tool_call") {
             assistant.tools?.push({ name: data.name, args: data.args });
             setMsgs((m) => [...m]);
-          } else if (type === "answer") {
-            assistant.text = data.text;
+          } else if (type === "delta") {
+            assistant.text += data.text; // 流式:逐段追加
             setMsgs((m) => [...m]);
           } else if (type === "error") {
             assistant.text = `⚠️ ${data.message}`;
@@ -77,18 +77,8 @@ export function ChatPanel({
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col border-l border-(--line) bg-(--surface2)">
-      <div className="flex items-center justify-between border-b border-(--line) px-4 py-3">
+      <div className="flex items-center border-b border-(--line) px-4 py-3">
         <span className="text-sm font-medium">AI 老师 · 答疑</span>
-        <div>
-          {!playback.state.playing && (
-            <button
-              onClick={playback.play}
-              className="rounded-full bg-(--accent) px-3 py-1 text-xs font-medium text-(--bg)"
-            >
-              ▶ 继续上课
-            </button>
-          )}
-        </div>
       </div>
 
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
@@ -108,15 +98,19 @@ export function ChatPanel({
                 ))}
               </div>
             )}
-            <p
-              className={
-                m.role === "user"
-                  ? "inline-block max-w-[85%] rounded-lg bg-(--accent)/20 px-3 py-2 text-left text-sm"
-                  : "text-sm leading-relaxed"
-              }
-            >
-              {m.text || (busy && i === msgs.length - 1 ? "思考中…" : "")}
-            </p>
+            {m.role === "user" ? (
+              <p className="inline-block max-w-[85%] rounded-lg bg-(--accent)/20 px-3 py-2 text-left text-sm">
+                {m.text}
+              </p>
+            ) : (
+              <div className="chat-md text-sm leading-relaxed">
+                {m.text ? (
+                  <Markdown>{m.text}</Markdown>
+                ) : busy && i === msgs.length - 1 ? (
+                  <span className="muted">思考中…</span>
+                ) : null}
+              </div>
+            )}
           </div>
         ))}
       </div>

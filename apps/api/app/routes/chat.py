@@ -1,8 +1,8 @@
 """答疑路由:POST /api/v1/chat (SSE)。
 
 SSE 约定(按项目规范):事件信封 {type,data,id};心跳;前置校验(校验失败
-返回普通 422,不进入流)。
-事件类型: tool_call(老师正在查) / answer(最终回答) / done(收尾) / error。
+返回普通 404,不进入流)。
+事件类型: tool_call(老师正在查) / delta(答案流式片段) / done(收尾) / error。
 """
 
 from __future__ import annotations
@@ -39,16 +39,15 @@ def chat(req: ChatRequest) -> StreamingResponse:
         yield ": heartbeat-setup\n\n"
         t0 = time.perf_counter()
         try:
-            # v1: 循环整体跑完再回放工具事件+答案(真流式留 P4)
-            answer, tool_calls = run_tutor(req.question, history, course_text, req.current_page)
-            for tc in tool_calls:
+            for ev in run_tutor(req.question, history, course_text, req.current_page):
                 eid += 1
-                yield _sse("tool_call", tc, eid)
-            eid += 1
-            yield _sse("answer", {"text": answer}, eid)
-            trace(req.question, tool_calls, answer, time.perf_counter() - t0)
-            eid += 1
-            yield _sse("done", {"tool_calls": len(tool_calls)}, eid)
+                if ev["type"] == "tool_call":
+                    yield _sse("tool_call", {"name": ev["name"], "args": ev["args"]}, eid)
+                elif ev["type"] == "delta":
+                    yield _sse("delta", {"text": ev["text"]}, eid)
+                elif ev["type"] == "final":
+                    trace(req.question, ev["tool_calls"], ev["answer"], time.perf_counter() - t0)
+                    yield _sse("done", {"tool_calls": len(ev["tool_calls"])}, eid)
         except Exception as e:  # noqa: BLE001 流内错误用 error 事件(头已发出,无法再改状态码)
             eid += 1
             yield _sse("error", {"message": str(e)}, eid)
