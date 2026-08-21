@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import type { Course } from "../../types/csl";
 import type { usePlayback } from "../player/usePlayback";
@@ -9,7 +9,16 @@ interface Msg {
   tools?: { name: string; args: Record<string, unknown> }[];
 }
 
-/** 右侧答疑对话区:提问自动暂停课件,SSE 收 tool_call/answer 事件 */
+interface SessionInfo {
+  id: string;
+  title: string | null;
+  asks: number;
+  updated_at: string;
+}
+
+/** 右侧答疑对话区。
+ *  记忆归后端(SQLite):本组件只持 session_id,不再自己攒历史递给后端。
+ *  与播放解耦:只读 currentPage 让回答贴进度,不控制暂停/续播。 */
 export function ChatPanel({
   course,
   playback,
@@ -20,9 +29,52 @@ export function ChatPanel({
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [showList, setShowList] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const currentPage = course.pages[playback.state.page]?.id ?? null;
+  const sessionKey = `classroom-session-${course.id}`;
+
+  // 恢复上次会话(刷新不丢对话)
+  useEffect(() => {
+    const saved = localStorage.getItem(sessionKey);
+    if (!saved) return;
+    setSessionId(saved);
+    void fetch(`/api/v1/sessions/${saved}`)
+      .then((r) => r.json())
+      .then((d: { turns: { role: string; content: string }[] }) => {
+        setMsgs(
+          (d.turns ?? []).map((t) => ({ role: t.role as Msg["role"], text: t.content })),
+        );
+      })
+      .catch(() => localStorage.removeItem(sessionKey));
+  }, [sessionKey]);
+
+  async function loadSessions() {
+    const d = (await fetch(`/api/v1/sessions?course_id=${course.id}`).then((r) => r.json())) as {
+      sessions: SessionInfo[];
+    };
+    setSessions(d.sessions ?? []);
+  }
+
+  async function switchSession(id: string) {
+    setShowList(false);
+    setSessionId(id);
+    localStorage.setItem(sessionKey, id);
+    const d = (await fetch(`/api/v1/sessions/${id}`).then((r) => r.json())) as {
+      turns: { role: string; content: string }[];
+    };
+    setMsgs((d.turns ?? []).map((t) => ({ role: t.role as Msg["role"], text: t.content })));
+  }
+
+  function newSession() {
+    setShowList(false);
+    setSessionId(null);
+    localStorage.removeItem(sessionKey);
+    setMsgs([]);
+  }
 
   async function ask() {
     const q = input.trim();
@@ -31,7 +83,6 @@ export function ChatPanel({
     setMsgs((m) => [...m, { role: "user", text: q }]);
     setBusy(true);
     try {
-      const history = msgs.slice(-6).map((m) => ({ role: m.role, content: m.text }));
       const resp = await fetch("/api/v1/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -39,7 +90,7 @@ export function ChatPanel({
           course_id: course.id,
           current_page: currentPage,
           question: q,
-          history,
+          session_id: sessionId,
         }),
       });
       const reader = resp.body?.getReader();
@@ -56,7 +107,10 @@ export function ChatPanel({
         for (const raw of events) {
           const type = /^event: (.+)$/m.exec(raw)?.[1];
           const data = JSON.parse(/^data: (.+)$/m.exec(raw)?.[1] ?? "{}");
-          if (type === "tool_call") {
+          if (type === "session") {
+            setSessionId(data.session_id);
+            localStorage.setItem(sessionKey, data.session_id);
+          } else if (type === "tool_call") {
             assistant.tools?.push({ name: data.name, args: data.args });
             setMsgs((m) => [...m]);
           } else if (type === "delta") {
@@ -77,9 +131,48 @@ export function ChatPanel({
 
   return (
     <aside className="flex min-h-0 flex-1 flex-col border-l border-(--line) bg-(--surface2)">
-      <div className="flex items-center border-b border-(--line) px-4 py-3">
+      <div className="flex items-center justify-between border-b border-(--line) px-4 py-3">
         <span className="text-sm font-medium">AI 老师 · 答疑</span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              setShowList(!showList);
+              if (!showList) void loadSessions();
+            }}
+            className="muted rounded px-2 py-1 text-xs hover:text-(--text)"
+            title="历史对话"
+          >
+            ☰
+          </button>
+          <button
+            onClick={newSession}
+            className="muted rounded px-2 py-1 text-xs hover:text-(--text)"
+            title="开一轮新对话"
+          >
+            ＋
+          </button>
+        </div>
       </div>
+
+      {showList && (
+        <div className="max-h-48 overflow-y-auto border-b border-(--line) bg-(--bg)">
+          {sessions.length === 0 && <p className="muted p-3 text-xs">还没有历史对话</p>}
+          {sessions.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => void switchSession(s.id)}
+              className={`block w-full px-3 py-2 text-left text-xs hover:bg-(--surface) ${
+                s.id === sessionId ? "accent" : "muted"
+              }`}
+            >
+              <span className="block truncate">{s.title ?? "(空对话)"}</span>
+              <span className="font-mono opacity-60">
+                {s.asks} 问 · {s.updated_at.slice(5, 16)}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
         {msgs.length === 0 && (
@@ -90,31 +183,31 @@ export function ChatPanel({
         {msgs.map((m, i) => {
           const isLive = busy && i === msgs.length - 1; // 仅"正在生成中"的这条
           return (
-          <div key={i} className={m.role === "user" ? "text-right" : ""}>
-            {/* 工具调用只在生成过程中作为"思考过程"实时展示,答完即隐藏,不留档 */}
-            {isLive && m.tools && m.tools.length > 0 && (
-              <div className="mb-1 space-y-0.5">
-                {m.tools.map((t, j) => (
-                  <p key={j} className="muted font-mono text-xs">
-                    🔍 正在查:{String(Object.values(t.args)[0])}
-                  </p>
-                ))}
-              </div>
-            )}
-            {m.role === "user" ? (
-              <p className="inline-block max-w-[85%] rounded-lg bg-(--accent)/20 px-3 py-2 text-left text-sm">
-                {m.text}
-              </p>
-            ) : (
-              <div className="chat-md text-sm leading-relaxed">
-                {m.text ? (
-                  <Markdown>{m.text}</Markdown>
-                ) : isLive ? (
-                  <span className="muted">思考中…</span>
-                ) : null}
-              </div>
-            )}
-          </div>
+            <div key={i} className={m.role === "user" ? "text-right" : ""}>
+              {/* 工具调用只在生成中作为"思考过程"实时展示,答完即隐藏,不留档 */}
+              {isLive && m.tools && m.tools.length > 0 && (
+                <div className="mb-1 space-y-0.5">
+                  {m.tools.map((t, j) => (
+                    <p key={j} className="muted font-mono text-xs">
+                      🔍 正在查:{String(Object.values(t.args)[0])}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {m.role === "user" ? (
+                <p className="inline-block max-w-[85%] rounded-lg bg-(--accent)/20 px-3 py-2 text-left text-sm">
+                  {m.text}
+                </p>
+              ) : (
+                <div className="chat-md text-sm leading-relaxed">
+                  {m.text ? (
+                    <Markdown>{m.text}</Markdown>
+                  ) : isLive ? (
+                    <span className="muted">思考中…</span>
+                  ) : null}
+                </div>
+              )}
+            </div>
           );
         })}
       </div>

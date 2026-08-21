@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.agent.tutor import course_text_of, run_tutor
+from app.core.memory import ensure_session, list_sessions, new_session, session_history
 from app.core.trace import trace_tutor
 from app.schemas.chat import ChatRequest, GradeRequest
 from app.services.grader import grade_recitation
@@ -33,14 +34,21 @@ def chat(req: ChatRequest) -> StreamingResponse:
     except FileNotFoundError:
         raise HTTPException(404, f"课件不存在: {req.course_id}") from None
 
-    history = [{"role": m.role, "content": m.content} for m in req.history]
+    session_id = ensure_session(req.session_id, req.course_id)
 
     def gen():
         eid = 0
         yield ": heartbeat-setup\n\n"
         t0 = time.perf_counter()
         try:
-            for ev in run_tutor(req.question, history, course_text, req.current_page):
+            yield _sse("session", {"session_id": session_id}, 0)
+            for ev in run_tutor(
+                req.question,
+                course_text,
+                req.current_page,
+                session_id=session_id,
+                course_id=req.course_id,
+            ):
                 eid += 1
                 if ev["type"] == "tool_call":
                     yield _sse("tool_call", {"name": ev["name"], "args": ev["args"]}, eid)
@@ -65,6 +73,24 @@ def chat(req: ChatRequest) -> StreamingResponse:
             yield _sse("error", {"message": str(e)}, eid)
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@router.get("/sessions")
+def sessions(course_id: str) -> dict:
+    """某课程的会话列表(A5 会话管理:切回历史对话)。"""
+    return {"sessions": list_sessions(course_id)}
+
+
+@router.get("/sessions/{session_id}")
+def session_detail(session_id: str) -> dict:
+    """会话历史(仅文本轮,给前端渲染)。"""
+    return {"turns": session_history(session_id)}
+
+
+@router.post("/sessions")
+def create_session(course_id: str) -> dict:
+    """开一轮干净对话。"""
+    return {"session_id": new_session(course_id)}
 
 
 @router.post("/grade")

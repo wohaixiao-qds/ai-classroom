@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     # 课件目录 / 轨迹落盘(Eval 层)
     courses_dir: Path = _API_ROOT / "courses"
     traces_dir: Path = _API_ROOT / "traces"
+    data_dir: Path = _API_ROOT / "data"  # SQLite 等运行时数据(gitignore)
 
     @property
     def llm_api_key(self) -> str:

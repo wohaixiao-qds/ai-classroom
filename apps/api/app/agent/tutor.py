@@ -22,6 +22,7 @@ from pathlib import Path
 from app.agent.tools import TOOLS, execute_tool
 from app.core.config import settings
 from app.core.llm import get_llm_client
+from app.core.memory import append_turn, load_messages
 from app.core.trace import trace_tutor
 
 SYSTEM_PROMPT = """你是「AI 老师」,在学员学习课件时提供答疑。规则:
@@ -72,11 +73,17 @@ def trace(question: str, tool_calls: list[dict], answer: str, elapsed: float) ->
 
 def run_tutor(
     question: str,
-    history: list[dict],
     course_text: str,
     current_page: str | None,
+    *,
+    session_id: str,
+    course_id: str,
 ) -> Iterator[dict]:
     """跑一轮答疑,以事件流产出(生成器)。
+
+    记忆由本函数自己管(Runtime 层持有,不靠前端递纸条):
+      开头 load_messages(session_id) 取历史(含工具块 → 追问时依据还在)
+      结尾 append_turn 落盘本轮问答
 
     产出事件:
       {"type":"tool_call", ...}                     工具执行了(实时告诉前端在查)
@@ -89,7 +96,9 @@ def run_tutor(
     first_user = question
     if current_page:
         first_user = f"[我正在学第「{current_page}」页]\n\n{question}"
+    history = load_messages(session_id)
     messages: list[dict] = [*history, {"role": "user", "content": first_user}]
+    append_turn(session_id, course_id, "user", question, page_id=current_page)
     tool_calls: list[dict] = []
     usage_total = {"input_tokens": 0, "output_tokens": 0, "cache_read": 0}
 
@@ -123,9 +132,11 @@ def run_tutor(
         usage_total["cache_read"] += getattr(u, "cache_read_input_tokens", 0) or 0
 
         if final.stop_reason != "tool_use":  # 终止:模型不再要工具
+            answer = "".join(answer_parts)
+            append_turn(session_id, course_id, "assistant", answer, page_id=current_page)
             yield {
                 "type": "final",
-                "answer": "".join(answer_parts),
+                "answer": answer,
                 "tool_calls": tool_calls,
                 "usage": usage_total,
                 "soft_landed": last_turn,  # 撞 MAX_TURNS 才收尾 = 查不到硬答
@@ -134,7 +145,9 @@ def run_tutor(
             return
 
         # 工具轮:解析+执行+回填(此轮的 delta 是模型的思考文字,前端可忽略)
-        messages.append({"role": "assistant", "content": [b.model_dump() for b in final.content]})
+        assistant_blocks = [b.model_dump() for b in final.content]
+        messages.append({"role": "assistant", "content": assistant_blocks})
+        append_turn(session_id, course_id, "assistant", assistant_blocks, kind="tool_use")
         tool_results = []
         for block in final.content:
             if block.type != "tool_use":
@@ -155,8 +168,10 @@ def run_tutor(
                 {"type": "tool_result", "tool_use_id": block.id, "content": result}
             )
         messages.append({"role": "user", "content": tool_results})
+        append_turn(session_id, course_id, "user", tool_results, kind="tool_result")
 
     fallback = "(本轮信息有限,请换个更具体的问题再试)"
+    append_turn(session_id, course_id, "assistant", fallback, page_id=current_page)
     yield {
         "type": "final",
         "answer": fallback,

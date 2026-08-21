@@ -13,3 +13,6 @@ dist/
 .DS_Store
 .env
 *.mp3
+
+# 运行时数据
+apps/api/data/

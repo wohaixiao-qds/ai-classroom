@@ -14,7 +14,7 @@ class ChatRequest(BaseModel):
     course_id: str  # 课件 id,如 "harness-01"
     current_page: str | None = None  # 学员当前页 id,回答可贴着进度
     question: str = Field(min_length=1, max_length=2000)
-    history: list[ChatMessage] = []  # 最近几轮,前端负责截断
+    session_id: str | None = None  # 会话 id;缺省则后端新建(记忆归后端,前端不递历史)
     source: str = "user"  # user=真实使用 / test=调试(观测统计默认只算 user)
 
 
