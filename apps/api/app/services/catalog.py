@@ -104,13 +104,17 @@ def _scan_todos(research: set[str]) -> list[TodoItem]:
     if not root.exists():
         return todos
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if not _skip(d) and d not in _EXCLUDE_DIRS]
+        dirnames[:] = sorted(d for d in dirnames if not _skip(d) and d not in _EXCLUDE_DIRS)
         for fn in sorted(filenames):
             if not fn.endswith(".md") or "待探" not in fn:
                 continue
             full = Path(dirpath) / fn
             area = _area(full, root)
-            for line in full.read_text(encoding="utf-8").splitlines():
+            try:
+                text = full.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue  # 编码/IO 异常不该拖垮整张课表(与 _load_courses/read_traces 同姿态)
+            for line in text.splitlines():
                 m = _TODO_RE.match(line.strip())
                 if not m:
                     continue

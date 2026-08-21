@@ -42,8 +42,14 @@ export function CatalogPage() {
 
   const load = useCallback(() => {
     void fetch("/api/v1/catalog")
-      .then((r) => r.json())
-      .then((d: Catalog) => setCat(d))
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d: Catalog) => {
+        setCat(d);
+        setErr(null); // 成功即清错:一次瞬时抖动不至于把已加载的课表永久卡在失败页
+      })
       .catch((e: unknown) => setErr(String(e)));
   }, []);
 
@@ -52,11 +58,17 @@ export function CatalogPage() {
   }, [load]);
 
   async function act(kind: ActionKind, target: string, label: string) {
-    await fetch("/api/v1/catalog/action", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind, target, label }),
-    });
+    try {
+      const r = await fetch("/api/v1/catalog/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, target, label }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    } catch (e: unknown) {
+      setErr(`操作失败:${String(e)}`);
+      return;
+    }
     load(); // 重取,反映新状态
   }
 
@@ -98,15 +110,16 @@ export function CatalogPage() {
           {cat.notes.map((n) => (
             <button
               key={n.path}
+              type="button"
               disabled={n.requested}
               onClick={() => void act("request_prep", n.path, n.title)}
               className={`${CARD} text-left hover:border-(--accent) disabled:opacity-60`}
             >
-              <p className="muted mb-1 font-mono text-xs">{n.area}</p>
-              <h3 className="mb-1 font-medium">{n.title}</h3>
-              <p className="accent font-mono text-xs">
+              <span className="muted mb-1 block font-mono text-xs">{n.area}</span>
+              <span className="mb-1 block font-medium">{n.title}</span>
+              <span className="accent block font-mono text-xs">
                 {n.requested ? "✓ 已请求备课" : "📝 请老师备课"}
-              </p>
+              </span>
             </button>
           ))}
         </div>
@@ -125,6 +138,7 @@ export function CatalogPage() {
                 <span className="muted ml-2 font-mono text-xs opacity-60">{t.area}</span>
               </div>
               <button
+                type="button"
                 disabled={t.requested}
                 onClick={() => void act("request_research", t.title, t.title)}
                 className="accent shrink-0 text-xs disabled:opacity-60"
@@ -153,12 +167,14 @@ export function CatalogPage() {
                 ) : (
                   <div className="flex gap-4">
                     <button
+                      type="button"
                       onClick={() => void act("confirm_spark", s.key, s.question)}
                       className="accent text-xs"
                     >
                       确认值得学
                     </button>
                     <button
+                      type="button"
                       onClick={() => void act("dismiss_spark", s.key, s.question)}
                       className="muted text-xs hover:text-(--text)"
                     >
