@@ -23,7 +23,7 @@ export function ThemeSwitcher() {
   }, [theme]);
 
   return (
-    <div className="fixed top-4 right-4 z-50 flex gap-1 rounded-full border border-(--line) bg-(--surface) px-2 py-1 text-xs">
+    <div className="flex gap-1 rounded-full border border-(--line) bg-(--surface) px-2 py-1 text-xs">
       {THEMES.map((t) => (
         <button
           key={t.id}
