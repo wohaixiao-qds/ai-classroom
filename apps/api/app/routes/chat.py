@@ -55,6 +55,9 @@ def chat(req: ChatRequest) -> StreamingResponse:
                         tool_calls=ev["tool_calls"],
                         elapsed_s=time.perf_counter() - t0,
                         usage=ev.get("usage"),
+                        soft_landed=ev.get("soft_landed", False),
+                        truncated=ev.get("truncated", False),
+                        source=req.source,
                     )
                     yield _sse("done", {"tool_calls": len(ev["tool_calls"])}, eid)
         except Exception as e:  # noqa: BLE001 流内错误用 error 事件(头已发出,无法再改状态码)

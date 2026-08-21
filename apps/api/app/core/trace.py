@@ -43,19 +43,39 @@ def trace_tutor(
     elapsed_s: float,
     usage: dict | None = None,
     error: str | None = None,
+    soft_landed: bool = False,
+    truncated: bool = False,
+    source: str = "user",
 ) -> None:
-    """答疑一轮的轨迹。searched 字段是衍生候选的判定信号(课件答不了才联网)。"""
+    """答疑一轮的轨迹。
+
+    质量信号(防假性完成用):
+      cited_pages   引用了课件哪几页(空=未引课件)
+      searched      是否联网(也是衍生候选判定信号:课件答不了才联网)
+      grounded      有据:引了课件 或 联网查过
+      tool_error    工具报错过(仍作答则可疑)
+      soft_landed   撞 MAX_TURNS 才收尾(查不到硬答)
+      truncated     撞 max_tokens 被截断
+      source        user=真实使用 / test=调试脚本(避免测试噪音污染统计)
+    """
+    cited = cited_pages(answer)
+    searched = any(t.get("name") == "web_search" for t in tool_calls)
     _append(
         "tutor.jsonl",
         {
+            "source": source,
             "course_id": course_id,
             "page_id": page_id,
             "question": question,
             "answer": answer,
             "answer_len": len(answer),
-            "cited_pages": cited_pages(answer),
+            "cited_pages": cited,
             "tool_calls": tool_calls,
-            "searched": any(t.get("name") == "web_search" for t in tool_calls),
+            "searched": searched,
+            "grounded": bool(cited) or searched,
+            "tool_error": any(t.get("error") for t in tool_calls),
+            "soft_landed": soft_landed,
+            "truncated": truncated,
             "turns": max(1, len(tool_calls)),
             "elapsed_s": round(elapsed_s, 1),
             "usage": usage or {},
@@ -99,4 +119,17 @@ def read_traces(filename: str, limit: int = 200) -> list[dict]:
             out.append(json.loads(line))
         except json.JSONDecodeError:
             continue
+    # 归一化:A3 之前落的旧记录缺新字段,补默认值,免得前端读 undefined.length 崩
+    for r in out:
+        r.setdefault("cited_pages", [])
+        r.setdefault("tool_calls", [])
+        r.setdefault("usage", {})
+        r.setdefault("searched", False)
+        r.setdefault("course_id", "")
+        r.setdefault("page_id", None)
+        r.setdefault("source", "user")
+        r.setdefault("grounded", bool(r.get("cited_pages")) or r.get("searched", False))
+        r.setdefault("tool_error", any(t.get("error") for t in r.get("tool_calls", [])))
+        r.setdefault("soft_landed", False)
+        r.setdefault("truncated", False)
     return out[-limit:][::-1]  # 最新在前

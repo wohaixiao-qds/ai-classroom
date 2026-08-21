@@ -128,6 +128,8 @@ def run_tutor(
                 "answer": "".join(answer_parts),
                 "tool_calls": tool_calls,
                 "usage": usage_total,
+                "soft_landed": last_turn,  # 撞 MAX_TURNS 才收尾 = 查不到硬答
+                "truncated": final.stop_reason == "max_tokens",
             }
             return
 
@@ -160,6 +162,8 @@ def run_tutor(
         "answer": fallback,
         "tool_calls": tool_calls,
         "usage": usage_total,
+        "soft_landed": True,
+        "truncated": False,
     }
 
 

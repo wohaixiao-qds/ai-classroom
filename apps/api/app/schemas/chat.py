@@ -15,6 +15,7 @@ class ChatRequest(BaseModel):
     current_page: str | None = None  # 学员当前页 id,回答可贴着进度
     question: str = Field(min_length=1, max_length=2000)
     history: list[ChatMessage] = []  # 最近几轮,前端负责截断
+    source: str = "user"  # user=真实使用 / test=调试(观测统计默认只算 user)
 
 
 class GradeRequest(BaseModel):
