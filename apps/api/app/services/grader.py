@@ -9,9 +9,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from anthropic import Anthropic
-
 from app.core.config import settings
+from app.core.llm import get_llm_client
 
 GRADE_PROMPT = """你是学习督导,批改学员对刚学内容的复述。严格但鼓励。
 
@@ -50,7 +49,7 @@ def grade_recitation(course_id: str, page_id: str, answer: str) -> dict:
         raise KeyError(msg)
 
     page_content = "\n".join(f"- {s['text']}" for s in page["script"])
-    client = Anthropic(base_url=settings.llm_base_url, api_key=settings.llm_api_key or "not-set")
+    client = get_llm_client()
     prompt = GRADE_PROMPT.format(
         page_content=page_content,
         pass_rule=cp.get("pass_rule") or "核心概念说清即可",

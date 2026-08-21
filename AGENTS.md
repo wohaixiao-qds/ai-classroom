@@ -24,6 +24,8 @@
 4. 后端：router 薄（校验+调 service）；async 路由内禁止阻塞调用
 5. 知识库目录（`/Users/zhangyu/CodeDevelopment/学习知识库`）**只读**
 6. `samples/` 与 `docs/` 已定稿内容不擅改，要改先说明
+7. **Agent 分层**：一个 harness + 多个循环——基础设施（`app/core/` + `app/agent/tools.py` + `trace`）共享一份；每个 agent 是其上装配了不同工具/prompt/终止条件的独立循环，平级放 `app/agent/`。禁止「一个大循环调度所有 agent」（各 agent 节拍不同），也禁止「每个 agent 自建 config/trace」（观测性碎裂）
+8. **工具按 agent 精选装配**：工具实现可共处一地，但暴露给每个 agent 的工具清单（传给 LLM 的 `TOOLS`）必须一份份按需精选。专属工具只进主人的清单——如 `write_csl`/`run_tts` 只给备课，绝不给答疑（防越权改课件 + 防选择困难 + 省 token，即 ACI「动作空间精简」）。共享工具（`read_notes`/`web_search`）由各 agent 各自"点单"列入，不算重复
 
 ## 1.3 技术栈速查
 

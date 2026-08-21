@@ -18,10 +18,9 @@ import json
 import time
 from pathlib import Path
 
-from anthropic import Anthropic
-
 from app.agent.tools import TOOLS, execute_tool
 from app.core.config import settings
+from app.core.llm import get_llm_client
 
 SYSTEM_PROMPT = """你是「AI 老师」,在学员学习课件时提供答疑。规则:
 
@@ -65,7 +64,7 @@ def run_tutor(
     current_page: str | None,
 ) -> tuple[str, list[dict]]:
     """跑一轮答疑。返回 (最终回答, 工具调用轨迹)。"""
-    client = Anthropic(base_url=settings.llm_base_url, api_key=settings.llm_api_key or "not-set")
+    client = get_llm_client()
     messages: list[dict] = [*history, {"role": "user", "content": question}]
     tool_calls: list[dict] = []
 
