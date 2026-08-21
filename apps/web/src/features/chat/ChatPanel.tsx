@@ -87,13 +87,16 @@ export function ChatPanel({
             随时提问——课件内的直接讲,课件外的会联网查,学过的会翻你笔记。
           </p>
         )}
-        {msgs.map((m, i) => (
+        {msgs.map((m, i) => {
+          const isLive = busy && i === msgs.length - 1; // 仅"正在生成中"的这条
+          return (
           <div key={i} className={m.role === "user" ? "text-right" : ""}>
-            {m.tools && m.tools.length > 0 && (
+            {/* 工具调用只在生成过程中作为"思考过程"实时展示,答完即隐藏,不留档 */}
+            {isLive && m.tools && m.tools.length > 0 && (
               <div className="mb-1 space-y-0.5">
                 {m.tools.map((t, j) => (
                   <p key={j} className="muted font-mono text-xs">
-                    🔍 {t.name}({String(Object.values(t.args)[0])})
+                    🔍 正在查:{String(Object.values(t.args)[0])}
                   </p>
                 ))}
               </div>
@@ -106,13 +109,14 @@ export function ChatPanel({
               <div className="chat-md text-sm leading-relaxed">
                 {m.text ? (
                   <Markdown>{m.text}</Markdown>
-                ) : busy && i === msgs.length - 1 ? (
+                ) : isLive ? (
                   <span className="muted">思考中…</span>
                 ) : null}
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="flex gap-2 border-t border-(--line) p-3">

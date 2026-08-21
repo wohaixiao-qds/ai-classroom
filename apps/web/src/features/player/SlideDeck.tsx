@@ -33,8 +33,17 @@ export function SlideDeck({
     onDeck(deck);
     void deck.initialize().then(() => setReady(true));
 
-    // 空格 = 播放/暂停
+    // 空格 = 播放/暂停;焦点在输入类元素(打字中)时让路,不抢按键
+    const isTyping = (t: EventTarget | null) => {
+      const el = t as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName;
+      return (
+        tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable
+      );
+    };
     const onKey = (e: KeyboardEvent) => {
+      if (isTyping(e.target)) return; // 打字中:空格/方向键归输入框
       if (e.code === "Space") {
         e.preventDefault();
         playback.toggle();
