@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.routes.catalog import router as catalog_router
 from app.routes.chat import router as chat_router
 from app.routes.eval import router as eval_router
 
@@ -20,3 +21,4 @@ app.add_middleware(
 
 app.include_router(chat_router)
 app.include_router(eval_router)
+app.include_router(catalog_router)
