@@ -22,5 +22,6 @@ def get_llm_client() -> Anthropic:
         _client = Anthropic(
             base_url=settings.llm_base_url,
             api_key=settings.llm_api_key or "not-set",
+            timeout=60.0,  # 时间维度终止:单次调用超 60s 判死,补 MAX_TURNS(次数)兜不住的盲区
         )
     return _client

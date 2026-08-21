@@ -1,41 +1,48 @@
-"""运行配置:从环境变量读,缺省给本地开发的合理值。
+"""运行配置:从环境变量 / .env 文件读,缺省给本地开发的合理值。
 
-需要的环境变量(见 .env 或 shell):
-- ZHIPU_API_KEY      智谱 API key(Anthropic 兼容接口)
-- SEARCH_API_KEY     搜索 API key(博查)
-- KB_DIR             知识库目录(只读)
+.env 放在 apps/api/.env(已 gitignore),格式:
+    ZHIPU_API_KEY=xxx
+    SEARCH_API_KEY=xxx
+    # KB_DIR=/path/to/vault  # 可选,默认指向学习知识库
 """
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_API_ROOT = Path(__file__).resolve().parent.parent.parent  # apps/api/
 
 
-class Settings(BaseModel):
-    # LLM: 智谱 Anthropic 兼容接口(换 Claude 只改这两行)
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=_API_ROOT / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # LLM: 智谱 Anthropic 兼容接口(换 Claude/Z.ai 只改 base_url)
+    # 国内站: https://open.bigmodel.cn/api/anthropic
+    # 国际站: https://api.z.ai/api/anthropic
     llm_base_url: str = "https://open.bigmodel.cn/api/anthropic"
-    llm_api_key: str = os.environ.get("ZHIPU_API_KEY", "")
+    zhipu_api_key: str = ""  # 环境变量/.env 里的 ZHIPU_API_KEY 自动注入
     llm_model: str = "glm-4.6"
 
     # 搜索(博查)
-    search_api_key: str = os.environ.get("SEARCH_API_KEY", "")
+    search_api_key: str = ""
 
     # 知识库(只读!)
-    kb_dir: Path = Path(
-        os.environ.get(
-            "KB_DIR",
-            "/Users/zhangyu/CodeDevelopment/学习知识库",
-        )
-    )
+    kb_dir: Path = Path("/Users/zhangyu/CodeDevelopment/学习知识库")
 
-    # 课件目录
-    courses_dir: Path = Path(__file__).resolve().parent.parent.parent / "courses"
+    # 课件目录 / 轨迹落盘(Eval 层)
+    courses_dir: Path = _API_ROOT / "courses"
+    traces_dir: Path = _API_ROOT / "traces"
 
-    # 轨迹落盘(Eval 层)
-    traces_dir: Path = Path(__file__).resolve().parent.parent.parent / "traces"
+    @property
+    def llm_api_key(self) -> str:
+        """别名:业务代码用 llm_api_key,环境变量名保持 ZHIPU_API_KEY。"""
+        return self.zhipu_api_key
 
 
 settings = Settings()

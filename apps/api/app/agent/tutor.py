@@ -8,7 +8,7 @@
         messages.append(result)     ← tool_result 回填 (反馈:你写)
         done = check(result)        ← stop_reason != tool_use (终止:你写)
 
-Scaffolding 部分:SYSTEM_PROMPT(教学风格+引用规范) 与 build_context(上下文组装)。
+Scaffolding 部分:SYSTEM_PROMPT(教学风格+引用规范) 与 build_system(上下文组装,固定底料打缓存标记)。
 Eval 部分:轨迹落盘见 trace()。
 """
 
@@ -35,12 +35,20 @@ SYSTEM_PROMPT = """你是「AI 老师」,在学员学习课件时提供答疑。
 MAX_TURNS = 6  # 终止条件之二:防工具调用风暴
 
 
-def build_context(course_text: str, current_page: str | None) -> str:
-    """上下文组装:固定底料在前(缓存友好),动态状态在后。"""
-    ctx = f"## 课件全文\n{course_text}\n"
-    if current_page:
-        ctx += f"\n## 学员当前正在学的页\n{current_page}\n"
-    return ctx
+def build_system(course_text: str) -> list[dict]:
+    """system 拆成多个 block,固定内容在前并打 cache_control 缓存标记。
+
+    只放「每轮都不变」的:身份规范 + 课件全文。动态的当前页不进这里
+    (它跟着对话走,见 run_tutor),否则前缀一变缓存全失效。
+    """
+    return [
+        {"type": "text", "text": SYSTEM_PROMPT},
+        {
+            "type": "text",
+            "text": f"## 课件全文\n{course_text}",
+            "cache_control": {"type": "ephemeral"},  # 智谱不支持则被忽略,不报错
+        },
+    ]
 
 
 def trace(question: str, tool_calls: list[dict], answer: str, elapsed: float) -> None:
@@ -65,16 +73,29 @@ def run_tutor(
 ) -> tuple[str, list[dict]]:
     """跑一轮答疑。返回 (最终回答, 工具调用轨迹)。"""
     client = get_llm_client()
-    messages: list[dict] = [*history, {"role": "user", "content": question}]
+    # 动态状态(当前页)放进首条 user 消息,不污染可缓存的 system 前缀
+    first_user = question
+    if current_page:
+        first_user = f"[我正在学第「{current_page}」页]\n\n{question}"
+    messages: list[dict] = [*history, {"role": "user", "content": first_user}]
     tool_calls: list[dict] = []
 
-    for _ in range(MAX_TURNS):
+    for turn in range(MAX_TURNS):
+        last_turn = turn == MAX_TURNS - 1
+        # 兜底终止的「软着陆」:最后一轮不给工具,逼模型用已查到的信息收尾,
+        # 而不是撞上限硬摔、丢弃前几轮成果。提示并入末条 user 消息的 content
+        # (走到最后一轮时末条必是工具结果 user 消息,不能再另起 user,否则角色不交替)。
+        if last_turn and isinstance(messages[-1].get("content"), list):
+            messages[-1]["content"].append({
+                "type": "text",
+                "text": "(已达查询上限,请基于目前已掌握的信息尽力作答;仍不确定的部分如实说明。)",
+            })
         resp = client.messages.create(  # 决策:LLM
             model=settings.llm_model,
             max_tokens=1024,
-            system=SYSTEM_PROMPT + "\n" + build_context(course_text, current_page),
+            system=build_system(course_text),
             messages=messages,
-            tools=TOOLS,
+            tools=[] if last_turn else TOOLS,
         )
         if resp.stop_reason != "tool_use":  # 终止:模型不再要工具
             answer = "".join(b.text for b in resp.content if b.type == "text")
@@ -101,7 +122,9 @@ def run_tutor(
             )
         messages.append({"role": "user", "content": tool_results})
 
-    return "(达到工具调用上限,请换个更具体的问题)", tool_calls
+    # 理论上到不了这里:最后一轮 tools=[] 必产出文本而非 tool_use。
+    # 兜底的兜底,防模型异常只回空:
+    return "(本轮信息有限,请换个更具体的问题再试)", tool_calls
 
 
 def course_text_of(course_id: str) -> str:
