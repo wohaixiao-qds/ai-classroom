@@ -29,6 +29,8 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
   const advancedRef = useRef<string | null>(null);
   // 当前 audio.src 已加载到哪句:暂停续播时同句原地续放,不重头念
   const loadedRef = useRef<string | null>(null);
+  // 引擎主动翻页标记:置位时 slidechanged 是引擎自己触发的,gotoPage 应忽略
+  const engineNavRef = useRef(false);
 
   const saveProgress = useCallback(
     (p: number, s: number) => {
@@ -45,6 +47,7 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
       const { p } = JSON.parse(saved) as { p: number; s: number };
       if (0 < p && p < course.pages.length) {
         setState((s) => ({ ...s, page: p }));
+        engineNavRef.current = true;
         deck()?.slide(p);
       }
     } catch {
@@ -58,7 +61,18 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
     return a ? `/courses/${a}` : null;
   };
 
-  /** 播放指定句 */
+  /** 第 page 页、讲到第 sentence 句时,累计应显示的 fragment 数(含本句)。
+   * fragment 状态 = 当前句的确定函数——无论顺放/重讲/跳页,都据此精确定位,
+   * 不靠增量 next() 盲推(那会在非线性入口与音频错位)。 */
+  const fragmentCountUpto = useCallback(
+    (page: number, sentence: number) => {
+      const frags = course.pages[page]?.fragments ?? [];
+      return frags.filter((f) => f.with_sentence <= sentence).length;
+    },
+    [course.pages],
+  );
+
+  /** 播放指定句:先把画面精确定位到该句应有的动画状态,再播音频 */
   const playSentence = useCallback(
     (page: number, sentence: number) => {
       const url = audioUrl(page, sentence);
@@ -67,9 +81,10 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
         return;
       }
       if (!audioRef.current) audioRef.current = new Audio();
-      // 「讲到什么,亮什么」:本句开讲前,先触发挂在本句上的动画
-      const frags = course.pages[page]?.fragments.filter((f) => f.with_sentence === sentence) ?? [];
-      for (const _f of frags) deck()?.next();
+      // 「讲到什么,亮什么」+ 精确定位:slide 到本页、fragment 索引 = 累计数-1
+      // (reveal fragment 索引从 0 计,-1 表示一个都不显示)
+      engineNavRef.current = true;
+      deck()?.slide(page, 0, fragmentCountUpto(page, sentence) - 1);
 
       const audio = audioRef.current;
       audio.src = url;
@@ -78,7 +93,7 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
       setState((s) => ({ ...s, playing: true, page, sentence }));
       saveProgress(page, sentence);
     },
-    [course.pages, deck, saveProgress],
+    [deck, fragmentCountUpto, saveProgress],
   );
 
   /** 一句播完后的推进逻辑(引擎心脏) */
@@ -108,9 +123,8 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
       setState((s) => ({ ...s, playing: false }));
       return;
     }
-    deck()?.next();
-    playSentence(page + 1, 0);
-  }, [course.pages, deck, playSentence]);
+    playSentence(page + 1, 0); // playSentence 内部已 slide 到新页并定位动画
+  }, [course.pages, playSentence]);
 
   // 绑定 ended(单一来源)
   useEffect(() => {
@@ -145,25 +159,31 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
     else play();
   }, [pause, play]);
 
-  /** 手动跳页(点目录/键盘翻页后由 slidechanged 同步) */
+  /** 手动跳页(键盘/点目录触发 slidechanged);引擎自己翻页时被 engineNavRef 挡掉 */
   const gotoPage = useCallback(
     (page: number) => {
+      if (engineNavRef.current) {
+        engineNavRef.current = false; // 引擎翻页,消费标记,状态已由 playSentence 管好
+        return;
+      }
+      const wasPlaying = stRef.current.playing;
       audioRef.current?.pause();
       advancedRef.current = null;
       setState((s) => ({ ...s, page, sentence: 0, checkpointOpen: false, playing: false }));
       saveProgress(page, 0);
+      if (wasPlaying) playSentence(page, 0); // 上课中手动翻页 → 从新页接着讲
     },
-    [course.pages, deck, saveProgress],
+    [playSentence, saveProgress],
   );
 
-  /** 重讲本页:句子归零重播(fragments 保持已显示) */
+  /** 重讲本页:playSentence(page,0) 会把 fragment 收回到"只显示第0句应有"并重播 */
   const replayPage = useCallback(() => {
     const { page } = stRef.current;
-    advancedRef.current = null; // 重讲允许句子重新推进
+    advancedRef.current = null;
     playSentence(page, 0);
   }, [playSentence]);
 
-  /** 检查点通过,继续 */
+  /** 检查点通过,继续下一页 */
   const passCheckpoint = useCallback(() => {
     const { page } = stRef.current;
     advancedRef.current = null;
@@ -172,9 +192,8 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
       setState((s) => ({ ...s, playing: false }));
       return;
     }
-    deck()?.next();
     playSentence(page + 1, 0);
-  }, [course.pages.length, deck, playSentence]);
+  }, [course.pages.length, playSentence]);
 
   return { state, play, pause, toggle, gotoPage, replayPage, passCheckpoint };
 }
