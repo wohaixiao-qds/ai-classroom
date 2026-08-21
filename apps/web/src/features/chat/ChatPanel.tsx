@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import Markdown from "react-markdown";
 import type { Course } from "../../types/csl";
 import type { usePlayback } from "../player/usePlayback";
@@ -36,6 +37,45 @@ export function ChatPanel({
 
   const currentPage = course.pages[playback.state.page]?.id ?? null;
   const sessionKey = `classroom-session-${course.id}`;
+
+  /** 把回答里的「课件第N页」变成可点按钮 → 跳到该页(A4) */
+  const linkifyCitations = (nodes: ReactNode[]): ReactNode[] => {
+    const out: ReactNode[] = [];
+    nodes.forEach((node, k) => {
+      if (typeof node !== "string") {
+        out.push(node);
+        return;
+      }
+      node.split(/(课件第\s*\d+\s*页)/g).forEach((seg, j) => {
+        const m = /^课件第\s*(\d+)\s*页$/.exec(seg);
+        if (!m) {
+          if (seg) out.push(seg);
+          return;
+        }
+        const pageNo = Number(m[1]);
+        out.push(
+          <button
+            key={`${k}-${j}`}
+            onClick={() => playback.jumpToPage(pageNo - 1)}
+            className="accent underline decoration-dotted hover:decoration-solid"
+            title={`跳到第 ${pageNo} 页`}
+          >
+            {seg}
+          </button>,
+        );
+      });
+    });
+    return out;
+  };
+
+  const mdComponents = {
+    p: ({ children }: { children?: ReactNode }) => (
+      <p>{linkifyCitations(Array.isArray(children) ? children : [children])}</p>
+    ),
+    li: ({ children }: { children?: ReactNode }) => (
+      <li>{linkifyCitations(Array.isArray(children) ? children : [children])}</li>
+    ),
+  };
 
   // 恢复上次会话(刷新不丢对话)
   useEffect(() => {
@@ -201,7 +241,7 @@ export function ChatPanel({
               ) : (
                 <div className="chat-md text-sm leading-relaxed">
                   {m.text ? (
-                    <Markdown>{m.text}</Markdown>
+                    <Markdown components={mdComponents}>{m.text}</Markdown>
                   ) : isLive ? (
                     <span className="muted">思考中…</span>
                   ) : null}

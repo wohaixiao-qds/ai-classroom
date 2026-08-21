@@ -183,6 +183,20 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
     playSentence(page, 0);
   }, [playSentence]);
 
+  /** 跳到指定页(答疑引用「课件第N页」点击用):停播、定位画面到该页开头 */
+  const jumpToPage = useCallback(
+    (page: number) => {
+      if (page < 0 || page >= course.pages.length) return;
+      audioRef.current?.pause();
+      advancedRef.current = null;
+      engineNavRef.current = true;
+      deck()?.slide(page, 0, fragmentCountUpto(page, 0) - 1);
+      setState((s) => ({ ...s, page, sentence: 0, checkpointOpen: false, playing: false }));
+      saveProgress(page, 0);
+    },
+    [course.pages.length, deck, fragmentCountUpto, saveProgress],
+  );
+
   /** 检查点通过,继续下一页 */
   const passCheckpoint = useCallback(() => {
     const { page } = stRef.current;
@@ -195,5 +209,5 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
     playSentence(page + 1, 0);
   }, [course.pages.length, playSentence]);
 
-  return { state, play, pause, toggle, gotoPage, replayPage, passCheckpoint };
+  return { state, play, pause, toggle, gotoPage, replayPage, passCheckpoint, jumpToPage };
 }
