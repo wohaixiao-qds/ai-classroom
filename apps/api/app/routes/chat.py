@@ -13,7 +13,8 @@ import time
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.agent.tutor import course_text_of, run_tutor, trace
+from app.agent.tutor import course_text_of, run_tutor
+from app.core.trace import trace_tutor
 from app.schemas.chat import ChatRequest, GradeRequest
 from app.services.grader import grade_recitation
 
@@ -46,7 +47,15 @@ def chat(req: ChatRequest) -> StreamingResponse:
                 elif ev["type"] == "delta":
                     yield _sse("delta", {"text": ev["text"]}, eid)
                 elif ev["type"] == "final":
-                    trace(req.question, ev["tool_calls"], ev["answer"], time.perf_counter() - t0)
+                    trace_tutor(
+                        course_id=req.course_id,
+                        page_id=req.current_page,
+                        question=req.question,
+                        answer=ev["answer"],
+                        tool_calls=ev["tool_calls"],
+                        elapsed_s=time.perf_counter() - t0,
+                        usage=ev.get("usage"),
+                    )
                     yield _sse("done", {"tool_calls": len(ev["tool_calls"])}, eid)
         except Exception as e:  # noqa: BLE001 流内错误用 error 事件(头已发出,无法再改状态码)
             eid += 1

@@ -7,10 +7,12 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 from app.core.config import settings
 from app.core.llm import get_llm_client
+from app.core.trace import trace_grade
 
 GRADE_PROMPT = """你是学习督导,批改学员对刚学内容的复述。严格但鼓励。
 
@@ -55,6 +57,7 @@ def grade_recitation(course_id: str, page_id: str, answer: str) -> dict:
         pass_rule=cp.get("pass_rule") or "核心概念说清即可",
         answer=answer,
     )
+    t0 = time.perf_counter()
     resp = client.messages.create(
         model=settings.llm_model,
         max_tokens=512,
@@ -67,4 +70,12 @@ def grade_recitation(course_id: str, page_id: str, answer: str) -> dict:
     result = json.loads(text)
     if result.get("verdict") not in ("pass", "warn", "fail"):
         result["verdict"] = "warn"
+    trace_grade(
+        course_id=course_id,
+        page_id=page_id,
+        answer=answer,
+        verdict=result["verdict"],
+        comment=result.get("comment", ""),
+        elapsed_s=time.perf_counter() - t0,
+    )
     return result

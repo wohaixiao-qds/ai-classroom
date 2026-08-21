@@ -22,6 +22,7 @@ from pathlib import Path
 from app.agent.tools import TOOLS, execute_tool
 from app.core.config import settings
 from app.core.llm import get_llm_client
+from app.core.trace import trace_tutor
 
 SYSTEM_PROMPT = """你是「AI 老师」,在学员学习课件时提供答疑。规则:
 
@@ -55,17 +56,18 @@ def build_system(course_text: str) -> list[dict]:
 
 
 def trace(question: str, tool_calls: list[dict], answer: str, elapsed: float) -> None:
-    """Eval 层:问答轨迹落盘(JSONL,可复盘:查了什么/引了什么/答了什么)。"""
-    settings.traces_dir.mkdir(exist_ok=True)
-    rec = {
-        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "question": question,
-        "tool_calls": tool_calls,
-        "answer": answer,
-        "elapsed_s": round(elapsed, 1),
-    }
-    with (settings.traces_dir / "tutor.jsonl").open("a", encoding="utf-8") as f:
-        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    """已迁移到 app.core.trace.trace_tutor(带 course_id/page_id/引用页/usage)。
+
+    保留薄壳仅为兼容旧调用;新代码请直接用 core.trace。
+    """
+    trace_tutor(
+        course_id="",
+        page_id=None,
+        question=question,
+        answer=answer,
+        tool_calls=tool_calls,
+        elapsed_s=elapsed,
+    )
 
 
 def run_tutor(
@@ -89,6 +91,7 @@ def run_tutor(
         first_user = f"[我正在学第「{current_page}」页]\n\n{question}"
     messages: list[dict] = [*history, {"role": "user", "content": first_user}]
     tool_calls: list[dict] = []
+    usage_total = {"input_tokens": 0, "output_tokens": 0, "cache_read": 0}
 
     for turn in range(MAX_TURNS):
         last_turn = turn == MAX_TURNS - 1
@@ -113,8 +116,19 @@ def run_tutor(
                 yield {"type": "delta", "text": text}
             final = stream.get_final_message()
 
+        # 累计 token 用量(观测:每问成本 + 缓存是否真命中)
+        u = final.usage
+        usage_total["input_tokens"] += getattr(u, "input_tokens", 0) or 0
+        usage_total["output_tokens"] += getattr(u, "output_tokens", 0) or 0
+        usage_total["cache_read"] += getattr(u, "cache_read_input_tokens", 0) or 0
+
         if final.stop_reason != "tool_use":  # 终止:模型不再要工具
-            yield {"type": "final", "answer": "".join(answer_parts), "tool_calls": tool_calls}
+            yield {
+                "type": "final",
+                "answer": "".join(answer_parts),
+                "tool_calls": tool_calls,
+                "usage": usage_total,
+            }
             return
 
         # 工具轮:解析+执行+回填(此轮的 delta 是模型的思考文字,前端可忽略)
@@ -141,7 +155,12 @@ def run_tutor(
         messages.append({"role": "user", "content": tool_results})
 
     fallback = "(本轮信息有限,请换个更具体的问题再试)"
-    yield {"type": "final", "answer": fallback, "tool_calls": tool_calls}
+    yield {
+        "type": "final",
+        "answer": fallback,
+        "tool_calls": tool_calls,
+        "usage": usage_total,
+    }
 
 
 def course_text_of(course_id: str) -> str:

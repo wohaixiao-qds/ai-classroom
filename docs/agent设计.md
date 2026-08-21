@@ -85,7 +85,8 @@
 
 按严重度：
 
-1. **🔴 上下文缓存名实不符**：`build_context` 注释称「缓存友好」，但把动态的当前页拼进固定前缀、且未加 `cache_control`，缓存实际失效。修法：课件全文独立 system block 加 `cache_control`，当前页挪到 user message。
-2. **🟡 MAX_TURNS 耗尽太粗暴**：直接返回「换个问题」丢弃前几轮成果。修法：最后一轮强制不给工具、让它基于已有信息尽量答。
+1. **🔴→✅ 上下文缓存名实不符（已修，2026-08-21）**：原 `build_context` 注释称「缓存友好」但把动态当前页拼进固定前缀、且未加 `cache_control`。已改为 `build_system` 拆 block + 课件全文打 `cache_control`，当前页移入 user 消息。
+   **实测结论（2026-08-21）**：智谱 GLM **不支持** Anthropic 的 `cache_control` 标记——真实调用返回 `usage.cache_read_input_tokens = 0`。标记被忽略（不报错），结构已正确，**切换到 Claude 时会自动生效**。当前走智谱包月计费，缓存与否不影响成本。
+2. **🟡→✅ MAX_TURNS 耗尽太粗暴（已修）**：末轮 `tools=[]` + 追加提示，软着陆用已有信息作答；另加 60s 单次调用超时补「时间维度」终止盲区。
 3. **🟡 read_notes 隐私边界未设**：全 vault 全文搜，对外（P5）会暴露私人笔记。自用可缓，对外前必修。
-4. **🟢 真流式未做**：SSE 整体跑完才吐 answer（已知债，P4）。
+4. **🟢→✅ 真流式（已做）**：`run_tutor` 改生成器 + `messages.stream` 逐 token yield delta；前端 react-markdown 渲染。
