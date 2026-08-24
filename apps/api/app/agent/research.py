@@ -176,13 +176,17 @@ def _execute(name: str, args: dict[str, Any]) -> str:
 
 
 def _require_search() -> None:
-    """fail-fast:没配搜索 key 就拒绝调研——不产「穿着引文的模型记忆」(2026-08-24 实测踩过)。"""
-    if not settings.search_api_key:
-        msg = (
-            "未配置 SEARCH_API_KEY:联网调研不可用,拒绝产出无据材料。"
-            "请在 apps/api/.env 配置(博查 open.bochaai.com)"
-        )
+    """fail-fast + 真探针:不止查 key 在不在,还真搜一次——把「余额不足/key 无效/网络不通」
+    这类真相在开工前报出来,不让模型带着坏工具在循环里挣扎(2026-08-24 实测踩过)。"""
+    from app.agent.tools import search_provider, web_search
+
+    p = search_provider()
+    if not p:
+        msg = "无可用搜索 provider:请在 apps/api/.env 配 SEARCH_API_KEY(博查)或给智谱账户充值(按量)"
         raise RuntimeError(msg)
+    probe = web_search("connectivity probe")
+    if probe.startswith("(搜索失败") or probe.startswith("(搜索不可用"):
+        raise RuntimeError(f"搜索探针失败({p}):{probe[:150]}")
 
 
 def _user_seed(topic: str) -> str:

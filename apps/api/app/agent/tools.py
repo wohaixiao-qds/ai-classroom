@@ -9,16 +9,15 @@ from __future__ import annotations
 import html as html_mod
 import json
 import re
+import urllib.error
 import urllib.request
 from pathlib import Path
 
 from app.core.config import settings
 
 
-def web_search(query: str) -> str:
+def _bocha_search(query: str) -> str:
     """博查搜索,返回 top 结果的标题/链接/摘要文本。"""
-    if not settings.search_api_key:
-        return "(搜索不可用:未配置 SEARCH_API_KEY。请基于已有知识回答,并注明未经联网核实)"
     req = urllib.request.Request(
         "https://api.bochaai.com/v1/web-search",
         data=json.dumps({"query": query, "count": 5, "summary": True}).encode(),
@@ -28,11 +27,60 @@ def web_search(query: str) -> str:
         },
     )
     with urllib.request.urlopen(req, timeout=15) as resp:
-        data = json.loads(resp.read())
+        data: dict[str, object] = json.loads(resp.read())
     lines = []
-    for i, page in enumerate(data.get("data", {}).get("webPages", {}).get("value", []), 1):
+    for i, page in enumerate(data.get("data", {}).get("webPages", {}).get("value", []), 1):  # type: ignore[union-attr]
         lines.append(f"[{i}] {page.get('name')}\n{page.get('url')}\n{page.get('summary','')[:300]}")
     return "\n\n".join(lines) or "(无搜索结果)"
+
+
+def _zhipu_search(query: str) -> str:
+    """智谱 Web Search(search_std,¥0.01/次,Coding Plan 不含、按量余额计费)。"""
+    req = urllib.request.Request(
+        "https://open.bigmodel.cn/api/paas/v4/web_search",
+        data=json.dumps(
+            {
+                "search_engine": "search_std",
+                "search_query": query[:70],
+                "count": 5,
+                "search_intent": False,
+                "content_size": "medium",
+            }
+        ).encode(),
+        headers={
+            "Authorization": f"Bearer {settings.llm_api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data = json.loads(resp.read())
+    lines = []
+    for i, r in enumerate(data.get("search_result", []), 1):
+        lines.append(f"[{i}] {r.get('title')}\n{r.get('link')}\n{r.get('content','')[:300]}")
+    return "\n\n".join(lines) or "(无搜索结果)"
+
+
+def search_provider() -> str | None:
+    """当前可用的搜索 provider:配了博查 key 用博查,否则智谱 key 复用(按量计费)。"""
+    if settings.search_api_key:
+        return "bocha"
+    if settings.llm_api_key:
+        return "zhipu"
+    return None
+
+
+def web_search(query: str) -> str:
+    """联网搜索(自动选 provider),返回 top 结果的标题/链接/摘要文本。"""
+    p = search_provider()
+    try:
+        if p == "bocha":
+            return _bocha_search(query)
+        if p == "zhipu":
+            return _zhipu_search(query)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()[:200]
+        return f"(搜索失败 HTTP {e.code}:{body}——基于已有知识回答并注明未经核实)"
+    return "(搜索不可用:未配置任何搜索 key。请基于已有知识回答,并注明未经联网核实)"
 
 
 def read_notes(keyword: str) -> str:
