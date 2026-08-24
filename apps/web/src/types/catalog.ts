@@ -1,41 +1,15 @@
-/** 课表(四泳道)类型 —— 手写,镜像后端 app/schemas/catalog.py。
- *  注:gen-types(OpenAPI→TS)管线尚未接入,暂沿用手写约定(同 csl.ts);
- *  接入后本文件应由生成产物替代(边界铁律 2)。 */
+/** 课表类型 —— 从 OpenAPI 生成产物(api.gen.ts)派生,不再手写(边界铁律 2)。
+ *
+ *  重新生成:后端起在 :8100 后运行 `pnpm gen-types`(拉 /openapi.json)。
+ *  历史:B1 阶段这些是手写的;接上 gen-types 管线后改为派生,后端 schema 变更前端自动跟随。
+ */
+import type { components } from "./api.gen";
 
-export interface CourseItem {
-  id: string;
-  title: string;
-  pages: number;
-  checkpoints: number;
-}
+type Schemas = components["schemas"];
 
-export interface NoteItem {
-  title: string;
-  path: string;
-  area: string;
-  requested: boolean;
-}
-
-export interface TodoItem {
-  title: string;
-  area: string;
-  hint: string | null;
-  requested: boolean;
-}
-
-export interface SparkItem {
-  question: string;
-  key: string;
-  page_id: string | null;
-  detail: string | null;
-  confirmed: boolean;
-}
-
-export interface Catalog {
-  learning: CourseItem[];
-  notes: NoteItem[];
-  todo: TodoItem[];
-  sparks: SparkItem[];
-}
-
-export type ActionKind = "confirm_spark" | "dismiss_spark" | "request_prep" | "request_research";
+export type CourseItem = Schemas["CourseItem"];
+export type NoteItem = Schemas["NoteItem"];
+export type TodoItem = Schemas["TodoItem"];
+export type SparkItem = Schemas["SparkItem"];
+export type Catalog = Schemas["Catalog"];
+export type ActionKind = Schemas["CatalogAction"]["kind"];
