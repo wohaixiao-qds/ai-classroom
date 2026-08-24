@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Markdown from "react-markdown";
+import type { components } from "../../types/api.gen";
 import type { Course } from "../../types/csl";
 import type { usePlayback } from "../player/usePlayback";
 
@@ -10,12 +11,9 @@ interface Msg {
   tools?: { name: string; args: Record<string, unknown> }[];
 }
 
-interface SessionInfo {
-  id: string;
-  title: string | null;
-  asks: number;
-  updated_at: string;
-}
+/** 会话类型从 OpenAPI 生成产物派生(边界铁律 2),不再手抄 */
+type SessionInfo = components["schemas"]["SessionInfo"];
+type SessionTurn = components["schemas"]["SessionTurn"];
 
 /** 右侧答疑对话区。
  *  记忆归后端(SQLite):本组件只持 session_id,不再自己攒历史递给后端。
@@ -99,7 +97,7 @@ export function ChatPanel({
     setSessionId(saved);
     void fetch(`/api/v1/sessions/${saved}`)
       .then((r) => r.json())
-      .then((d: { turns: { role: string; content: string }[] }) => {
+      .then((d: { turns: SessionTurn[] }) => {
         setMsgs(
           (d.turns ?? []).map((t) => ({ role: t.role as Msg["role"], text: t.content })),
         );
@@ -119,7 +117,7 @@ export function ChatPanel({
     setSessionId(id);
     localStorage.setItem(sessionKey, id);
     const d = (await fetch(`/api/v1/sessions/${id}`).then((r) => r.json())) as {
-      turns: { role: string; content: string }[];
+      turns: SessionTurn[];
     };
     setMsgs((d.turns ?? []).map((t) => ({ role: t.role as Msg["role"], text: t.content })));
   }

@@ -16,7 +16,13 @@ from fastapi.responses import StreamingResponse
 from app.agent.tutor import course_text_of, run_tutor
 from app.core.memory import ensure_session, list_sessions, new_session, session_history
 from app.core.trace import trace_tutor
-from app.schemas.chat import ChatRequest, GradeRequest
+from app.schemas.chat import (
+    ChatRequest,
+    GradeRequest,
+    SessionCreateResponse,
+    SessionDetailResponse,
+    SessionListResponse,
+)
 from app.services.grader import grade_recitation
 from app.services.self_eval import evaluate_answer
 
@@ -82,19 +88,19 @@ def chat(req: ChatRequest) -> StreamingResponse:
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 
-@router.get("/sessions")
+@router.get("/sessions", response_model=SessionListResponse)
 def sessions(course_id: str) -> dict:
     """某课程的会话列表(A5 会话管理:切回历史对话)。"""
     return {"sessions": list_sessions(course_id)}
 
 
-@router.get("/sessions/{session_id}")
+@router.get("/sessions/{session_id}", response_model=SessionDetailResponse)
 def session_detail(session_id: str) -> dict:
     """会话历史(仅文本轮,给前端渲染)。"""
     return {"turns": session_history(session_id)}
 
 
-@router.post("/sessions")
+@router.post("/sessions", response_model=SessionCreateResponse)
 def create_session(course_id: str) -> dict:
     """开一轮干净对话。"""
     return {"session_id": new_session(course_id)}

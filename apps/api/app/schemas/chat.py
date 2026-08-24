@@ -22,3 +22,33 @@ class GradeRequest(BaseModel):
     course_id: str
     page_id: str
     answer: str = Field(min_length=1, max_length=2000)
+
+
+class SessionInfo(BaseModel):
+    """会话列表项(A5 历史对话)。"""
+
+    id: str
+    title: str | None = None
+    created_at: str
+    updated_at: str
+    asks: int
+
+
+class SessionTurn(BaseModel):
+    """会话详情里的一轮(仅文本轮,给前端渲染)。"""
+
+    role: str
+    content: str
+    ts: str
+
+
+class SessionListResponse(BaseModel):
+    sessions: list[SessionInfo]
+
+
+class SessionDetailResponse(BaseModel):
+    turns: list[SessionTurn]
+
+
+class SessionCreateResponse(BaseModel):
+    session_id: str

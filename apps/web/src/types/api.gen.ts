@@ -307,6 +307,49 @@ export interface components {
              */
             requested: boolean;
         };
+        /** SessionCreateResponse */
+        SessionCreateResponse: {
+            /** Session Id */
+            session_id: string;
+        };
+        /** SessionDetailResponse */
+        SessionDetailResponse: {
+            /** Turns */
+            turns: components["schemas"]["SessionTurn"][];
+        };
+        /**
+         * SessionInfo
+         * @description 会话列表项(A5 历史对话)。
+         */
+        SessionInfo: {
+            /** Id */
+            id: string;
+            /** Title */
+            title?: string | null;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /** Asks */
+            asks: number;
+        };
+        /** SessionListResponse */
+        SessionListResponse: {
+            /** Sessions */
+            sessions: components["schemas"]["SessionInfo"][];
+        };
+        /**
+         * SessionTurn
+         * @description 会话详情里的一轮(仅文本轮,给前端渲染)。
+         */
+        SessionTurn: {
+            /** Role */
+            role: string;
+            /** Content */
+            content: string;
+            /** Ts */
+            ts: string;
+        };
         /**
          * SparkItem
          * @description 刚冒出的:学习中暴露的衍生候选(来源:trace 里 web_search 触发=课件未覆盖)。
@@ -415,9 +458,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SessionListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -448,9 +489,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SessionCreateResponse"];
                 };
             };
             /** @description Validation Error */
@@ -481,9 +520,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SessionDetailResponse"];
                 };
             };
             /** @description Validation Error */
