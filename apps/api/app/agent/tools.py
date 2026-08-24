@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import html as html_mod
 import json
 import re
@@ -27,9 +29,9 @@ def _bocha_search(query: str) -> str:
         },
     )
     with urllib.request.urlopen(req, timeout=15) as resp:
-        data: dict[str, object] = json.loads(resp.read())
+        data: Any = json.loads(resp.read())
     lines = []
-    for i, page in enumerate(data.get("data", {}).get("webPages", {}).get("value", []), 1):  # type: ignore[union-attr]
+    for i, page in enumerate((data.get("data") or {}).get("webPages", {}).get("value", []), 1):
         lines.append(f"[{i}] {page.get('name')}\n{page.get('url')}\n{page.get('summary','')[:300]}")
     return "\n\n".join(lines) or "(无搜索结果)"
 
@@ -53,7 +55,7 @@ def _zhipu_search(query: str) -> str:
         },
     )
     with urllib.request.urlopen(req, timeout=15) as resp:
-        data = json.loads(resp.read())
+        data: Any = json.loads(resp.read())
     lines = []
     for i, r in enumerate(data.get("search_result", []), 1):
         lines.append(f"[{i}] {r.get('title')}\n{r.get('link')}\n{r.get('content','')[:300]}")
