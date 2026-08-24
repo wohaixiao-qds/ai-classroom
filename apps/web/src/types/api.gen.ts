@@ -195,7 +195,7 @@ export interface paths {
         put?: never;
         /**
          * Catalog Action
-         * @description 记录课表点击意图(确认候选 / 请求备课 / 请求调研)。
+         * @description 记录课表点击意图。备课/调研类(M5)顺手派后台任务,按钮即刻变真。
          */
         post: operations["catalog_action_api_v1_catalog_action_post"];
         delete?: never;
@@ -216,6 +216,8 @@ export interface components {
             target: string;
             /** Status */
             status: string;
+            /** Detail */
+            detail?: string | null;
         };
         /**
          * Catalog
@@ -306,6 +308,8 @@ export interface components {
              * @default false
              */
             requested: boolean;
+            /** Status */
+            status?: string | null;
         };
         /** SessionCreateResponse */
         SessionCreateResponse: {
@@ -385,6 +389,8 @@ export interface components {
              * @default false
              */
             requested: boolean;
+            /** Status */
+            status?: string | null;
         };
         /** ValidationError */
         ValidationError: {

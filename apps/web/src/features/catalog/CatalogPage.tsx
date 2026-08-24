@@ -57,6 +57,15 @@ export function CatalogPage() {
     load();
   }, [load]);
 
+  // M5:有任务在跑时轮询刷新(备课/调研是分钟级后台任务)
+  const anyRunning =
+    cat?.notes.some((n) => n.status === "running") || cat?.todo.some((t) => t.status === "running");
+  useEffect(() => {
+    if (!anyRunning) return;
+    const id = setInterval(load, 15000);
+    return () => clearInterval(id);
+  }, [anyRunning, load]);
+
   async function act(kind: ActionKind, target: string, label: string) {
     try {
       const r = await fetch("/api/v1/catalog/action", {
@@ -111,14 +120,22 @@ export function CatalogPage() {
             <button
               key={n.path}
               type="button"
-              disabled={n.requested}
+              disabled={n.requested && n.status !== "failed"}
               onClick={() => void act("request_prep", n.path, n.title)}
               className={`${CARD} text-left hover:border-(--accent) disabled:opacity-60`}
             >
               <span className="muted mb-1 block font-mono text-xs">{n.area}</span>
               <span className="mb-1 block font-medium">{n.title}</span>
               <span className="accent block font-mono text-xs">
-                {n.requested ? "✓ 已请求备课" : "📝 请老师备课"}
+                {n.status === "running"
+                  ? "⏳ 老师正在备课…"
+                  : n.status === "done"
+                    ? "✓ 已出课,进「在学的」"
+                    : n.status === "failed"
+                      ? "⚠️ 备课失败,点此重试"
+                      : n.requested
+                        ? "✓ 已请求备课"
+                        : "📝 请老师备课"}
               </span>
             </button>
           ))}
@@ -139,11 +156,19 @@ export function CatalogPage() {
               </div>
               <button
                 type="button"
-                disabled={t.requested}
+                disabled={t.requested && t.status !== "failed"}
                 onClick={() => void act("request_research", t.title, t.title)}
                 className="accent shrink-0 text-xs disabled:opacity-60"
               >
-                {t.requested ? "✓ 已请求" : "调研"}
+                {t.status === "running"
+                  ? "⏳ 调研备课中…"
+                  : t.status === "done"
+                    ? "✓ 已出课"
+                    : t.status === "failed"
+                      ? "⚠️ 重试"
+                      : t.requested
+                        ? "✓ 已请求"
+                        : "调研"}
               </button>
             </li>
           ))}

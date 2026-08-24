@@ -23,6 +23,7 @@ class NoteItem(BaseModel):
     path: str  # vault 相对路径,如 Agent/harness/03-Runtime/终止条件.md
     area: str  # 所属层级,如 "Agent / harness / Runtime"
     requested: bool = False  # 是否已请求备课
+    status: str | None = None  # M5 执行态:running/done/failed(None=未请求)
 
 
 class TodoItem(BaseModel):
@@ -32,6 +33,7 @@ class TodoItem(BaseModel):
     area: str
     hint: str | None = None
     requested: bool = False  # 是否已请求调研
+    status: str | None = None  # M5 执行态
 
 
 class SparkItem(BaseModel):
@@ -67,4 +69,5 @@ class CatalogAction(BaseModel):
 class ActionResult(BaseModel):
     kind: str
     target: str
-    status: str  # confirmed / dismissed / queued
+    status: str  # confirmed / dismissed / queued / running
+    detail: str | None = None  # 后台执行时的日志路径/产出课件 id

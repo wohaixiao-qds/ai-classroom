@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from typing import Any
 
 from app.core.config import settings
 
@@ -40,6 +41,10 @@ def _conn() -> sqlite3.Connection:
     c = sqlite3.connect(_DB)
     c.row_factory = sqlite3.Row
     c.executescript(_SCHEMA)
+    try:  # 迁移:老表补 detail 列(记录产出课件 id / 失败原因)
+        c.execute("ALTER TABLE catalog_actions ADD COLUMN detail TEXT")
+    except sqlite3.OperationalError:
+        pass  # 已有该列
     return c
 
 
@@ -55,18 +60,32 @@ def record_action(kind: str, target: str, label: str | None = None) -> dict[str,
     return {"kind": kind, "target": target, "status": status}
 
 
-def action_index() -> dict[str, set[str]]:
+def set_status(target: str, status: str, detail: str | None = None) -> None:
+    """更新该 target 最新一条动作的状态(M5 后台执行器回写:running/done/failed)。"""
+    with _conn() as c:
+        row = c.execute(
+            "SELECT id FROM catalog_actions WHERE target=? ORDER BY id DESC LIMIT 1", (target,)
+        ).fetchone()
+        if row:
+            c.execute(
+                "UPDATE catalog_actions SET status=?, detail=? WHERE id=?",
+                (status, detail, row["id"]),
+            )
+
+
+def action_index() -> dict[str, Any]:
     """汇总当前动作状态,供 catalog 组装时给各泳道打标。
 
     spark 的 confirm/dismiss 可来回切,按插入顺序后者覆盖前者;
-    备课/调研只看是否请求过(有 = queued)。
+    备课/调研只看是否请求过(有 = queued),status_of 另给执行态(running/done/failed)。
     """
     confirmed: set[str] = set()
     dismissed: set[str] = set()
     prep: set[str] = set()
     research: set[str] = set()
+    status_of: dict[str, str] = {}
     with _conn() as c:
-        rows = c.execute("SELECT kind, target FROM catalog_actions ORDER BY id").fetchall()
+        rows = c.execute("SELECT kind, target, status FROM catalog_actions ORDER BY id").fetchall()
     for r in rows:
         kind, target = r["kind"], r["target"]
         if kind == "confirm_spark":
@@ -77,6 +96,14 @@ def action_index() -> dict[str, set[str]]:
             dismissed.add(target)
         elif kind == "request_prep":
             prep.add(target)
+            status_of[target] = r["status"]
         elif kind == "request_research":
             research.add(target)
-    return {"confirmed": confirmed, "dismissed": dismissed, "prep": prep, "research": research}
+            status_of[target] = r["status"]
+    return {
+        "confirmed": confirmed,
+        "dismissed": dismissed,
+        "prep": prep,
+        "research": research,
+        "status_of": status_of,
+    }

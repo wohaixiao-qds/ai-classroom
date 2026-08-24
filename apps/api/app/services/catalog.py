@@ -72,7 +72,7 @@ def _load_courses() -> tuple[list[CourseItem], set[str]]:
     return items, covered
 
 
-def _scan_notes(covered: set[str], prep: set[str]) -> list[NoteItem]:
+def _scan_notes(covered: set[str], prep: set[str], status_of: dict[str, str]) -> list[NoteItem]:
     """能学的:有笔记、未被任何课覆盖。"""
     root = settings.kb_dir
     notes: list[NoteItem] = []
@@ -91,13 +91,19 @@ def _scan_notes(covered: set[str], prep: set[str]) -> list[NoteItem]:
             if _norm_path(rel) in covered:
                 continue  # 已被某课覆盖 → 归「在学的」(课卡代表),不重复出现
             notes.append(
-                NoteItem(title=stem, path=rel, area=_area(full, root), requested=rel in prep)
+                NoteItem(
+                    title=stem,
+                    path=rel,
+                    area=_area(full, root),
+                    requested=rel in prep,
+                    status=status_of.get(rel),
+                )
             )
     notes.sort(key=lambda n: n.path)
     return notes
 
 
-def _scan_todos(research: set[str]) -> list[TodoItem]:
+def _scan_todos(research: set[str], status_of: dict[str, str]) -> list[TodoItem]:
     """想学的:各 *待探.md 里未打勾的 `- [ ]` 项,保持文件内顺序(规则二)。"""
     root = settings.kb_dir
     todos: list[TodoItem] = []
@@ -123,7 +129,13 @@ def _scan_todos(research: set[str]) -> list[TodoItem]:
                 title = bold.group(1) if bold else re.split(r"[—(（]", rest, maxsplit=1)[0].strip()
                 hint = _BOLD_RE.sub("", rest).strip(" —(（)）").strip() or None
                 todos.append(
-                    TodoItem(title=title, area=area, hint=hint, requested=title in research)
+                    TodoItem(
+                        title=title,
+                        area=area,
+                        hint=hint,
+                        requested=title in research,
+                        status=status_of.get(title),
+                    )
                 )
     return todos
 
@@ -166,7 +178,7 @@ def build_catalog() -> Catalog:
     courses, covered = _load_courses()
     return Catalog(
         learning=courses,
-        notes=_scan_notes(covered, idx["prep"]),
-        todo=_scan_todos(idx["research"]),
+        notes=_scan_notes(covered, idx["prep"], idx["status_of"]),
+        todo=_scan_todos(idx["research"], idx["status_of"]),
         sparks=_sparks(idx["confirmed"], idx["dismissed"]),
     )
