@@ -83,13 +83,15 @@ _MATERIAL_PROMPT = """你是课题调研员,为课件作者收集一个子题的
                "points": [{{"text": "要点(一句)", "source_id": 1,
                             "quote": "原文关键片段(可选)"}}]}}]}}
 
-硬规则:points 里每条的 source_id 必须是 sources 里出现过的 id;拿不准的内容不要写。"""
+硬规则:points 里每条的 source_id 必须是 sources 里出现过的 id;
+**sources 里每个 url 都必须是你用 fetch_page 实际抓取成功的**(没抓过的网址不许列)——
+有据的意思是「真的读过」,不是「记得有这篇」;拿不准的内容不要写。"""
 
 
 # ---------- 交付物校验(有据硬闸;返回错误清单,空=通过) ----------
 
 
-def validate_framework(d: dict[str, Any]) -> list[str]:
+def validate_framework(d: dict[str, Any], fetched: set[str] | None = None) -> list[str]:
     subs = d.get("subtopics")
     if not isinstance(subs, list) or not subs:
         return ["subtopics 缺失或为空——至少给出 5 个子题"]
@@ -102,7 +104,9 @@ def validate_framework(d: dict[str, Any]) -> list[str]:
     return errs
 
 
-def validate_material(d: dict[str, Any]) -> list[str]:
+def validate_material(d: dict[str, Any], fetched: set[str] | None = None) -> list[str]:
+    """有据硬闸(2026-08-24 升级:外部可验)。fetched=本次循环 fetch_page 实际抓取成功的 URL 集;
+    sources 里任何没抓取过的 URL 都打回——「记得有这篇」不算有据,「真的读过」才算。"""
     srcs = d.get("sources")
     groups = d.get("groups")
     if not isinstance(srcs, list) or not srcs:
@@ -135,6 +139,13 @@ def validate_material(d: dict[str, Any]) -> list[str]:
         errs.append(f"要点只有 {n_points} 条(目标 8~20)——再挖一挖")
     if len(urls) < 3:
         errs.append(f"来源只有 {len(urls)} 个不同 URL(目标≥3)——来源太单薄")
+    if fetched is not None:
+        unverified = sorted(urls - fetched)
+        if unverified:
+            errs.append(
+                "以下来源未经 fetch_page 实际抓取,不许列(有据=真的读过): "
+                + " ".join(unverified[:5])
+            )
     return errs
 
 
@@ -164,6 +175,16 @@ def _execute(name: str, args: dict[str, Any]) -> str:
     return f"(未知工具 {name})"
 
 
+def _require_search() -> None:
+    """fail-fast:没配搜索 key 就拒绝调研——不产「穿着引文的模型记忆」(2026-08-24 实测踩过)。"""
+    if not settings.search_api_key:
+        msg = (
+            "未配置 SEARCH_API_KEY:联网调研不可用,拒绝产出无据材料。"
+            "请在 apps/api/.env 配置(博查 open.bochaai.com)"
+        )
+        raise RuntimeError(msg)
+
+
 def _user_seed(topic: str) -> str:
     """源B:扫 vault 待探清单里与主题相关的未打勾项(用户足迹,只读)。"""
     kb = settings.kb_dir
@@ -187,7 +208,7 @@ def _user_seed(topic: str) -> str:
 
 def _loop(
     prompt: str,
-    validator: Callable[[dict[str, Any]], list[str]],
+    validator: Callable[[dict[str, Any], set[str] | None], list[str]],
     topic: str,
     phase: str,
 ) -> dict[str, Any]:
@@ -219,7 +240,13 @@ def _loop(
                     {"role": "user", "content": "没解析出 JSON。只输出 JSON 本体,不要别的文字。"}
                 )
                 continue
-            errs = validator(d)
+            # 有据硬闸的外部可验面:本次循环 fetch_page 真正抓成功的 URL 集
+            fetched = {
+                str(t["args"].get("url"))
+                for t in tool_calls
+                if t["name"] == "fetch_page" and not t.get("error")
+            }
+            errs = validator(d, fetched)
             if not errs:
                 d["_usage"] = usage
                 trace_research(
@@ -290,6 +317,7 @@ def _save(d: dict[str, Any], filename: str) -> None:
 
 def research_framework(topic: str) -> dict[str, Any]:
     """阶段1:学习框架(双源合流)。产出交用户审——缺口补不补、子题选哪个,人拍板。"""
+    _require_search()
     d = _loop(
         _FRAMEWORK_PROMPT.format(topic=topic, seed=_user_seed(topic)),
         validate_framework,
@@ -302,6 +330,7 @@ def research_framework(topic: str) -> dict[str, Any]:
 
 def research_material(topic: str, subtopic: str) -> dict[str, Any]:
     """阶段2:选定子题的带来源原料(备课 agent 的输入)。"""
+    _require_search()
     d = _loop(
         _MATERIAL_PROMPT.format(topic=topic, subtopic=subtopic),
         validate_material,
