@@ -95,8 +95,11 @@
   - ✅ **M1 校验器升级**:`app/services/csl_validator.py` 进程内校验(error/warn 分级,「第X页缺Y」可执行反馈,讲到什么亮什么机械规则),CLI 薄壳化;mypy strict 零错,harness-01 回归通过(`5f324e4`)
   - ✅ **M2a 找资料 agent**(`369a536`):双源框架(权威地图+用户待探合流)+带来源原料(source_id 硬闸,缺源打回);实测「Agent 解析层」:框架 8 足迹保序+2 地图补缺,原料 26 点/5 权威源。⚠️ 观测:阶段2 fetched=0(只吃搜索摘要没深读原文),M4 打磨时 prompt 要求至少 fetch 2 篇
   - ✅ **M2b 备课 agent**(`da67b3b`):四件工具精选(write_page=upsert-by-id 修错原语);天然收笔 harness 强制终验(客观终止);meta.sources/source_notes 确定性带入。实测「解析层」原料→9页/53句/4检查点课件,浏览器可上;产出**首份 agent 生成课件 parsing-layer**(软着陆一轮暴露工具缺陷→修→二轮通过,trace 全程可复盘)
-  - ✅ **M3 TTS 编译**(`f9ac953`):tts_compile.py 确定性编译器(不进循环,图纸判据);备课收尾自动编译+自动发布前端(埋掉手动 sync 坑)。实测 parsing-layer 53/53 句零失败,浏览器播放/字幕/动画全活
-  - ⏭ M4 端到端验收(一条命令「主题→课件」30 分钟变课件,首跑真主题)→ M5 课表入口接通
+  - ✅ **M3 TTS 编译**(`f9ac953`):tts_compile.py 确定性编译器(不进循环,图纸判据);备课收尾自动编译+自动发布前端(埋掉手动 sync 坑)
+  - ✅ **M4 端到端**(`103419c`):pipeline.py 一条命令「主题→框架→[人审/auto]→原料→课件→音频→发布」;验收首跑真主题 **3.3 分钟**(红线 30)
+  - ✅ **M5 课表入口**(`fe951c0`+`09538d3`):按钮派后台子进程跑管线(executor/job_runner,状态回写 SQLite,前端三态+轮询);source_notes 确定性覆盖保关联。实测:点「工具粒度」备课→课件出炉→自动进「在学的」
+- 🏁 **P2 完成(2026-08-24)**:课表「在学的」4 门课(3 门 agent 生成:parsing-layer / function-calling-stability / tool-granularity),全链(调研→备课→音频→课表归位)自动。**待用户真实使用审校课件质量(人审闸②)**,反馈喂 prompt 打磨
+- ▶️ **下一阶段:P3 找资料+入库**(学习轨迹自动写成 vault 笔记,巩固区留空)或先 P4 打磨,视用户使用反馈定
 - ✅ 收尾已清(2026-08-24):gen-types 管线接上(catalog `59f15bc` + sessions `89b8ac1`;csl.ts 经决策保持手写——稳定的作者态契约,理由注记在文件头)、A4 多页可点(`5349427`)、B2 显示自评瞎编率(`6ecd5be`)、traces/ 移出 git(`05a0c2d`)。**P1/P1.5 收口完成**
 - ⚠️ 长期记账(不阻塞 P2):①A4/ChatPanel 的 typescript-reviewer 屡被中转挡,恢复后补(现以 §3.1 自查+浏览器实测代替);②A6 局限:伪造「课件第N页」假引用会绕过自评 → `self_eval_fabricated` 是下限;③dev 服务器(API :8100 / web :5173)会话结束需重启
 
