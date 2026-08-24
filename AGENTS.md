@@ -92,7 +92,7 @@
 - ✅ P1 后续修复（2026-08-21）：音画时序按句首触发（with_sentence）、暂停原地续放、reveal 主题覆盖、对比度、右侧常驻对话栏、LLM 客户端工厂、上下文缓存名实相符、MAX_TURNS 软着陆、60s 超时、.env 自动加载、**答疑真流式 + markdown 渲染 + 与播放解耦**、窄框排版约束、输入框空格守卫
 - ✅ **P1.5 全部完成（2026-08-21）→ 封版转 P2**:A1 总验收、A3 trace结构化+Eval接口（`410db00`）、B0 路由+B2 观测页（`f5955f0`）、A2 记忆+A5 会话（`7bb70b6`）、A4 引用可点（`a0bb3a5`）、B1 课表四泳道（`53edeae`，浏览器实测）、A6 答案自评（`dcd59ff` + 审查跟进）。答疑 agent 五维（工具/prompt/循环/记忆/观测）打磨闭环 + AI 教室骨架齐活;B1、A6 均过 reviewer
 - ▶️ **下一阶段:P2 备课管线**（见 `docs/设计方案-v1.md`）;开工前先清下方收尾待办
-- ⚠️ 收尾待办:①gen-types(OpenAPI→TS)管线未接,前端类型暂手写(边界铁律2 待补);②A4 多页连写「课件第N页」仅首个可点,且 A4 的 typescript-reviewer 中转故障期没跑成(待补);③A6 已知局限:伪造「课件第N页」假引用会被当有据而跳过自评 → `self_eval_fabricated` 是下限,非「零瞎编」;④B2 观测页可加「自评瞎编率」展示(后端指标已就绪);⑤API 服务器需重启才可用
+- ⚠️ 收尾待办:①gen-types(OpenAPI→TS)管线**已接**(`59f15bc`:`pnpm gen-types` + `api.gen.ts`,catalog 类型已派生);csl.ts、ChatPanel 内联接口待同法迁;②A4 多页连写「课件第N页」仅首个可点,A4 的 typescript-reviewer 待补;③A6 已知局限:伪造假引用会被当有据而跳过自评 → `self_eval_fabricated` 是下限;④B2 观测页可加「自评瞎编率」展示(后端指标已就绪);⑤运行时数据 `traces/tutor.jsonl` 被纳入 git(`7bb70b6`),建议 gitignore + `git rm --cached`;⑥dev 服务器本会话已起(API :8100 / web :5173),会话结束需重启
 
 ---
 
