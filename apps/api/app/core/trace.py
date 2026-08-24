@@ -137,6 +137,35 @@ def trace_research(
     )
 
 
+def trace_prep(
+    *,
+    course_id: str,
+    subtopic: str,
+    pages: int,
+    validate_failures: int,
+    ok: bool,
+    elapsed_s: float,
+    tool_calls: list[dict[str, Any]] | None = None,
+    usage: dict[str, Any] | None = None,
+    error: str | None = None,
+) -> None:
+    """备课一轮的轨迹(M2b)。validate_failures=打回次数,是循环健康度的关键观测。"""
+    _append(
+        "prep.jsonl",
+        {
+            "course_id": course_id,
+            "subtopic": subtopic,
+            "pages": pages,
+            "validate_failures": validate_failures,
+            "tool_calls": tool_calls or [],
+            "ok": ok,
+            "elapsed_s": round(elapsed_s, 1),
+            "usage": usage or {},
+            "error": error,
+        },
+    )
+
+
 def read_traces(filename: str, limit: int = 200) -> list[dict]:
     """读最近 limit 条(观测页用)。坏行跳过,不让一行脏数据毁掉整页。"""
     p: Path = settings.traces_dir / filename

@@ -60,10 +60,21 @@ export interface Page {
   checkpoint: Checkpoint | null;
 }
 
+export interface SourceRef {
+  /** 调研来源(有据可查链路终点;新课走找资料时填,复习课通常为空) */
+  title: string;
+  url: string;
+}
+
 export interface Course {
   id: string;
   title: string;
   scenario: Scenario;
-  meta: { source_notes: string[]; duration_min: number | null; version: number };
+  meta: {
+    source_notes: string[];
+    sources?: SourceRef[];
+    duration_min: number | null;
+    version: number;
+  };
   pages: Page[];
 }

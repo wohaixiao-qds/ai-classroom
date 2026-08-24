@@ -91,8 +91,8 @@ def validate_course(d: dict[str, Any]) -> dict[str, Any]:
         for f in page.fragments:
             if not 0 <= f.with_sentence < n:
                 errors.append(
-                    f"{where}: fragment({f.effect},{f.target}) 挂在第 {f.with_sentence} 句,"
-                    f"但讲稿只有 {n} 句"
+                    f"{where}: fragment({f.effect},{f.target}) 的 with_sentence={f.with_sentence} "
+                    f"越界——0 起算,该页讲稿 {n} 句,合法范围 0~{n - 1}"
                 )
         if page.content.kind in _REVEAL_KINDS and not page.fragments:
             errors.append(
