@@ -12,6 +12,7 @@ vault 只读(边界铁律 5):本模块只 walk/read,绝不写。
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from pathlib import Path
@@ -50,10 +51,44 @@ def _norm_path(rel: str) -> str:
     return "/".join(re.sub(r"^\d+-", "", seg) for seg in rel.split("/"))
 
 
+def _vault_map() -> dict[str, Path]:
+    """知识库 norm 路径 → 真实路径 映射(老课件 source_notes 无编号,靠双方归一对上,同 B1 关联)。"""
+    kb = settings.kb_dir
+    out: dict[str, Path] = {}
+    if not kb.is_dir():
+        return out
+    for dirpath, dirnames, filenames in os.walk(kb):
+        dirnames[:] = sorted(d for d in dirnames if not _skip(d) and d not in _EXCLUDE_DIRS)
+        for fn in filenames:
+            if fn.endswith(".md"):
+                full = Path(dirpath) / fn
+                out[_norm_path(str(full.relative_to(kb)))] = full
+    return out
+
+
+def _derive_topic(source_notes: list[str], vault_map: dict[str, Path]) -> str | None:
+    """课程库分组钥匙:meta.topic 缺失时从 source_notes 实时推导。
+    原料路径(相对/绝对皆可) → 读原料 JSON 的 topic;vault 路径 → 层级名(去编号)。"""
+    for sn in source_notes:
+        if "data/research" in sn:
+            mp = settings.data_dir / "research" / Path(sn).name
+            try:
+                return str(json.loads(mp.read_text(encoding="utf-8"))["topic"])
+            except (OSError, json.JSONDecodeError, KeyError):
+                continue
+        if not Path(sn).is_absolute():
+            real = vault_map.get(_norm_path(sn))
+            if real:
+                parts = real.relative_to(settings.kb_dir).parts[:-1]
+                return " / ".join(re.sub(r"^\d+-", "", p) for p in parts) or None
+    return None
+
+
 def _load_courses() -> tuple[list[CourseItem], set[str]]:
     """扫已出课件 + 收集被覆盖的笔记路径(source_notes)。"""
     items: list[CourseItem] = []
     covered: set[str] = set()
+    vault_map = _vault_map()
     for p in sorted(settings.courses_dir.glob("*.csl.json")):
         try:
             course = Course.model_validate_json(p.read_text(encoding="utf-8"))
@@ -66,9 +101,12 @@ def _load_courses() -> tuple[list[CourseItem], set[str]]:
                 title=course.title,
                 pages=len(course.pages),
                 checkpoints=checkpoints,
+                topic=course.meta.topic or _derive_topic(course.meta.source_notes, vault_map),
             )
         )
         covered.update(_norm_path(sn) for sn in course.meta.source_notes)
+    # 分组序稳定:有主题的按主题排(与 vault 编号天然对齐),未分组垫底
+    items.sort(key=lambda c: (c.topic is None, c.topic or "", c.title))
     return items, covered
 
 

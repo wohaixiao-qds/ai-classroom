@@ -277,6 +277,8 @@ export interface components {
             pages: number;
             /** Checkpoints */
             checkpoints: number;
+            /** Topic */
+            topic?: string | null;
         };
         /** GradeRequest */
         GradeRequest: {

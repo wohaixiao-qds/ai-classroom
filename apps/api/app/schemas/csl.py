@@ -135,6 +135,7 @@ class SourceRef(BaseModel):
 class CourseMeta(BaseModel):
     source_notes: list[str] = []  # 来源笔记（知识库文件名），溯源用
     sources: list[SourceRef] = []  # 调研来源(新课走找资料时带;复习课通常为空)
+    topic: str | None = None  # 所属主题(备课 harness 从材料确定性写入;课程库分组用)
     duration_min: int | None = None
     version: int = 1
 

@@ -73,6 +73,7 @@ export interface Course {
   meta: {
     source_notes: string[];
     sources?: SourceRef[];
+    topic?: string | null; // 所属主题(课程库分组)
     duration_min: number | null;
     version: number;
   };

@@ -94,6 +94,7 @@ def _load(path: Path) -> dict[str, Any] | None:
 def _make_tools(
     material_sources: list[dict[str, Any]],
     material_path: str | None = None,
+    material_topic: str | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
     state: dict[str, Any] = {"course_id": None}
 
@@ -111,6 +112,7 @@ def _make_tools(
             "scenario": scenario,
             "meta": {
                 "source_notes": source_notes,
+                "topic": material_topic,  # 课程库分组钥匙,harness 确定性写入
                 # 来源确定性带入:材料里的调研来源 harness 直接写进 meta.sources(有据链路终点)
                 "sources": [
                     {"title": str(s.get("title", ""))[:80], "url": str(s.get("url", ""))}
@@ -275,6 +277,7 @@ def run_prep(material: dict[str, Any], prev_subtopic: str | None = None) -> dict
     tools, dispatch, state = _make_tools(
         material.get("sources") or [],
         material_path=material.get("_material_path"),
+        material_topic=str(material.get("topic")) or None,
     )
     position = (
         f"本课在「{material.get('topic')}」学习框架中的位置:前一课讲了「{prev_subtopic}」,"

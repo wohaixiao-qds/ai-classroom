@@ -33,28 +33,45 @@ export function LibraryPage() {
   }, []);
 
   if (!courses) return <div className="muted p-8 text-sm">加载中…</div>;
+
+  // 按主题分组(后端已排好序:组首次出现即组序,未分组垫底)
+  const groups: { topic: string; courses: Course[] }[] = [];
+  for (const c of courses) {
+    const t = c.meta.topic ?? "未分组";
+    const g = groups[groups.length - 1];
+    if (g && g.topic === t) g.courses.push(c);
+    else groups.push({ topic: t, courses: [c] });
+  }
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       <h1 className="mb-6 text-2xl font-bold">课程库 · {courses.length} 门</h1>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {courses.map((c) => {
-          const cp = c.pages.filter((p) => p.checkpoint).length;
-          return (
-            <Link
-              key={c.id}
-              to={`/courses/${c.id}`}
-              className="rounded-xl border border-(--line) bg-(--surface) p-5 transition-colors hover:border-(--accent)"
-            >
-              <p className="accent mb-1 font-mono text-xs">✅ 可上课</p>
-              <h2 className="mb-2 text-lg font-medium">{c.title}</h2>
-              <p className="muted font-mono text-xs">
-                {c.pages.length} 页 · {cp} 检查点 · {c.meta.duration_min ?? "—"} 分钟
-              </p>
-              <p className="muted mt-2 truncate text-xs">{c.pages[0]?.eyebrow ?? ""}</p>
-            </Link>
-          );
-        })}
-      </div>
+      {groups.map((g) => (
+        <section key={g.topic} className="mb-8">
+          <h2 className="muted mb-3 font-mono text-xs tracking-wide">
+            {g.topic} · {g.courses.length} 门
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {g.courses.map((c) => {
+              const cp = c.pages.filter((p) => p.checkpoint).length;
+              return (
+                <Link
+                  key={c.id}
+                  to={`/courses/${c.id}`}
+                  className="rounded-xl border border-(--line) bg-(--surface) p-5 transition-colors hover:border-(--accent)"
+                >
+                  <p className="accent mb-1 font-mono text-xs">✅ 可上课</p>
+                  <h3 className="mb-2 text-lg font-medium">{c.title}</h3>
+                  <p className="muted font-mono text-xs">
+                    {c.pages.length} 页 · {cp} 检查点 · {c.meta.duration_min ?? "—"} 分钟
+                  </p>
+                  <p className="muted mt-2 truncate text-xs">{c.pages[0]?.eyebrow ?? ""}</p>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
@@ -87,6 +104,9 @@ export function CourseDetailPage() {
       <Link to="/courses" className="muted text-xs hover:text-(--text)">
         ← 课程库
       </Link>
+      {course.meta.topic && (
+        <p className="muted mt-3 font-mono text-xs">📘 {course.meta.topic}</p>
+      )}
       <div className="mt-3 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{course.title}</h1>

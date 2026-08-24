@@ -14,6 +14,7 @@ class CourseItem(BaseModel):
     title: str
     pages: int
     checkpoints: int
+    topic: str | None = None  # 所属主题(课程库分组;旧课由 source_notes 实时推导)
 
 
 class NoteItem(BaseModel):
