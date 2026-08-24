@@ -38,7 +38,10 @@ export function ChatPanel({
   const currentPage = course.pages[playback.state.page]?.id ?? null;
   const sessionKey = `classroom-session-${course.id}`;
 
-  /** 把回答里的「课件第N页」变成可点按钮 → 跳到该页(A4) */
+  /** 把回答里的「课件第N页」变成可点按钮 → 跳到该页(A4)。
+   *  支持多页连写:「课件第4页和第5页」「课件第4页、第5页」中每个页码都各自可点。 */
+  const CITE_CLUSTER = /(课件第\s*\d+\s*页(?:[、,，和与及\s]*第\s*\d+\s*页)*)/g;
+
   const linkifyCitations = (nodes: ReactNode[]): ReactNode[] => {
     const out: ReactNode[] = [];
     nodes.forEach((node, k) => {
@@ -46,23 +49,35 @@ export function ChatPanel({
         out.push(node);
         return;
       }
-      node.split(/(课件第\s*\d+\s*页)/g).forEach((seg, j) => {
-        const m = /^课件第\s*(\d+)\s*页$/.exec(seg);
-        if (!m) {
+      node.split(CITE_CLUSTER).forEach((seg, j) => {
+        if (!/^课件第\s*\d+\s*页/.test(seg)) {
           if (seg) out.push(seg);
           return;
         }
-        const pageNo = Number(m[1]);
-        out.push(
-          <button
-            key={`${k}-${j}`}
-            onClick={() => playback.jumpToPage(pageNo - 1)}
-            className="accent underline decoration-dotted hover:decoration-solid"
-            title={`跳到第 ${pageNo} 页`}
-          >
-            {seg}
-          </button>,
-        );
+        // seg 是引用簇(可能含多页):每个「第N页」切成按钮,「课件」「和」「、」留作文字
+        const pageRe = /第\s*(\d+)\s*页/g;
+        let last = 0;
+        let i = 0;
+        let m: RegExpExecArray | null = pageRe.exec(seg);
+        while (m !== null) {
+          if (m.index > last) out.push(seg.slice(last, m.index));
+          const pageNo = Number(m[1]);
+          out.push(
+            <button
+              key={`${k}-${j}-${i}`}
+              type="button"
+              onClick={() => playback.jumpToPage(pageNo - 1)}
+              className="accent underline decoration-dotted hover:decoration-solid"
+              title={`跳到第 ${pageNo} 页`}
+            >
+              {m[0]}
+            </button>,
+          );
+          last = m.index + m[0].length;
+          i += 1;
+          m = pageRe.exec(seg);
+        }
+        if (last < seg.length) out.push(seg.slice(last));
       });
     });
     return out;
