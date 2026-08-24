@@ -14,7 +14,6 @@ import sys
 from typing import Any
 
 from app.core.catalog_store import set_status
-from app.core.config import settings
 
 
 def _run() -> str:
@@ -25,7 +24,7 @@ def _run() -> str:
         from app.agent.prep import _material_from_note, run_prep
 
         material = _material_from_note(target)
-        material["_material_path"] = str(settings.kb_dir / target)
+        material["_material_path"] = target  # vault 相对路径,课表关联靠它
         result = run_prep(material)
     elif kind == "request_research":
         from app.agent.prep import run_prep

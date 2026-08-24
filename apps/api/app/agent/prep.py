@@ -101,9 +101,10 @@ def _make_tools(
         p = _course_path(id)
         if p.exists():
             return f"(课件 {id} 已存在,换个 id 或先删旧文件)"
-        # source_notes 语义=材料路径(溯源用);URL 归 meta.sources。harness 确定性补上
-        if material_path and material_path not in source_notes:
-            source_notes = [*source_notes, material_path]
+        # source_notes 语义=材料路径(vault 相对路径或原料文件),溯源/课表关联靠它。
+        # 确定性覆盖:模型爱填小节标题之类的噪音,一律不认(实测踩过)
+        if material_path:
+            source_notes = [material_path]
         course = {
             "id": id,
             "title": title,
@@ -389,7 +390,7 @@ if __name__ == "__main__":
     a = ap.parse_args()
 
     m = _load_material(a.material) if a.material else _material_from_note(a.note)
-    m["_material_path"] = a.material or str(settings.kb_dir / a.note)
+    m["_material_path"] = a.material or a.note  # vault 相对路径,课表关联靠它
     r = run_prep(m, prev_subtopic=a.prev)
     if r["ok"]:
         from app.services.tts_compile import compile_course_audio, publish_courses
