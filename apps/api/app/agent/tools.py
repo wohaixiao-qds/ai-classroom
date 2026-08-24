@@ -1,10 +1,12 @@
 """答疑 Agent 的两个工具:web_search(联网查) 与 read_notes(读知识库)。
+另有 fetch_page(抓网页正文)——找资料 Agent 专用实现(答疑清单不含它,铁律8)。
 
 工具返回纯文本(观测走调用侧的轨迹),异常向上抛由循环做错误回收。
 """
 
 from __future__ import annotations
 
+import html as html_mod
 import json
 import re
 import urllib.request
@@ -53,6 +55,36 @@ def read_notes(keyword: str) -> str:
         if len(hits) >= 8:
             break
     return "\n\n".join(hits) or f"(知识库中没有找到「{keyword}」相关笔记)"
+
+
+def fetch_page(url: str) -> str:
+    """抓网页正文(标准库剥标签,截断防超上下文)。
+
+    返回体强制带 [标题|URL] 头——调用方(找资料 agent)引用内容时一定拿得到出处。
+    """
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "Mozilla/5.0 (compatible; ClassroomResearch/1.0)"}
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        raw = resp.read(2_000_000)
+        ctype = resp.headers.get("content-type", "")
+
+    charset = re.search(r"charset=([\w-]+)", ctype)
+    text_html = raw.decode(charset.group(1) if charset else "utf-8", errors="replace")
+
+    title_match = re.search(r"(?is)<title[^>]*>(.*?)</title>", text_html)
+    title = url
+    if title_match:
+        title = html_mod.unescape(re.sub(r"\s+", " ", title_match.group(1))).strip()[:120]
+
+    # 去脚本/样式/导航类块 → 去标签 → 还原实体 → 压空白
+    body = re.sub(r"(?is)<(script|style|nav|header|footer|svg)[^>]*>.*?</\1>", " ", text_html)
+    body = re.sub(r"(?s)<[^>]+>", " ", body)
+    body = html_mod.unescape(body)
+    body = re.sub(r"[ \t\r]+", " ", body)
+    body = re.sub(r"\n\s*\n+", "\n", body).strip()
+
+    return f"[{title} | {url}]\n{body[:8000]}"
 
 
 # 暴露给 LLM 的工具 schema(Anthropic tools 格式)

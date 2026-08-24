@@ -110,6 +110,33 @@ def trace_grade(
     )
 
 
+def trace_research(
+    *,
+    topic: str,
+    material_path: str,
+    tool_calls: list[dict[str, Any]],
+    ok: bool,
+    elapsed_s: float,
+    usage: dict[str, Any] | None = None,
+    error: str | None = None,
+) -> None:
+    """找资料一轮的轨迹(M2a)。"""
+    _append(
+        "research.jsonl",
+        {
+            "topic": topic,
+            "material_path": material_path,
+            "tool_calls": tool_calls,
+            "searched": sum(1 for t in tool_calls if t.get("name") == "web_search"),
+            "fetched": sum(1 for t in tool_calls if t.get("name") == "fetch_page"),
+            "ok": ok,
+            "elapsed_s": round(elapsed_s, 1),
+            "usage": usage or {},
+            "error": error,
+        },
+    )
+
+
 def read_traces(filename: str, limit: int = 200) -> list[dict]:
     """读最近 limit 条(观测页用)。坏行跳过,不让一行脏数据毁掉整页。"""
     p: Path = settings.traces_dir / filename
