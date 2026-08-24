@@ -61,10 +61,32 @@ def _zhipu_search(query: str) -> str:
     return "\n\n".join(lines) or "(无搜索结果)"
 
 
+def _tavily_search(query: str) -> str:
+    """Tavily(LLM 原生搜索,免费 1000 次/月)。"""
+    req = urllib.request.Request(
+        "https://api.tavily.com/search",
+        data=json.dumps(
+            {"query": query, "max_results": 5, "search_depth": "basic"}
+        ).encode(),
+        headers={
+            "Authorization": f"Bearer {settings.tavily_api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data: Any = json.loads(resp.read())
+    lines = []
+    for i, r in enumerate(data.get("results", []), 1):
+        lines.append(f"[{i}] {r.get('title')}\n{r.get('url')}\n{str(r.get('content',''))[:300]}")
+    return "\n\n".join(lines) or "(无搜索结果)"
+
+
 def search_provider() -> str | None:
-    """当前可用的搜索 provider:配了博查 key 用博查,否则智谱 key 复用(按量计费)。"""
+    """当前可用的搜索 provider:博查 → Tavily → 智谱(按量),谁配了用谁。"""
     if settings.search_api_key:
         return "bocha"
+    if settings.tavily_api_key:
+        return "tavily"
     if settings.llm_api_key:
         return "zhipu"
     return None
@@ -76,6 +98,8 @@ def web_search(query: str) -> str:
     try:
         if p == "bocha":
             return _bocha_search(query)
+        if p == "tavily":
+            return _tavily_search(query)
         if p == "zhipu":
             return _zhipu_search(query)
     except urllib.error.HTTPError as e:
