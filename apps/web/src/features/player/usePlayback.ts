@@ -197,6 +197,23 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
     [course.pages.length, deck, fragmentCountUpto, saveProgress],
   );
 
+  /** 手动定位到本页第 i 句(步进滑杆拖动):停播、画面亮到该句应有的动画状态 */
+  const seekSentence = useCallback(
+    (sentence: number) => {
+      const { page } = stRef.current;
+      const pageData = course.pages[page];
+      if (!pageData || sentence < 0 || sentence >= pageData.script.length) return;
+      audioRef.current?.pause();
+      advancedRef.current = null;
+      engineNavRef.current = true;
+      deck()?.slide(page, 0, fragmentCountUpto(page, sentence) - 1);
+      loadedRef.current = null; // 播放时从该句重念(不续旧音频)
+      setState((s) => ({ ...s, sentence, playing: false, checkpointOpen: false }));
+      saveProgress(page, sentence);
+    },
+    [course.pages, deck, fragmentCountUpto, saveProgress],
+  );
+
   /** 检查点通过,继续下一页 */
   const passCheckpoint = useCallback(() => {
     const { page } = stRef.current;
@@ -209,5 +226,15 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
     playSentence(page + 1, 0);
   }, [course.pages.length, playSentence]);
 
-  return { state, play, pause, toggle, gotoPage, replayPage, passCheckpoint, jumpToPage };
+  return {
+    state,
+    play,
+    pause,
+    toggle,
+    gotoPage,
+    replayPage,
+    passCheckpoint,
+    jumpToPage,
+    seekSentence,
+  };
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { RevealApi } from "reveal.js";
 import { ChatPanel } from "../chat/ChatPanel";
+import { PageSidebar } from "./PageSidebar";
 import { SlideDeck } from "./SlideDeck";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { usePlayback } from "./usePlayback";
@@ -51,7 +52,7 @@ export function ClassroomPage() {
   );
 }
 
-/** 课件加载后挂载:播放引擎在顶层,左课件右对话共享同一节奏源 */
+/** 课件加载后挂载:播放引擎在顶层,左导航+课件+对话共享同一节奏源 */
 function Classroom({
   course,
   getDeck,
@@ -62,8 +63,11 @@ function Classroom({
   onDeck: (d: RevealApi | null) => void;
 }) {
   const playback = usePlayback(course, getDeck);
+  // 边栏折叠/拖宽改变 deck 宽度后,让 reveal 重新排版
+  const relayout = useCallback(() => getDeck()?.layout(), [getDeck]);
   return (
     <div className="flex h-full">
+      <PageSidebar course={course} playback={playback} onLayoutChange={relayout} />
       <div className="relative min-w-0 flex-1">
         <Link
           to="/"
