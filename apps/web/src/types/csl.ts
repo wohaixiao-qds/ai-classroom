@@ -1,5 +1,8 @@
 // CSL 课件类型（与 apps/api/app/schemas/csl.py 镜像）
-// TODO(T5): FastAPI 就绪后,本文件替换为 packages/api-types 的 OpenAPI 生成产物,删除手写副本
+// 为何手写不走 gen-types(2026-08-24 定,取代原 T5 TODO):课件不经 HTTP 端点
+// (前端直接读静态 /courses/*.csl.json),无 OpenAPI 可生成;CSL 是稳定的作者态
+// 契约。后端 schemas/csl.py 一变,记得同步改这份镜像。
+// gen-types 已覆盖走 HTTP 的契约:见 types/api.gen.ts(catalog/sessions)。
 
 export type Scenario = "自学" | "复习" | "对外";
 

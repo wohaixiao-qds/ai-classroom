@@ -92,8 +92,8 @@
 - ✅ P1 后续修复（2026-08-21）：音画时序按句首触发（with_sentence）、暂停原地续放、reveal 主题覆盖、对比度、右侧常驻对话栏、LLM 客户端工厂、上下文缓存名实相符、MAX_TURNS 软着陆、60s 超时、.env 自动加载、**答疑真流式 + markdown 渲染 + 与播放解耦**、窄框排版约束、输入框空格守卫
 - ✅ **P1.5 全部完成（2026-08-21）→ 封版转 P2**:A1 总验收、A3 trace结构化+Eval接口（`410db00`）、B0 路由+B2 观测页（`f5955f0`）、A2 记忆+A5 会话（`7bb70b6`）、A4 引用可点（`a0bb3a5`）、B1 课表四泳道（`53edeae`，浏览器实测）、A6 答案自评（`dcd59ff` + 审查跟进）。答疑 agent 五维（工具/prompt/循环/记忆/观测）打磨闭环 + AI 教室骨架齐活;B1、A6 均过 reviewer
 - ▶️ **下一阶段:P2 备课管线**（见 `docs/设计方案-v1.md`）;开工前先清下方收尾待办
-- ✅ 收尾已清(2026-08-24):gen-types 管线接上(`59f15bc`,catalog 已派生)、A4 多页可点(`5349427`)、B2 显示自评瞎编率(`6ecd5be`)、traces/ 移出 git(`05a0c2d`)
-- ⚠️ 仍待办:①`csl.ts`、ChatPanel 内联接口按 gen-types 同法迁;②A4/ChatPanel 的 typescript-reviewer 屡被中转挡,恢复后补(现以 §3.1 自查+浏览器实测代替);③A6 局限:伪造「课件第N页」假引用会绕过自评 → `self_eval_fabricated` 是下限;④dev 服务器(API :8100 / web :5173)会话结束需重启
+- ✅ 收尾已清(2026-08-24):gen-types 管线接上(catalog `59f15bc` + sessions `89b8ac1`;csl.ts 经决策保持手写——稳定的作者态契约,理由注记在文件头)、A4 多页可点(`5349427`)、B2 显示自评瞎编率(`6ecd5be`)、traces/ 移出 git(`05a0c2d`)。**P1/P1.5 收口完成**
+- ⚠️ 长期记账(不阻塞 P2):①A4/ChatPanel 的 typescript-reviewer 屡被中转挡,恢复后补(现以 §3.1 自查+浏览器实测代替);②A6 局限:伪造「课件第N页」假引用会绕过自评 → `self_eval_fabricated` 是下限;③dev 服务器(API :8100 / web :5173)会话结束需重启
 
 ---
 
