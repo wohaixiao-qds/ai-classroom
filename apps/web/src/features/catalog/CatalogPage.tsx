@@ -39,6 +39,7 @@ function Lane({
 export function CatalogPage() {
   const [cat, setCat] = useState<Catalog | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [newTopic, setNewTopic] = useState("");
 
   const load = useCallback(() => {
     void fetch("/api/v1/catalog")
@@ -81,6 +82,13 @@ export function CatalogPage() {
     load(); // 重取,反映新状态
   }
 
+  function startNewTopic() {
+    const t = newTopic.trim();
+    if (!t) return;
+    setNewTopic("");
+    void act("request_research", t, t); // 新主题入口:调研+备课+音频+发布一条龙
+  }
+
   if (err) {
     return (
       <div className="mx-auto max-w-4xl px-6 py-8">
@@ -99,6 +107,29 @@ export function CatalogPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-8 px-6 py-8">
       <h1 className="text-2xl font-bold">课表 · 学习指挥台</h1>
+
+      {/* 新主题入口:我想学 X → 调研+备课+音频一条龙,出炉自动进「在学的」 */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          startNewTopic();
+        }}
+        className="flex gap-2"
+      >
+        <input
+          value={newTopic}
+          onChange={(e) => setNewTopic(e.target.value)}
+          placeholder="我想学…(新主题,如 MCP / RAG / 编译原理)"
+          className="flex-1 rounded-lg border border-(--line) bg-(--bg) px-3 py-2 text-sm outline-none focus:border-(--accent)"
+        />
+        <button
+          type="submit"
+          disabled={!newTopic.trim()}
+          className="rounded-lg bg-(--accent) px-4 text-sm font-medium text-(--bg) disabled:opacity-40"
+        >
+          开课
+        </button>
+      </form>
 
       <Lane emoji="✅" title="在学的" count={cat.learning.length} hint="已出课,点进课堂">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

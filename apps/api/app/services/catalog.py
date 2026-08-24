@@ -176,9 +176,23 @@ def build_catalog() -> Catalog:
     """组装四泳道。"""
     idx = action_index()
     courses, covered = _load_courses()
+    todo = _scan_todos(idx["research"], idx["status_of"])
+    # 新主题入口:网页输入框发起的调研,主题不在 vault 待探里——并进「想学的」显示
+    known = {t.title for t in todo}
+    extra = [
+        TodoItem(
+            title=target,
+            area="我想学 · 新主题",
+            hint=None,
+            requested=True,
+            status=st,
+        )
+        for target, st in idx["status_of"].items()
+        if target in idx["research"] and target not in known
+    ]
     return Catalog(
         learning=courses,
         notes=_scan_notes(covered, idx["prep"], idx["status_of"]),
-        todo=_scan_todos(idx["research"], idx["status_of"]),
+        todo=[*extra, *todo],
         sparks=_sparks(idx["confirmed"], idx["dismissed"]),
     )
