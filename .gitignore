@@ -16,3 +16,4 @@ dist/
 
 # 运行时数据
 apps/api/data/
+apps/api/traces/

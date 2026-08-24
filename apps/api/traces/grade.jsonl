@@ -1,1 +1,0 @@
-{"ts": "2026-08-21T13:30:05", "course_id": "harness-01", "page_id": "p2-formula", "answer": "agent 等于 LLM 加 harness,LLM 是发动机", "answer_len": 31, "verdict": "warn", "comment": "公式方向（agent = LLM + harness）记对了，这是核心。但既然举了「发动机」这个例子，就必须配套讲清楚“harness是底盘/方向盘”这一层含义，否则只背公式很容易遗忘。", "elapsed_s": 3.8}
