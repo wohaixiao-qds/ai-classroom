@@ -12,6 +12,9 @@ interface Summary {
     tool_error: number;
     soft_landed: number;
     truncated: number;
+    self_eval_checked: number;
+    self_eval_fabricated: number;
+    self_eval_partial: number;
   };
   cost: {
     avg_elapsed_s: number;
@@ -123,6 +126,12 @@ export function EvalPage() {
           <Metric label="软着陆" value={q?.soft_landed ?? "—"} hint="撞查询上限硬答" />
           <Metric label="被截断" value={q?.truncated ?? "—"} warn={(q?.truncated ?? 0) > 0} />
           <Metric label="联网次数" value={q?.searched ?? "—"} />
+          <Metric
+            label="自评瞎编"
+            value={q?.self_eval_fabricated ?? "—"}
+            warn={(q?.self_eval_fabricated ?? 0) > 0}
+            hint={`可疑答案自评判「编造」数(下限);已评 ${q?.self_eval_checked ?? 0} · 存疑 ${q?.self_eval_partial ?? 0}`}
+          />
           <Metric
             label="批改结果"
             value={
