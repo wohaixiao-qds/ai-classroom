@@ -4,12 +4,7 @@
   "scenario": "自学",
   "meta": {
     "source_notes": [
-      "学员笔记：心智模型 A vs B",
-      "学员笔记：SWE-agent 与 Claude Code 流派对比",
-      "学员笔记：Anthropic 2025 官方判据",
-      "学员笔记：复合边界原则",
-      "学员笔记：逃生门策略",
-      "/Users/zhangyu/CodeDevelopment/学习知识库/Agent/01-harness/02-Scaffolding/工具粒度.md"
+      "Agent/01-harness/02-Scaffolding/工具粒度.md"
     ],
     "sources": [],
     "duration_min": null,
