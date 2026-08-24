@@ -57,15 +57,15 @@
       "script": [
         {
           "text": "上一课我们讲了 harness 是什么，它负责给模型提供工具。",
-          "audio": null
+          "audio": "audio/parsing-layer/p1-cover-s0.mp3"
         },
         {
           "text": "但模型输出的是普通文本，工具需要的是结构化参数，谁来负责这个转换？",
-          "audio": null
+          "audio": "audio/parsing-layer/p1-cover-s1.mp3"
         },
         {
           "text": "这就是解析层的工作，它是 Agent 中承上启下的关键组件。",
-          "audio": null
+          "audio": "audio/parsing-layer/p1-cover-s2.mp3"
         }
       ],
       "fragments": [
@@ -93,23 +93,23 @@
       "script": [
         {
           "text": "先看解析层的核心作用，它处理的是模型和工具之间的格式鸿沟。",
-          "audio": null
+          "audio": "audio/parsing-layer/p2-core-formula-s0.mp3"
         },
         {
           "text": "模型生成的是自然语言文本，可能不完整、有幻觉，或者格式不规范。",
-          "audio": null
+          "audio": "audio/parsing-layer/p2-core-formula-s1.mp3"
         },
         {
           "text": "解析层负责把这个非结构化输出，转换成工具可以执行的结构化数据。",
-          "audio": null
+          "audio": "audio/parsing-layer/p2-core-formula-s2.mp3"
         },
         {
           "text": "比如把'查一下明天的天气'这种文本，转换成标准的函数调用参数。",
-          "audio": null
+          "audio": "audio/parsing-layer/p2-core-formula-s3.mp3"
         },
         {
           "text": "所以解析层是 Agent 框架中不可或缺的桥梁组件。",
-          "audio": null
+          "audio": "audio/parsing-layer/p2-core-formula-s4.mp3"
         }
       ],
       "fragments": [
@@ -160,23 +160,23 @@
       "script": [
         {
           "text": "解析层的实现策略主要有两大流派。",
-          "audio": null
+          "audio": "audio/parsing-layer/p3-strategies-duo-s0.mp3"
         },
         {
           "text": "左边是原生函数调用，像 OpenAI 和 Anthropic 提供的 function calling。",
-          "audio": null
+          "audio": "audio/parsing-layer/p3-strategies-duo-s1.mp3"
         },
         {
           "text": "模型直接返回结构化的工具参数，不需要额外解析，格式最稳定。",
-          "audio": null
+          "audio": "audio/parsing-layer/p3-strategies-duo-s2.mp3"
         },
         {
           "text": "右边是通过 prompt 工程引导模型输出 JSON 或 XML 格式。",
-          "audio": null
+          "audio": "audio/parsing-layer/p3-strategies-duo-s3.mp3"
         },
         {
           "text": "这种方式需要验证和容错机制，但适用性更广，不依赖特定模型能力。",
-          "audio": null
+          "audio": "audio/parsing-layer/p3-strategies-duo-s4.mp3"
         }
       ],
       "fragments": [
@@ -203,43 +203,53 @@
         "lines": [
           {
             "code": "from langchain.output_parsers import PydanticOutputParser",
-            "comment": "导入 Pydantic 解析器"
+            "comment": "导入 Pydantic 解析器",
+            "highlight": null
           },
           {
             "code": "from pydantic import BaseModel, Field",
-            "comment": "定义数据模型"
+            "comment": "定义数据模型",
+            "highlight": null
           },
           {
             "code": "",
-            "comment": ""
+            "comment": "",
+            "highlight": null
           },
           {
             "code": "class Action(BaseModel):",
-            "comment": "定义期望的输出结构"
+            "comment": "定义期望的输出结构",
+            "highlight": null
           },
           {
             "code": "    action: str = Field(description=\"工具名称\")",
-            "comment": "字段描述帮助模型理解"
+            "comment": "字段描述帮助模型理解",
+            "highlight": null
           },
           {
             "code": "    input: str = Field(description=\"工具参数\")",
-            "comment": "添加类型和约束"
+            "comment": "添加类型和约束",
+            "highlight": null
           },
           {
             "code": "",
-            "comment": ""
+            "comment": "",
+            "highlight": null
           },
           {
             "code": "parser = PydanticOutputParser(pydantic_object=Action)",
-            "comment": "创建解析器实例"
+            "comment": "创建解析器实例",
+            "highlight": null
           },
           {
             "code": "prompt = parser.get_format_instructions()",
-            "comment": "自动生成格式说明"
+            "comment": "自动生成格式说明",
+            "highlight": null
           },
           {
             "code": "result = parser.parse(model_output)",
-            "comment": "解析并验证模型输出"
+            "comment": "解析并验证模型输出",
+            "highlight": null
           }
         ],
         "note": "LangChain 提供多种内置解析器：JSON、XML、Pydantic、Structured 等"
@@ -247,27 +257,27 @@
       "script": [
         {
           "text": "来看具体的实现，首先是 LangChain 框架。",
-          "audio": null
+          "audio": "audio/parsing-layer/p4-langchain-code-s0.mp3"
         },
         {
           "text": "它提供了多种内置的输出解析器，比如 PydanticOutputParser。",
-          "audio": null
+          "audio": "audio/parsing-layer/p4-langchain-code-s1.mp3"
         },
         {
           "text": "我们先定义一个数据模型，指定字段的类型和描述。",
-          "audio": null
+          "audio": "audio/parsing-layer/p4-langchain-code-s2.mp3"
         },
         {
           "text": "这些描述会自动转换成格式说明，帮助模型理解期望的输出结构。",
-          "audio": null
+          "audio": "audio/parsing-layer/p4-langchain-code-s3.mp3"
         },
         {
           "text": "解析器会自动验证模型输出，不符合 schema 就会报错。",
-          "audio": null
+          "audio": "audio/parsing-layer/p4-langchain-code-s4.mp3"
         },
         {
           "text": "这样就能确保最终传递给工具的数据是可靠且格式正确的。",
-          "audio": null
+          "audio": "audio/parsing-layer/p4-langchain-code-s5.mp3"
         }
       ],
       "fragments": [
@@ -324,59 +334,73 @@
         "lines": [
           {
             "code": "import instructor",
-            "comment": "导入 instructor 库"
+            "comment": "导入 instructor 库",
+            "highlight": null
           },
           {
             "code": "from openai import OpenAI",
-            "comment": ""
+            "comment": "",
+            "highlight": null
           },
           {
             "code": "",
-            "comment": "patch 方式增强客户端"
+            "comment": "patch 方式增强客户端",
+            "highlight": null
           },
           {
             "code": "client = instructor.patch(OpenAI())",
-            "comment": "一行代码启用"
+            "comment": "一行代码启用",
+            "highlight": null
           },
           {
             "code": "",
-            "comment": "定义 Pydantic 模型"
+            "comment": "定义 Pydantic 模型",
+            "highlight": null
           },
           {
             "code": "class UserDetail(BaseModel):",
-            "comment": "期望的输出结构"
+            "comment": "期望的输出结构",
+            "highlight": null
           },
           {
             "code": "    name: str",
-            "comment": "必需字段"
+            "comment": "必需字段",
+            "highlight": null
           },
           {
             "code": "    age: int | None = None",
-            "comment": "可选字段"
+            "comment": "可选字段",
+            "highlight": null
           },
           {
             "code": "",
-            "comment": ""
+            "comment": "",
+            "highlight": null
           },
           {
             "code": "user = client.chat.completions.create(",
-            "comment": "直接返回 Pydantic 对象"
+            "comment": "直接返回 Pydantic 对象",
+            "highlight": null
           },
           {
             "code": "    model=\"gpt-4\",",
-            "comment": ""
+            "comment": "",
+            "highlight": null
           },
           {
             "code": "    messages=[...],",
-            "comment": "正常对话"
+            "comment": "正常对话",
+            "highlight": null
           },
           {
             "code": "    response_model=UserDetail,",
-            "comment": "指定输出模型"
+            "comment": "指定输出模型",
+            "highlight": null
           },
           {
             "code": ")",
-            "comment": ""
+            "comment": "",
+            "highlight": null
           }
         ],
         "note": "Instructor 通过 patch 方式简化 OpenAI/Anthropic 的结构化输出处理"
@@ -384,27 +408,27 @@
       "script": [
         {
           "text": "再看 Instructor 库，它通过 patch 方式让结构化输出更简单。",
-          "audio": null
+          "audio": "audio/parsing-layer/p5-instructor-code-s0.mp3"
         },
         {
           "text": "只需要一行代码就能增强 OpenAI 客户端。",
-          "audio": null
+          "audio": "audio/parsing-layer/p5-instructor-code-s1.mp3"
         },
         {
           "text": "我们定义好 Pydantic 模型后，在调用时直接指定 response_model 参数。",
-          "audio": null
+          "audio": "audio/parsing-layer/p5-instructor-code-s2.mp3"
         },
         {
           "text": "Instructor 会自动处理格式验证、重试和容错，返回的是标准的 Python 对象。",
-          "audio": null
+          "audio": "audio/parsing-layer/p5-instructor-code-s3.mp3"
         },
         {
           "text": "这种方式比纯手写解析逻辑要简洁得多。",
-          "audio": null
+          "audio": "audio/parsing-layer/p5-instructor-code-s4.mp3"
         },
         {
           "text": "特别适合快速原型开发和中小型项目。",
-          "audio": null
+          "audio": "audio/parsing-layer/p5-instructor-code-s5.mp3"
         }
       ],
       "fragments": [
@@ -503,31 +527,31 @@
       "script": [
         {
           "text": "实际使用中，模型输出经常会出现各种问题，需要容错机制。",
-          "audio": null
+          "audio": "audio/parsing-layer/p6-error-handling-table-s0.mp3"
         },
         {
           "text": "第一个是重试机制，解析失败时把错误信息反馈给模型，让它重新生成。",
-          "audio": null
+          "audio": "audio/parsing-layer/p6-error-handling-table-s1.mp3"
         },
         {
           "text": "第二个是降级策略，严格解析失败时，用启发式方法提取部分可用信息。",
-          "audio": null
+          "audio": "audio/parsing-layer/p6-error-handling-table-s2.mp3"
         },
         {
           "text": "第三个是验证机制，用 Pydantic 或 JSON Schema 验证数据完整性。",
-          "audio": null
+          "audio": "audio/parsing-layer/p6-error-handling-table-s3.mp3"
         },
         {
           "text": "第四个是异常提示优化，把技术错误翻译成模型能懂的修正指令。",
-          "audio": null
+          "audio": "audio/parsing-layer/p6-error-handling-table-s4.mp3"
         },
         {
           "text": "完善的容错机制能把解析成功率从 60% 提升到 95% 以上。",
-          "audio": null
+          "audio": "audio/parsing-layer/p6-error-handling-table-s5.mp3"
         },
         {
           "text": "这些策略往往需要组合使用才能达到最佳效果。",
-          "audio": null
+          "audio": "audio/parsing-layer/p6-error-handling-table-s6.mp3"
         }
       ],
       "fragments": [
@@ -580,31 +604,31 @@
       "script": [
         {
           "text": "解析层还需要考虑性能优化，有三个常用策略。",
-          "audio": null
+          "audio": "audio/parsing-layer/p7-optimization-formula-s0.mp3"
         },
         {
           "text": "第一个是流式解析，在模型输出 token 的过程中就增量构建结构化结果。",
-          "audio": null
+          "audio": "audio/parsing-layer/p7-optimization-formula-s1.mp3"
         },
         {
           "text": "这样不用等模型全部生成完，能显著减少端到端延迟。",
-          "audio": null
+          "audio": "audio/parsing-layer/p7-optimization-formula-s2.mp3"
         },
         {
           "text": "第二个是缓存机制，对相似 prompt 的解析模式进行缓存，避免重复解析。",
-          "audio": null
+          "audio": "audio/parsing-layer/p7-optimization-formula-s3.mp3"
         },
         {
           "text": "第三个是并行验证，在模型生成的同时进行增量验证，进一步提升速度。",
-          "audio": null
+          "audio": "audio/parsing-layer/p7-optimization-formula-s4.mp3"
         },
         {
           "text": "优化是在性能和准确性之间找平衡的艺术。",
-          "audio": null
+          "audio": "audio/parsing-layer/p7-optimization-formula-s5.mp3"
         },
         {
           "text": "实际项目中要根据具体场景选择合适的优化策略组合。",
-          "audio": null
+          "audio": "audio/parsing-layer/p7-optimization-formula-s6.mp3"
         }
       ],
       "fragments": [
@@ -673,39 +697,39 @@
       "script": [
         {
           "text": "最后来看看常见挑战和对应的最佳实践。",
-          "audio": null
+          "audio": "audio/parsing-layer/p8-best-practices-table-s0.mp3"
         },
         {
           "text": "第一个挑战是 JSON 格式错误，模型可能缺少引号或有尾随逗号。",
-          "audio": null
+          "audio": "audio/parsing-layer/p8-best-practices-table-s1.mp3"
         },
         {
           "text": "最佳实践是在 prompt 里提供完整的 schema 示例，包含类型说明和约束条件。",
-          "audio": null
+          "audio": "audio/parsing-layer/p8-best-practices-table-s2.mp3"
         },
         {
           "text": "第二个是 Schema 偏移，模型可能忽略必需字段或添加未定义字段。",
-          "audio": null
+          "audio": "audio/parsing-layer/p8-best-practices-table-s3.mp3"
         },
         {
           "text": "用 Few-shot 示例展示期望格式，比纯文字描述效果好得多。",
-          "audio": null
+          "audio": "audio/parsing-layer/p8-best-practices-table-s4.mp3"
         },
         {
           "text": "第三个是嵌套结构处理复杂，成功率通常低于简单结构。",
-          "audio": null
+          "audio": "audio/parsing-layer/p8-best-practices-table-s5.mp3"
         },
         {
           "text": "可以设计渐进式 schema，先解析外层再解析内层。",
-          "audio": null
+          "audio": "audio/parsing-layer/p8-best-practices-table-s6.mp3"
         },
         {
           "text": "最后要记录解析失败率和常见错误模式，用来持续优化 prompt。",
-          "audio": null
+          "audio": "audio/parsing-layer/p8-best-practices-table-s7.mp3"
         },
         {
           "text": "结合这些策略，整体解析成功率可以稳定在 90% 以上。",
-          "audio": null
+          "audio": "audio/parsing-layer/p8-best-practices-table-s8.mp3"
         }
       ],
       "fragments": [
@@ -770,23 +794,23 @@
       "script": [
         {
           "text": "最后来做个自测，看看你对解析层的掌握程度。",
-          "audio": null
+          "audio": "audio/parsing-layer/p9-quiz-s0.mp3"
         },
         {
           "text": "这六个问题覆盖了本课的核心知识点，包括定义、策略、实现工具、容错、优化和最佳实践。",
-          "audio": null
+          "audio": "audio/parsing-layer/p9-quiz-s1.mp3"
         },
         {
           "text": "如果对某个问题不确定，可以回到对应的页面复习一下。",
-          "audio": null
+          "audio": "audio/parsing-layer/p9-quiz-s2.mp3"
         },
         {
           "text": "解析层是 Agent 系统的幕后功臣，掌握了它，你的 Agent 就能更稳定地执行工具调用。",
-          "audio": null
+          "audio": "audio/parsing-layer/p9-quiz-s3.mp3"
         },
         {
           "text": "下一课我们会继续深入 Agent 的其他组件。",
-          "audio": null
+          "audio": "audio/parsing-layer/p9-quiz-s4.mp3"
         }
       ],
       "fragments": [

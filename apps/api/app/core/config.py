@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     data_dir: Path = _API_ROOT / "data"  # SQLite 等运行时数据(gitignore)
 
     @property
+    def web_public_courses(self) -> Path:
+        """前端静态课件目录(vite public):编译产物发布目标。"""
+        return _API_ROOT.parent / "web" / "public" / "courses"
+
+    @property
     def llm_api_key(self) -> str:
         """别名:业务代码用 llm_api_key,环境变量名保持 ZHIPU_API_KEY。"""
         return self.zhipu_api_key

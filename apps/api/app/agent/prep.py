@@ -385,12 +385,15 @@ if __name__ == "__main__":
     g.add_argument("--material", help="找资料产出的原料 JSON 路径(新课)")
     g.add_argument("--note", help="vault 笔记相对路径(复习)")
     ap.add_argument("--prev", help="前置子题名(位置感,开场承接)")
+    ap.add_argument("--no-tts", action="store_true", help="跳过音频编译(调试用)")
     a = ap.parse_args()
 
     m = _load_material(a.material) if a.material else _material_from_note(a.note)
     m["_material_path"] = a.material or str(settings.kb_dir / a.note)
     r = run_prep(m, prev_subtopic=a.prev)
     if r["ok"]:
+        from app.services.tts_compile import compile_course_audio, publish_courses
+
         c = r["course"]
         print(f"\n✅ 课件已交付:courses/{c['id']}.csl.json")
         print(f"   {len(c['pages'])} 页 · {sum(len(p['script']) for p in c['pages'])} 句")
@@ -398,5 +401,11 @@ if __name__ == "__main__":
         srcs = c.get("meta", {}).get("sources", [])
         if srcs:
             print(f"   来源 {len(srcs)} 个(有据可查)")
+        if not a.no_tts:
+            print("\n生成音频(edge-tts,句间限速,稍候)…")
+            done, fail = compile_course_audio(str(c["id"]))
+            print(f"音频: 新生成 {done}, 失败 {fail}")
+        publish_courses()
+        print("前端已就绪,打开课表即可上课")
     else:
         print("\n⚠️ 软着陆:MAX_TURNS 耗尽,当前版本已落盘,人工接着审")
