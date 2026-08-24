@@ -308,7 +308,9 @@ def research_material(topic: str, subtopic: str) -> dict[str, Any]:
         topic,
         f"material:{subtopic}",
     )
-    _save(d, f"{_slug(topic)}.{_slug(subtopic)}.material.json")
+    path = f"{_slug(topic)}.{_slug(subtopic)}.material.json"
+    _save(d, path)
+    d["_material_path"] = str(settings.data_dir / "research" / path)  # 管线往下传
     return d
 
 

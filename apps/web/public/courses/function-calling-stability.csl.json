@@ -1,0 +1,548 @@
+{
+  "id": "function-calling-stability",
+  "title": "Function calling稳定性原理",
+  "scenario": "自学",
+  "meta": {
+    "source_notes": [
+      "https://platform.openai.com/docs/guides/function-calling",
+      "https://platform.openai.com/docs/api-reference/chat/create#chat-create-functions",
+      "https://python.langchain.com/docs/modules/model_io/models/llms/tool_calls",
+      "https://docs.anthropic.com/claude/docs/tool-use",
+      "https://learn.microsoft.com/en-us/semantic-kernel/concepts-ai/function-calling",
+      "/Users/zhangyu/CodeDevelopment/ai-classroom/apps/api/data/research/Agent-解析层.Function-calling稳定性原理.material.json"
+    ],
+    "sources": [
+      {
+        "title": "OpenAI Function Calling Documentation",
+        "url": "https://platform.openai.com/docs/guides/function-calling"
+      },
+      {
+        "title": "OpenAI API Reference: Function Calling",
+        "url": "https://platform.openai.com/docs/api-reference/chat/create#chat-create-functions"
+      },
+      {
+        "title": "LangChain Tool Calling Documentation",
+        "url": "https://python.langchain.com/docs/modules/model_io/models/llms/tool_calls"
+      },
+      {
+        "title": "Anthropic Tool Use Documentation",
+        "url": "https://docs.anthropic.com/claude/docs/tool-use"
+      },
+      {
+        "title": "Semantic Kernel Function Calling",
+        "url": "https://learn.microsoft.com/en-us/semantic-kernel/concepts-ai/function-calling"
+      }
+    ],
+    "duration_min": null,
+    "version": 1
+  },
+  "pages": [
+    {
+      "id": "p1-cover",
+      "eyebrow": "Agent 解析层",
+      "title": "Function calling 稳定性原理",
+      "content": {
+        "kind": "cover",
+        "equation": "LLM自然语言 → 结构化函数调用(参数) → 安全执行",
+        "meta": [
+          [
+            "讲师",
+            "AI 老师"
+          ],
+          [
+            "来源",
+            "OpenAI/LangChain/Anthropic文档"
+          ],
+          [
+            "时长",
+            "约10分钟"
+          ]
+        ]
+      },
+      "script": [
+        {
+          "text": "今天我们讲 Function calling 的稳定性原理。",
+          "audio": "audio/function-calling-stability/p1-cover-s0.mp3"
+        },
+        {
+          "text": "核心公式是 LLM 把自然语言转成结构化函数调用,再安全执行。",
+          "audio": "audio/function-calling-stability/p1-cover-s1.mp3"
+        },
+        {
+          "text": "这是 Agent 解析层的第一课,帮你理解底层机制。",
+          "audio": "audio/function-calling-stability/p1-cover-s2.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "fade",
+          "target": "equation",
+          "with_sentence": 1
+        },
+        {
+          "effect": "rise",
+          "target": "meta",
+          "with_sentence": 2
+        }
+      ],
+      "checkpoint": null
+    },
+    {
+      "id": "p2-core-principle",
+      "eyebrow": "核心原理",
+      "title": "Function calling 是什么",
+      "content": {
+        "kind": "formula",
+        "items": [
+          "LLM接收自然语言输入",
+          "根据tools/functions参数中的schema定义",
+          "生成函数名和参数(仅参数,不执行代码)",
+          "返回结构化调用结果给对话系统"
+        ],
+        "conclusion": "本质:LLM将自然语言映射到预定义函数接口"
+      },
+      "script": [
+        {
+          "text": "Function calling 本质是 LLM 的能力映射。",
+          "audio": "audio/function-calling-stability/p2-core-principle-s0.mp3"
+        },
+        {
+          "text": "它接收自然语言输入,根据我们预定义的 schema 生成函数调用。",
+          "audio": "audio/function-calling-stability/p2-core-principle-s1.mp3"
+        },
+        {
+          "text": "注意,模型只返回函数名和参数,不会直接执行代码,保证安全可控。",
+          "audio": "audio/function-calling-stability/p2-core-principle-s2.mp3"
+        },
+        {
+          "text": "然后这些调用结果会传回对话系统,完成多轮交互。",
+          "audio": "audio/function-calling-stability/p2-core-principle-s3.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "pop",
+          "target": "items[0]",
+          "with_sentence": 0
+        },
+        {
+          "effect": "pop",
+          "target": "items[1]",
+          "with_sentence": 1
+        },
+        {
+          "effect": "pop",
+          "target": "items[2]",
+          "with_sentence": 2
+        },
+        {
+          "effect": "pop",
+          "target": "items[3]",
+          "with_sentence": 3
+        },
+        {
+          "effect": "rise",
+          "target": "conclusion",
+          "with_sentence": 3
+        }
+      ],
+      "checkpoint": null
+    },
+    {
+      "id": "p3-stability-challenges",
+      "eyebrow": "稳定性挑战",
+      "title": "常见的5类问题",
+      "content": {
+        "kind": "duo",
+        "left": {
+          "title": "理想情况",
+          "tag": "正常",
+          "body": "• 参数符合 schema 定义\n• JSON 格式完全正确\n• 合理调用工具数量\n• 函数名真实存在"
+        },
+        "right": {
+          "title": "实际情况",
+          "tag": "常见问题",
+          "body": "• 参数类型/字段不匹配\n• JSON 缺引号或括号错\n• 重复调用或多调冲突\n• **幻觉**:编造不存在的函数名或参数值"
+        }
+      },
+      "script": [
+        {
+          "text": "理想情况下,模型应该返回符合 schema 的正确参数。",
+          "audio": "audio/function-calling-stability/p3-stability-challenges-s0.mp3"
+        },
+        {
+          "text": "但实际使用中会遇到五大类问题。",
+          "audio": "audio/function-calling-stability/p3-stability-challenges-s1.mp3"
+        },
+        {
+          "text": "参数可能不符合定义,比如类型错误或缺少必填字段。",
+          "audio": "audio/function-calling-stability/p3-stability-challenges-s2.mp3"
+        },
+        {
+          "text": "JSON 格式也可能出错,比如缺少引号或者括号不匹配。",
+          "audio": "audio/function-calling-stability/p3-stability-challenges-s3.mp3"
+        },
+        {
+          "text": "模型可能重复调用同一工具,或者同时调用多个工具导致冲突。",
+          "audio": "audio/function-calling-stability/p3-stability-challenges-s4.mp3"
+        },
+        {
+          "text": "最棘手的是幻觉问题,模型会编造不存在的函数名或参数值。",
+          "audio": "audio/function-calling-stability/p3-stability-challenges-s5.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "fade",
+          "target": "left",
+          "with_sentence": 0
+        },
+        {
+          "effect": "fade",
+          "target": "right",
+          "with_sentence": 1
+        },
+        {
+          "effect": "rise",
+          "target": "right.body[0]",
+          "with_sentence": 2
+        },
+        {
+          "effect": "rise",
+          "target": "right.body[1]",
+          "with_sentence": 3
+        },
+        {
+          "effect": "rise",
+          "target": "right.body[2]",
+          "with_sentence": 4
+        },
+        {
+          "effect": "rise",
+          "target": "right.body[3]",
+          "with_sentence": 5
+        }
+      ],
+      "checkpoint": null
+    },
+    {
+      "id": "p4-protection-mechanisms",
+      "eyebrow": "保障机制",
+      "title": "四层防护策略",
+      "content": {
+        "kind": "code",
+        "language": "python",
+        "lines": [
+          {
+            "code": "# 1. 严格定义 JSON Schema",
+            "comment": "类型/必填/枚举/格式约束",
+            "highlight": null
+          },
+          {
+            "code": "def get_weather(",
+            "comment": "    \"description\": \"获取指定城市的天气\", \"parameters\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\", \"enum\": [\"北京\", \"上海\"]}}, \"required\": [\"city\"]}",
+            "highlight": null
+          },
+          {
+            "code": "",
+            "comment": "",
+            "highlight": null
+          },
+          {
+            "code": "# 2. 参数验证层",
+            "comment": "解析后校验类型/范围/业务规则",
+            "highlight": null
+          },
+          {
+            "code": "def validate_args(args):",
+            "comment": "    if 'city' not in args: raise ValidationError",
+            "highlight": null
+          },
+          {
+            "code": "",
+            "comment": "",
+            "highlight": null
+          },
+          {
+            "code": "# 3. 重试机制",
+            "comment": "解析/验证失败时重新生成,最多2-3次",
+            "highlight": null
+          },
+          {
+            "code": "for attempt in range(3):",
+            "comment": "    try: response = parse_and_validate()",
+            "highlight": null
+          },
+          {
+            "code": "",
+            "comment": "",
+            "highlight": null
+          },
+          {
+            "code": "# 4. 强类型解析",
+            "comment": "使用 Pydantic 提供友好错误信息",
+            "highlight": null
+          },
+          {
+            "code": "class WeatherRequest(BaseModel):",
+            "comment": "    city: Literal['北京', '上海']",
+            "highlight": null
+          }
+        ],
+        "note": "四层防护:Schema定义→参数验证→自动重试→强类型解析"
+      },
+      "script": [
+        {
+          "text": "保障稳定性需要四层防护策略。",
+          "audio": "audio/function-calling-stability/p4-protection-mechanisms-s0.mp3"
+        },
+        {
+          "text": "第一层是严格定义 JSON Schema,包括类型、必填字段、枚举值和格式约束。",
+          "audio": "audio/function-calling-stability/p4-protection-mechanisms-s1.mp3"
+        },
+        {
+          "text": "第二层是参数验证,在解析后校验类型、范围、必填字段和业务规则。",
+          "audio": "audio/function-calling-stability/p4-protection-mechanisms-s2.mp3"
+        },
+        {
+          "text": "第三层是重试机制,当解析或验证失败时让模型重新生成,最多重试两到三次。",
+          "audio": "audio/function-calling-stability/p4-protection-mechanisms-s3.mp3"
+        },
+        {
+          "text": "第四层使用强类型数据模型,比如 Pydantic,提供友好的错误提示。",
+          "audio": "audio/function-calling-stability/p4-protection-mechanisms-s4.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "fade",
+          "target": "lines[0]",
+          "with_sentence": 1
+        },
+        {
+          "effect": "fade",
+          "target": "lines[3]",
+          "with_sentence": 2
+        },
+        {
+          "effect": "fade",
+          "target": "lines[6]",
+          "with_sentence": 3
+        },
+        {
+          "effect": "fade",
+          "target": "lines[9]",
+          "with_sentence": 4
+        },
+        {
+          "effect": "rise",
+          "target": "note",
+          "with_sentence": 4
+        }
+      ],
+      "checkpoint": {
+        "question": "请复述四层防护策略分别是什么?",
+        "hint": "从Schema定义、参数验证、重试机制、强类型解析四个角度回答",
+        "pass_rule": "答出四层防护的名称和顺序:Schema定义→参数验证→自动重试→强类型解析"
+      }
+    },
+    {
+      "id": "p5-error-handling",
+      "eyebrow": "错误处理",
+      "title": "容错与格式控制",
+      "content": {
+        "kind": "table",
+        "headers": [
+          "策略",
+          "具体做法",
+          "效果"
+        ],
+        "rows": [
+          [
+            "捕获解析异常",
+            "捕获JSONDecodeError,向模型返回具体格式错误提示",
+            "模型理解错误原因并修正"
+          ],
+          [
+            "提供Few-shot示例",
+            "在对话中展示期望的函数调用格式",
+            "帮助模型理解正确输出格式"
+          ],
+          [
+            "优化System prompt",
+            "明确指示只返回有效JSON,禁止额外解释文本",
+            "减少格式混乱"
+          ],
+          [
+            "拆解复杂参数",
+            "将复杂结构拆成多个简单函数调用",
+            "降低单次生成复杂度"
+          ]
+        ],
+        "note": "核心思路:明确期望→降低难度→快速反馈"
+      },
+      "script": [
+        {
+          "text": "容错机制有四种常用策略。",
+          "audio": "audio/function-calling-stability/p5-error-handling-s0.mp3"
+        },
+        {
+          "text": "第一,捕获 JSON 解析异常,把具体的格式错误反馈给模型。",
+          "audio": "audio/function-calling-stability/p5-error-handling-s1.mp3"
+        },
+        {
+          "text": "第二,提供 Few-shot 示例,在对话中展示正确的函数调用格式。",
+          "audio": "audio/function-calling-stability/p5-error-handling-s2.mp3"
+        },
+        {
+          "text": "第三,优化 System prompt,明确指示只返回有效 JSON,不要额外的解释文本。",
+          "audio": "audio/function-calling-stability/p5-error-handling-s3.mp3"
+        },
+        {
+          "text": "第四,对于复杂参数结构,拆解成多个简单函数调用,降低单次生成的难度。",
+          "audio": "audio/function-calling-stability/p5-error-handling-s4.mp3"
+        },
+        {
+          "text": "核心思路就是明确期望、降低难度、快速反馈。",
+          "audio": "audio/function-calling-stability/p5-error-handling-s5.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "fade",
+          "target": "rows[0]",
+          "with_sentence": 1
+        },
+        {
+          "effect": "fade",
+          "target": "rows[1]",
+          "with_sentence": 2
+        },
+        {
+          "effect": "fade",
+          "target": "rows[2]",
+          "with_sentence": 3
+        },
+        {
+          "effect": "fade",
+          "target": "rows[3]",
+          "with_sentence": 4
+        },
+        {
+          "effect": "rise",
+          "target": "note",
+          "with_sentence": 5
+        }
+      ],
+      "checkpoint": null
+    },
+    {
+      "id": "p6-best-practices",
+      "eyebrow": "最佳实践",
+      "title": "生产环境优化清单",
+      "content": {
+        "kind": "table",
+        "headers": [
+          "维度",
+          "关键动作",
+          "预期收益"
+        ],
+        "rows": [
+          [
+            "Schema设计",
+            "为每个函数提供清晰name、description和参数描述",
+            "模型准确选择和生成参数"
+          ],
+          [
+            "函数管理",
+            "控制单次对话暴露的函数数量(少于20个)",
+            "避免模型选择困难"
+          ],
+          [
+            "强制调用",
+            "使用force=True确保模型必须调用指定工具",
+            "提高任务完成率"
+          ],
+          [
+            "结果标准化",
+            "对函数调用结果标准化处理后再传给模型",
+            "优化下一轮决策质量"
+          ],
+          [
+            "可观测性",
+            "记录调用日志和监控,追踪失败模式",
+            "持续优化prompts和schema设计"
+          ]
+        ],
+        "note": "稳定性=设计质量+运行监控+持续迭代"
+      },
+      "script": [
+        {
+          "text": "生产环境有五项最佳实践。",
+          "audio": "audio/function-calling-stability/p6-best-practices-s0.mp3"
+        },
+        {
+          "text": "第一,为每个函数提供清晰的名称、描述和参数说明,帮助模型准确选择。",
+          "audio": "audio/function-calling-stability/p6-best-practices-s1.mp3"
+        },
+        {
+          "text": "第二,控制单次对话暴露的函数数量,建议少于20个,避免模型选择困难。",
+          "audio": "audio/function-calling-stability/p6-best-practices-s2.mp3"
+        },
+        {
+          "text": "第三,必要时使用强制工具调用,确保模型必须调用指定工具,提高任务完成率。",
+          "audio": "audio/function-calling-stability/p6-best-practices-s3.mp3"
+        },
+        {
+          "text": "第四,对函数调用结果进行标准化处理,再传递给模型进行下一轮决策。",
+          "audio": "audio/function-calling-stability/p6-best-practices-s4.mp3"
+        },
+        {
+          "text": "第五,实施调用日志记录和监控,追踪失败模式,持续优化 prompts 和 schema 设计。",
+          "audio": "audio/function-calling-stability/p6-best-practices-s5.mp3"
+        },
+        {
+          "text": "稳定性等于设计质量加上运行监控,再加持续迭代。",
+          "audio": "audio/function-calling-stability/p6-best-practices-s6.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "fade",
+          "target": "rows[0]",
+          "with_sentence": 1
+        },
+        {
+          "effect": "fade",
+          "target": "rows[1]",
+          "with_sentence": 2
+        },
+        {
+          "effect": "fade",
+          "target": "rows[2]",
+          "with_sentence": 3
+        },
+        {
+          "effect": "fade",
+          "target": "rows[3]",
+          "with_sentence": 4
+        },
+        {
+          "effect": "fade",
+          "target": "rows[4]",
+          "with_sentence": 5
+        },
+        {
+          "effect": "rise",
+          "target": "note",
+          "with_sentence": 6
+        }
+      ],
+      "checkpoint": {
+        "question": "请说出你学到的3项最佳实践措施。",
+        "hint": "从Schema设计、函数管理、强制调用、结果标准化、可观测性中任选3项",
+        "pass_rule": "能准确说出3项最佳实践的具体措施(提及函数数量少于20个、使用force=True、记录日志监控等具体细节均可)"
+      }
+    }
+  ]
+}
