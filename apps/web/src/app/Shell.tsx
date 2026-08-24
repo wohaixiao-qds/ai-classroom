@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { ThemeSwitcher } from "../features/player/ThemeSwitcher";
 
-/** 带顶栏的外壳(课表/观测用);课堂页沉浸不套这层 */
+/** 全局壳(甲方案·五区制):顶栏导航 学习台/课程库/生成中心/观测;课堂页沉浸不套这层 */
 export function Shell() {
   const link = ({ isActive }: { isActive: boolean }) =>
     `px-3 py-1 rounded-full text-sm transition-colors ${
@@ -13,7 +13,13 @@ export function Shell() {
         <span className="font-bold">AI 教室</span>
         <nav className="flex gap-1">
           <NavLink to="/" className={link} end>
-            课表
+            学习台
+          </NavLink>
+          <NavLink to="/courses" className={link}>
+            课程库
+          </NavLink>
+          <NavLink to="/studio" className={link}>
+            生成中心
           </NavLink>
           <NavLink to="/eval" className={link}>
             观测
