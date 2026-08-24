@@ -100,6 +100,7 @@
   - ✅ **M5 课表入口**(`fe951c0`+`09538d3`):按钮派后台子进程跑管线(executor/job_runner,状态回写 SQLite,前端三态+轮询);source_notes 确定性覆盖保关联。实测:点「工具粒度」备课→课件出炉→自动进「在学的」
 - 🏁 **P2 完成(2026-08-24)**:课表「在学的」4 门课(3 门 agent 生成:parsing-layer / function-calling-stability / tool-granularity),全链(调研→备课→音频→课表归位)自动。**待用户真实使用审校课件质量(人审闸②)**,反馈喂 prompt 打磨
 - ▶️ **下一阶段:P3 找资料+入库**(学习轨迹自动写成 vault 笔记,巩固区留空)或先 P4 打磨,视用户使用反馈定
+- ✅ **P4 第一轮·课堂页 UI 重设计(2026-08-24,`0cd4e23`)**:借鉴 OpenMAIC(20.7k★ 同域)与 Slidev(48k★),参考库 clone 于 `~/CodeDevelopment/ui-refs`——页导航边栏(可拖宽/折叠)、o 总览/数字跳页/f 全屏、句级步进滑杆(seekSentence)、主题收纳 pill、fade 过场;唯一新依赖 lucide-react;全交互浏览器实测通过
 - ✅ 收尾已清(2026-08-24):gen-types 管线接上(catalog `59f15bc` + sessions `89b8ac1`;csl.ts 经决策保持手写——稳定的作者态契约,理由注记在文件头)、A4 多页可点(`5349427`)、B2 显示自评瞎编率(`6ecd5be`)、traces/ 移出 git(`05a0c2d`)。**P1/P1.5 收口完成**
 - ⚠️ 长期记账(不阻塞 P2):①A4/ChatPanel 的 typescript-reviewer 屡被中转挡,恢复后补(现以 §3.1 自查+浏览器实测代替);②A6 局限:伪造「课件第N页」假引用会绕过自评 → `self_eval_fabricated` 是下限;③dev 服务器(API :8100 / web :5173)会话结束需重启
 
