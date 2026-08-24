@@ -55,6 +55,8 @@ def _judge(question: str, answer: str, materials: str) -> dict[str, str]:
     if text.startswith("```"):  # 模型偶尔裹 ```json```,剥掉(同 grader)
         text = text.strip("`").removeprefix("json").strip()
     result = json.loads(text)
+    if not isinstance(result, dict):  # 裁判偶尔返回裸数组/字符串 → 视为未评(审查跟进)
+        return {"verdict": "skipped", "reason": "裁判返回非对象"}
     verdict = str(result.get("verdict", ""))
     if verdict not in _VERDICTS:
         verdict = "skipped"
