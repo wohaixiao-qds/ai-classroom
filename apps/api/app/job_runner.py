@@ -29,8 +29,20 @@ def _run() -> str:
     elif kind == "request_research":
         from app.agent.prep import run_prep
         from app.agent.research import research_material
+        from app.services.catalog import find_todo_area
 
         material = research_material(target, target)  # 待探项本身就是子题
+        # 知识版图归位:待探项源自 vault 某层级,查到就把层级写进 topic
+        # (否则「解析层」会被当独立主题挂在顶层,不进 harness/Runtime——实测踩过)
+        area = find_todo_area(target)
+        if area and area != material.get("topic"):
+            material["topic"] = area
+            import json as _json
+            from pathlib import Path as _Path
+
+            mp = _Path(str(material["_material_path"]))
+            mp.write_text(_json.dumps(material, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"topic 归位: {area}")
         result = run_prep(material)
     else:
         return f"未知任务类型: {kind}"

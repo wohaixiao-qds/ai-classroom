@@ -210,6 +210,27 @@ def _sparks(confirmed: set[str], dismissed: set[str]) -> list[SparkItem]:
     return out
 
 
+def find_todo_area(title: str) -> str | None:
+    """查一个待探项所在的 vault 层级(如「解析层」→ Agent / harness / Runtime)。
+    job_runner 发起调研时用它把层级带进 topic,让课归位到知识版图正确位置。"""
+    root = settings.kb_dir
+    if not root.is_dir():
+        return None
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if not _skip(d) and d not in _EXCLUDE_DIRS)
+        for fn in sorted(filenames):
+            if not fn.endswith(".md") or "待探" not in fn:
+                continue
+            full = Path(dirpath) / fn
+            try:
+                text = full.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            if title in text:
+                return _area(full, root)
+    return None
+
+
 def build_catalog() -> Catalog:
     """组装四泳道。"""
     idx = action_index()
