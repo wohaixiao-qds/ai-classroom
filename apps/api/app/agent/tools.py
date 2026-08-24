@@ -6,14 +6,13 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import html as html_mod
 import json
 import re
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 from app.core.config import settings
 
