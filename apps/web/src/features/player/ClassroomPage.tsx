@@ -62,7 +62,17 @@ function Classroom({
   getDeck: () => RevealApi | null;
   onDeck: (d: RevealApi | null) => void;
 }) {
-  const playback = usePlayback(course, getDeck);
+  const [invite, setInvite] = useState(false);
+  // 引擎到达自然终点 → 上报「学完」;ready(检查点也全过)→ 弹沉淀邀请
+  const onCourseComplete = useCallback(() => {
+    void fetch(`/api/v1/progress/${course.id}/done`, { method: "POST" })
+      .then((r) => r.json())
+      .then((d: { ready: boolean }) => {
+        if (d.ready) setInvite(true);
+      })
+      .catch(() => {});
+  }, [course.id]);
+  const playback = usePlayback(course, getDeck, onCourseComplete);
   // 边栏折叠/拖宽改变 deck 宽度后,让 reveal 重新排版
   const relayout = useCallback(() => getDeck()?.layout(), [getDeck]);
   return (
@@ -75,6 +85,20 @@ function Classroom({
         >
           ← 课表
         </Link>
+        {invite && (
+          <div className="absolute top-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-(--accent)/50 bg-(--surface) px-4 py-2 shadow-lg">
+            <span className="text-sm">🎉 这节课学完了,沉淀为笔记?</span>
+            <Link
+              to={`/courses/${course.id}?sink=1`}
+              className="rounded-full bg-(--accent) px-3 py-1 text-xs font-medium text-(--bg)"
+            >
+              生成笔记草稿
+            </Link>
+            <button onClick={() => setInvite(false)} className="muted text-xs">
+              稍后
+            </button>
+          </div>
+        )}
         <SlideDeck course={course} playback={playback} onDeck={onDeck} />
       </div>
       <div className="flex w-80 shrink-0 flex-col">

@@ -2,9 +2,14 @@
  *  树从 topic 串自动生长("Agent / harness / Runtime"),与 vault 目录心智一致,零手工维护。
  *  topic 真源是后端 catalog 的实时推导(老课件文件里没有);此处拉取时合并进课程数据。 */
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { CheckCircle2, ChevronDown, ChevronRight, Folder, Play } from "lucide-react";
+import type { components } from "../../types/api.gen";
 import type { Course } from "../../types/csl";
+
+type CompletionState = components["schemas"]["CompletionState"];
+type NoteDraft = components["schemas"]["NoteDraft"];
+type ApplyResult = components["schemas"]["ApplyResult"];
 
 /** 页型 → 小图标(详情页大纲用;课堂边栏有自己的一份) */
 const KIND_ICON: Record<string, string> = {
@@ -234,11 +239,17 @@ export function LibraryPage() {
   );
 }
 
-/** 课程详情页:大纲 + 来源(有据可查) + 关联笔记 + 进课堂 */
+/** 课程详情页:大纲 + 来源(有据可查) + 关联笔记 + 进课堂 + 沉淀为笔记(学完解锁) */
 export function CourseDetailPage() {
   const { courseId = "" } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [course, setCourse] = useState<Course | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [prog, setProg] = useState<CompletionState | null>(null);
+  const [draft, setDraft] = useState<NoteDraft | null>(null);
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [draftErr, setDraftErr] = useState<string | null>(null);
+  const [written, setWritten] = useState<string | null>(null);
 
   useEffect(() => {
     setCourse(null);
@@ -250,12 +261,64 @@ export function CourseDetailPage() {
       })
       .then(setCourse)
       .catch((e: unknown) => setError(String(e)));
+    void fetch(`/api/v1/progress/${courseId}`)
+      .then((r) => r.json())
+      .then(setProg)
+      .catch(() => {});
   }, [courseId]);
+
+  function openDraft() {
+    setDraftErr(null);
+    setDraft(null);
+    setWritten(null);
+    setDraftBusy(true);
+    void fetch(`/api/v1/notes/draft/${courseId}`, { method: "POST" })
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.json()).detail ?? `HTTP ${r.status}`);
+        return r.json() as Promise<NoteDraft>;
+      })
+      .then(setDraft)
+      .catch((e: unknown) => setDraftErr(String(e)))
+      .finally(() => setDraftBusy(false));
+  }
+
+  // 课堂学完邀请跳来(?sink=1)→ 自动开草稿
+  useEffect(() => {
+    if (searchParams.get("sink") === "1" && prog?.ready) {
+      searchParams.delete("sink");
+      setSearchParams(searchParams, { replace: true });
+      openDraft();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 邀请只应触发一次
+  }, [prog?.ready]);
+
+  function confirmWrite() {
+    void fetch(`/api/v1/notes/apply/${courseId}`, { method: "POST" })
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.json()).detail ?? `HTTP ${r.status}`);
+        return r.json() as Promise<ApplyResult>;
+      })
+      .then((r) => {
+        setWritten(r.note_path);
+        setDraft(null);
+      })
+      .catch((e: unknown) => setDraftErr(String(e)));
+  }
 
   if (error) return <div className="muted p-8 text-sm">课件加载失败:{error}</div>;
   if (!course) return <div className="muted p-8 text-sm">加载中…</div>;
 
   const cps = course.pages.filter((p) => p.checkpoint);
+  const sinkTip = !prog?.ready
+    ? `学完解锁(还差:${[
+        !prog?.done ? "播放到最后一页" : "",
+        prog && prog.checkpoints_passed < prog.checkpoints_total
+          ? `检查点 ${prog.checkpoints_passed}/${prog.checkpoints_total}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(";")})`
+    : "生成笔记草稿,预览确认后写入知识库";
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
@@ -279,6 +342,18 @@ export function CourseDetailPage() {
         >
           <Play size={15} /> 进课堂
         </Link>
+        <button
+          onClick={openDraft}
+          disabled={!prog?.ready || draftBusy}
+          title={sinkTip}
+          className={`shrink-0 rounded-full border px-4 py-2.5 text-sm transition-colors ${
+            prog?.ready
+              ? "border-(--accent) text-(--accent) hover:bg-(--accent)/10"
+              : "muted cursor-not-allowed border-(--line)"
+          }`}
+        >
+          {draftBusy ? "蒸馏中…" : "📓 沉淀为笔记"}
+        </button>
       </div>
 
       <section className="mt-8">
@@ -337,6 +412,73 @@ export function CourseDetailPage() {
           </ul>
         </section>
       ) : null}
+
+      {/* 写回确认闸:预览(路径+待探勾选+全文)→ 人确认 → 才落盘 vault */}
+      {(draft || draftBusy || draftErr || written) && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-(--bg)/80 p-6 backdrop-blur-sm">
+          <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl border border-(--line) bg-(--surface) shadow-2xl">
+            {written ? (
+              <div className="p-8 text-center">
+                <p className="mb-2 text-3xl">✅</p>
+                <p className="mb-1 font-medium">已写回知识库</p>
+                <p className="muted mb-4 font-mono text-xs break-all">{written}</p>
+                <p className="muted text-xs">巩固区已留空——去 Obsidian 亲手填完它。</p>
+                <button
+                  onClick={() => setWritten(null)}
+                  className="accent mt-4 text-sm underline"
+                >
+                  完成
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="border-b border-(--line) px-6 py-4">
+                  <h3 className="font-medium">写回草稿预览</h3>
+                  {draft && (
+                    <p className="muted mt-1 font-mono text-xs">
+                      {draft.mode === "append" ? "追加到" : "新建"}:{draft.note_path}
+                    </p>
+                  )}
+                  {draftBusy && <p className="muted mt-1 text-xs">三源蒸馏中(LLM)…</p>}
+                  {draftErr && <p className="mt-1 text-xs text-(--accent)">{draftErr}</p>}
+                </div>
+                {draft && (
+                  <div className="flex-1 overflow-y-auto px-6 py-4">
+                    {draft.todo_edit && (
+                      <div className="mb-4 rounded-lg border border-(--line) bg-(--bg) p-3 font-mono text-xs">
+                        <p className="muted mb-1">待探勾选({draft.todo_edit.file}):</p>
+                        <p className="opacity-60">- {draft.todo_edit.old_line.trim()}</p>
+                        <p className="text-(--accent)">
+                          + {draft.todo_edit.new_line.trim()}
+                        </p>
+                      </div>
+                    )}
+                    <pre className="whitespace-pre-wrap text-xs leading-relaxed">
+                      {draft.content}
+                    </pre>
+                  </div>
+                )}
+                {draft && (
+                  <div className="flex justify-end gap-3 border-t border-(--line) px-6 py-4">
+                    <button
+                      onClick={() => setDraft(null)}
+                      className="muted text-sm hover:text-(--text)"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={confirmWrite}
+                      className="rounded-full bg-(--accent) px-5 py-2 text-sm font-medium text-(--bg)"
+                    >
+                      确认写回
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

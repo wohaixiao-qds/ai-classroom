@@ -14,8 +14,14 @@ export interface PlaybackState {
 const progressKey = (courseId: string) => `classroom-progress-${courseId}`;
 
 /** 音画同步引擎:状态机 (page, sentence),音频 ended → 触发本句 fragments → 下一句/翻页。
- * reveal 只被调用 next()/slide(),节奏权完全在本引擎。 */
-export function usePlayback(course: Course, deck: () => RevealDeck | null) {
+ * reveal 只被调用 next()/slide(),节奏权完全在本引擎。
+ * onCourseComplete:引擎到达课程自然终点(最后一页讲完/末页检查点通过)时回调一次——
+ * 上层据此上报「学完」,驱动 P3 写回邀请。 */
+export function usePlayback(
+  course: Course,
+  deck: () => RevealDeck | null,
+  onCourseComplete?: () => void,
+) {
   const [state, setState] = useState<PlaybackState>({
     playing: false,
     page: 0,
@@ -25,6 +31,8 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const stRef = useRef(state); // 音频回调里读最新状态
   stRef.current = state;
+  const completeRef = useRef(onCourseComplete);
+  completeRef.current = onCourseComplete;
   // 防重入:ended 可能重复触发(播放器怪癖/竞态),同一句只允许推进一次
   const advancedRef = useRef<string | null>(null);
   // 当前 audio.src 已加载到哪句:暂停续播时同句原地续放,不重头念
@@ -118,9 +126,10 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
       return;
     }
 
-    // 4) 翻页;最后一页 → 停
+    // 4) 翻页;最后一页 → 课程自然终点
     if (page + 1 >= course.pages.length) {
       setState((s) => ({ ...s, playing: false }));
+      completeRef.current?.();
       return;
     }
     playSentence(page + 1, 0); // playSentence 内部已 slide 到新页并定位动画
@@ -221,6 +230,7 @@ export function usePlayback(course: Course, deck: () => RevealDeck | null) {
     setState((s) => ({ ...s, checkpointOpen: false }));
     if (page + 1 >= course.pages.length) {
       setState((s) => ({ ...s, playing: false }));
+      completeRef.current?.(); // 末页检查点通过 = 课程自然终点
       return;
     }
     playSentence(page + 1, 0);

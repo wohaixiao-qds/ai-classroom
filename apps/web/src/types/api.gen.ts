@@ -204,6 +204,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/progress/{course_id}/done": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report Done
+         * @description 播放引擎到达课程自然终点时上报(幂等),顺手返回完成态(前端弹邀请用)。
+         */
+        post: operations["report_done_api_v1_progress__course_id__done_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/progress/{course_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Completion */
+        get: operations["get_completion_api_v1_progress__course_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notes/draft/{course_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Note Draft
+         * @description 生成写回草稿(预览用,不落盘)。学完才放行。
+         */
+        post: operations["note_draft_api_v1_notes_draft__course_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notes/apply/{course_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Note Apply
+         * @description 确认落盘——写的是缓存里预览过的那份;没有缓存(过期/重启)则现生成。
+         */
+        post: operations["note_apply_api_v1_notes_apply__course_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -218,6 +295,13 @@ export interface components {
             status: string;
             /** Detail */
             detail?: string | null;
+        };
+        /** ApplyResult */
+        ApplyResult: {
+            /** Written */
+            written: boolean;
+            /** Note Path */
+            note_path: string;
         };
         /**
          * Catalog
@@ -264,6 +348,17 @@ export interface components {
              */
             source: string;
         };
+        /** CompletionState */
+        CompletionState: {
+            /** Done */
+            done: boolean;
+            /** Checkpoints Total */
+            checkpoints_total: number;
+            /** Checkpoints Passed */
+            checkpoints_passed: number;
+            /** Ready */
+            ready: boolean;
+        };
         /**
          * CourseItem
          * @description 在学的:已出课件(点击进课堂,带断点续播)。
@@ -293,6 +388,18 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** NoteDraft */
+        NoteDraft: {
+            /** Mode */
+            mode: string;
+            /** Title */
+            title: string;
+            /** Note Path */
+            note_path: string;
+            /** Content */
+            content: string;
+            todo_edit?: components["schemas"]["TodoEdit"] | null;
         };
         /**
          * NoteItem
@@ -374,6 +481,15 @@ export interface components {
              * @default false
              */
             confirmed: boolean;
+        };
+        /** TodoEdit */
+        TodoEdit: {
+            /** File */
+            file: string;
+            /** Old Line */
+            old_line: string;
+            /** New Line */
+            new_line: string;
         };
         /**
          * TodoItem
@@ -750,6 +866,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActionResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    report_done_api_v1_progress__course_id__done_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompletionState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_completion_api_v1_progress__course_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompletionState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    note_draft_api_v1_notes_draft__course_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteDraft"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    note_apply_api_v1_notes_apply__course_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyResult"];
                 };
             };
             /** @description Validation Error */
