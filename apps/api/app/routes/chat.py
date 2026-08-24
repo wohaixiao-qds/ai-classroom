@@ -18,6 +18,7 @@ from app.core.memory import ensure_session, list_sessions, new_session, session_
 from app.core.trace import trace_tutor
 from app.schemas.chat import ChatRequest, GradeRequest
 from app.services.grader import grade_recitation
+from app.services.self_eval import evaluate_answer
 
 router = APIRouter(prefix="/api/v1", tags=["chat"])
 
@@ -55,6 +56,11 @@ def chat(req: ChatRequest) -> StreamingResponse:
                 elif ev["type"] == "delta":
                     yield _sse("delta", {"text": ev["text"]}, eid)
                 elif ev["type"] == "final":
+                    # A6 答案自评:仅可疑答案(长答+没引页+没调工具)才跑裁判,
+                    # 结果进 trace。跑在流结束后 → 不挡学员(答案已 delta 流完)。
+                    verdict = evaluate_answer(
+                        req.question, ev["answer"], ev["tool_calls"], course_text
+                    )
                     trace_tutor(
                         course_id=req.course_id,
                         page_id=req.current_page,
@@ -66,6 +72,7 @@ def chat(req: ChatRequest) -> StreamingResponse:
                         soft_landed=ev.get("soft_landed", False),
                         truncated=ev.get("truncated", False),
                         source=req.source,
+                        self_eval=verdict,
                     )
                     yield _sse("done", {"tool_calls": len(ev["tool_calls"])}, eid)
         except Exception as e:  # noqa: BLE001 流内错误用 error 事件(头已发出,无法再改状态码)

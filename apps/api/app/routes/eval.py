@@ -43,6 +43,12 @@ def summary(include_test: bool = False) -> dict:
     unsourced = [  # 无据作答:没引课件、没联网、还长篇(>200字) → 高度可疑
         r for r in rows if not r.get("grounded") and r.get("answer_len", 0) > 200
     ]
+    # A6 自评:已评过(verdict 有效)的答案,用于算瞎编/存疑占比
+    se = [
+        v
+        for r in rows
+        if (v := r.get("self_eval")) and v.get("verdict") in ("grounded", "partial", "fabricated")
+    ]
     grade = read_traces("grade.jsonl", limit=500)
 
     return {
@@ -55,6 +61,9 @@ def summary(include_test: bool = False) -> dict:
             "tool_error": sum(1 for r in rows if r.get("tool_error")),
             "soft_landed": sum(1 for r in rows if r.get("soft_landed")),
             "truncated": sum(1 for r in rows if r.get("truncated")),
+            "self_eval_checked": len(se),
+            "self_eval_fabricated": sum(1 for v in se if v["verdict"] == "fabricated"),
+            "self_eval_partial": sum(1 for v in se if v["verdict"] == "partial"),
         },
         "cost": {
             "avg_elapsed_s": round(sum(r.get("elapsed_s", 0) for r in rows) / n, 1),

@@ -46,6 +46,7 @@ def trace_tutor(
     soft_landed: bool = False,
     truncated: bool = False,
     source: str = "user",
+    self_eval: dict[str, str] | None = None,
 ) -> None:
     """答疑一轮的轨迹。
 
@@ -80,6 +81,7 @@ def trace_tutor(
             "elapsed_s": round(elapsed_s, 1),
             "usage": usage or {},
             "error": error,
+            "self_eval": self_eval,  # A6:{verdict,reason} 或 None(未评);见 services/self_eval
         },
     )
 
@@ -132,4 +134,5 @@ def read_traces(filename: str, limit: int = 200) -> list[dict]:
         r.setdefault("tool_error", any(t.get("error") for t in r.get("tool_calls", [])))
         r.setdefault("soft_landed", False)
         r.setdefault("truncated", False)
+        r.setdefault("self_eval", None)
     return out[-limit:][::-1]  # 最新在前
