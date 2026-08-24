@@ -231,6 +231,16 @@ def find_todo_area(title: str) -> str | None:
     return None
 
 
+def course_topic(course_id: str) -> str | None:
+    """课件的主题(公开入口:P3 写回等要和课程库同一真相源——文件缺 topic 时实时推导)。"""
+    p = settings.courses_dir / f"{course_id}.csl.json"
+    try:
+        course = Course.model_validate_json(p.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 坏文件给 None,调用方自行兜底
+        return None
+    return course.meta.topic or _derive_topic(course.meta.source_notes, _vault_map())
+
+
 def build_catalog() -> Catalog:
     """组装四泳道。"""
     idx = action_index()
