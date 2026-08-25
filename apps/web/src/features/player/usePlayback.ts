@@ -37,8 +37,19 @@ export function usePlayback(
   const advancedRef = useRef<string | null>(null);
   // 当前 audio.src 已加载到哪句:暂停续播时同句原地续放,不重头念
   const loadedRef = useRef<string | null>(null);
-  // 引擎主动翻页标记:置位时 slidechanged 是引擎自己触发的,gotoPage 应忽略
+  // 引擎主动翻页/定位标记:置位时 slide 事件是引擎自己触发的,手动导航处理应忽略。
+  // lastNavAt 加时间戳:同页定位只触发 fragmentchanged(不触发 slidechanged),
+  // 标记可能无人消费而泄漏——过期判定防止吞掉下一次真实手动翻页(实测踩过)。
   const engineNavRef = useRef(false);
+  const lastNavAt = useRef(0);
+
+  const markEngineNav = useCallback(() => {
+    engineNavRef.current = true;
+    lastNavAt.current = Date.now();
+  }, []);
+
+  /** 引擎导航是否发生在近 400ms 内(自己 slide 的回声窗口) */
+  const isEngineNavRecent = useCallback(() => Date.now() - lastNavAt.current < 400, []);
 
   const saveProgress = useCallback(
     (p: number, s: number) => {
@@ -55,7 +66,7 @@ export function usePlayback(
       const { p } = JSON.parse(saved) as { p: number; s: number };
       if (0 < p && p < course.pages.length) {
         setState((s) => ({ ...s, page: p }));
-        engineNavRef.current = true;
+        markEngineNav();
         deck()?.slide(p);
       }
     } catch {
@@ -91,7 +102,7 @@ export function usePlayback(
       if (!audioRef.current) audioRef.current = new Audio();
       // 「讲到什么,亮什么」+ 精确定位:slide 到本页、fragment 索引 = 累计数-1
       // (reveal fragment 索引从 0 计,-1 表示一个都不显示)
-      engineNavRef.current = true;
+      markEngineNav();
       deck()?.slide(page, 0, fragmentCountUpto(page, sentence) - 1);
 
       const audio = audioRef.current;
@@ -171,10 +182,13 @@ export function usePlayback(
   /** 手动跳页(键盘/点目录触发 slidechanged);引擎自己翻页时被 engineNavRef 挡掉 */
   const gotoPage = useCallback(
     (page: number) => {
-      if (engineNavRef.current) {
-        engineNavRef.current = false; // 引擎翻页,消费标记,状态已由 playSentence 管好
+      // 引擎自己触发的翻页:仅在回声窗口内忽略(同页定位不触发 slidechanged,
+      // 标记可能泄漏,过期后必须放行真实手动翻页)
+      if (engineNavRef.current && Date.now() - lastNavAt.current < 400) {
+        engineNavRef.current = false;
         return;
       }
+      engineNavRef.current = false;
       const wasPlaying = stRef.current.playing;
       audioRef.current?.pause();
       advancedRef.current = null;
@@ -198,12 +212,12 @@ export function usePlayback(
       if (page < 0 || page >= course.pages.length) return;
       audioRef.current?.pause();
       advancedRef.current = null;
-      engineNavRef.current = true;
+      markEngineNav();
       deck()?.slide(page, 0, fragmentCountUpto(page, 0) - 1);
       setState((s) => ({ ...s, page, sentence: 0, checkpointOpen: false, playing: false }));
       saveProgress(page, 0);
     },
-    [course.pages.length, deck, fragmentCountUpto, saveProgress],
+    [course.pages.length, deck, fragmentCountUpto, saveProgress, markEngineNav],
   );
 
   /** 手动定位到本页第 i 句(步进滑杆拖动):停播、画面亮到该句应有的动画状态 */
@@ -214,13 +228,41 @@ export function usePlayback(
       if (!pageData || sentence < 0 || sentence >= pageData.script.length) return;
       audioRef.current?.pause();
       advancedRef.current = null;
-      engineNavRef.current = true;
+      markEngineNav();
       deck()?.slide(page, 0, fragmentCountUpto(page, sentence) - 1);
       loadedRef.current = null; // 播放时从该句重念(不续旧音频)
       setState((s) => ({ ...s, sentence, playing: false, checkpointOpen: false }));
       saveProgress(page, sentence);
     },
-    [course.pages, deck, fragmentCountUpto, saveProgress],
+    [course.pages, deck, fragmentCountUpto, saveProgress, markEngineNav],
+  );
+
+  /** 手动 fragment 步进(方向键页内步进,deck 已到位,引擎不碰画面位置):
+   *  - 回声判定(确定性,不靠时间窗):可见 fragment 数 == 当前句期望值 → 引擎自己定位的回声,忽略
+   *  - 对齐句号(反查:可见 fragment 数→句号)
+   *  - 快进续播:原来在播 → 从对齐后的句子**接着讲**;原来暂停 → 只对齐不停播状态 */
+  const onManualFragment = useCallback(
+    (visibleCount: number) => {
+      const { page, sentence, playing, checkpointOpen } = stRef.current;
+      const pageData = course.pages[page];
+      if (!pageData || checkpointOpen) return;
+      if (visibleCount === fragmentCountUpto(page, sentence)) return; // 回声/已同步
+      let s = 0;
+      for (let i = 0; i < pageData.script.length; i++) {
+        if (fragmentCountUpto(page, i) <= visibleCount) s = i;
+        else break;
+      }
+      advancedRef.current = null;
+      if (playing) {
+        playSentence(page, s); // 快进语义:解说跳到新句接着讲
+      } else {
+        audioRef.current?.pause();
+        loadedRef.current = null;
+        setState((st) => ({ ...st, sentence: s, playing: false }));
+        saveProgress(page, s);
+      }
+    },
+    [course.pages, fragmentCountUpto, playSentence, saveProgress],
   );
 
   /** 检查点通过,继续下一页 */
@@ -246,5 +288,7 @@ export function usePlayback(
     passCheckpoint,
     jumpToPage,
     seekSentence,
+    onManualFragment,
+    isEngineNavRecent,
   };
 }

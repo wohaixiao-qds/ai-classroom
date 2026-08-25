@@ -87,9 +87,19 @@ export function SlideDeck({
     // 手动翻页(键盘) → 同步引擎状态
     const onSlide = (e: Event) => playback.gotoPage((e as unknown as { indexh: number }).indexh);
     deck.on("slidechanged", onSlide);
+
+    // 手动 fragment 步进(方向键页内)→ 对齐引擎句号(回声由引擎内确定性比对排除)。
+    // 此前引擎对此事件是聋的:画面走了 sentence 停在原地,再播放就把画面拽回去(音画分家)。
+    const onFrag = () => {
+      requestAnimationFrame(() => {
+        playback.onManualFragment(document.querySelectorAll(".present .fragment.visible").length);
+      });
+    };
+    deck.on("fragmentchanged", onFrag);
     return () => {
       document.removeEventListener("keydown", onKey);
       deck.off("slidechanged", onSlide);
+      deck.off("fragmentchanged", onFrag);
       void deck.destroy();
       onDeck(null);
     };
