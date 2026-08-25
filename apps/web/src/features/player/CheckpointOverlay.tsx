@@ -86,7 +86,12 @@ export function CheckpointOverlay({
                 <div className="accent mt-2 text-sm leading-relaxed">
                   🎯 精准版:
                   <span className="chat-md inline-block">
-                    <Markdown>{normalizeBold(result.precise)}</Markdown>
+                    {/* grader 偶尔把「🎯精准版:」标签抄进字段,UI 已有标签,剥掉防重复 */}
+                    <Markdown>
+                      {normalizeBold(
+                        result.precise.replace(/^\s*🎯?\s*精准版\s*[:：]?\s*/, ""),
+                      )}
+                    </Markdown>
                   </span>
                 </div>
               )}
