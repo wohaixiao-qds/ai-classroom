@@ -21,7 +21,10 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from app.agent.tools import fetch_page, web_search
+from app.agent.tools import (  # noqa: F401  # web_search 供 _require_search 探针
+    fetch_page,
+    web_search,
+)
 from app.core.config import settings
 from app.core.llm import get_llm_client
 from app.core.trace import trace_research
@@ -31,11 +34,18 @@ MAX_TURNS = 16
 RESEARCH_TOOLS = [
     {
         "name": "web_search",
-        "description": "联网搜索。调研学习框架/子题资料时用,"
-        "优先权威源(官方文档、高星项目、经典教程)。",
+        "description": "联网搜索(自动多引擎合并:中文社区+官方英文)。"
+        "调研学习框架/子题资料时用;涉及版本号/规范/最新实践时传 recency 并优先官方域名。",
         "input_schema": {
             "type": "object",
-            "properties": {"query": {"type": "string", "description": "搜索词"}},
+            "properties": {
+                "query": {"type": "string", "description": "搜索词"},
+                "recency": {
+                    "type": "string",
+                    "enum": ["day", "week", "month", "year"],
+                    "description": "时效过滤:版本/最新实践类查询建议 month 或 year",
+                },
+            },
             "required": ["query"],
         },
     },
@@ -85,7 +95,10 @@ _MATERIAL_PROMPT = """你是课题调研员,为课件作者收集一个子题的
 
 硬规则:points 里每条的 source_id 必须是 sources 里出现过的 id;
 **sources 里每个 url 都必须是你用 fetch_page 实际抓取成功的**(没抓过的网址不许列)——
-有据的意思是「真的读过」,不是「记得有这篇」;拿不准的内容不要写。"""
+有据的意思是「真的读过」,不是「记得有这篇」;
+**版本号/规范条目/最新实践必须来自官方域名或其 changelog**(如 modelcontextprotocol.io、
+github.com 官方 org、官方博客),社区文章只能作解释性补充;查这类信息时给 web_search 传
+recency。拿不准的内容不要写。"""
 
 
 # ---------- 交付物校验(有据硬闸;返回错误清单,空=通过) ----------
@@ -169,7 +182,9 @@ def _json_from_text(text: str) -> dict[str, Any] | None:
 
 def _execute(name: str, args: dict[str, Any]) -> str:
     if name == "web_search":
-        return web_search(args["query"])
+        from app.agent.tools import web_search_multi
+
+        return web_search_multi(args["query"], args.get("recency"))
     if name == "fetch_page":
         return fetch_page(args["url"])
     return f"(未知工具 {name})"
@@ -178,7 +193,7 @@ def _execute(name: str, args: dict[str, Any]) -> str:
 def _require_search() -> None:
     """fail-fast + 真探针:不止查 key 在不在,还真搜一次——把「余额不足/key 无效/网络不通」
     这类真相在开工前报出来,不让模型带着坏工具在循环里挣扎(2026-08-24 实测踩过)。"""
-    from app.agent.tools import search_provider, web_search
+    from app.agent.tools import search_provider
 
     p = search_provider()
     if not p:

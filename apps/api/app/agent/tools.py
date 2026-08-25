@@ -17,11 +17,15 @@ from typing import Any
 from app.core.config import settings
 
 
-def _bocha_search(query: str) -> str:
-    """博查搜索,返回 top 结果的标题/链接/摘要文本。"""
+def _bocha_search(query: str, recency: str | None = None) -> str:
+    """博查搜索(中文生态强)。recency: day/week/month/year。"""
+    body: dict[str, Any] = {"query": query, "count": 5, "summary": True}
+    if recency:
+        body["freshness"] = {"day": "oneDay", "week": "oneWeek",
+                             "month": "oneMonth", "year": "oneYear"}[recency]
     req = urllib.request.Request(
         "https://api.bochaai.com/v1/web-search",
-        data=json.dumps({"query": query, "count": 5, "summary": True}).encode(),
+        data=json.dumps(body).encode(),
         headers={
             "Authorization": f"Bearer {settings.search_api_key}",
             "Content-Type": "application/json",
@@ -35,39 +39,14 @@ def _bocha_search(query: str) -> str:
     return "\n\n".join(lines) or "(无搜索结果)"
 
 
-def _zhipu_search(query: str) -> str:
-    """智谱 Web Search(search_std,¥0.01/次,Coding Plan 不含、按量余额计费)。"""
-    req = urllib.request.Request(
-        "https://open.bigmodel.cn/api/paas/v4/web_search",
-        data=json.dumps(
-            {
-                "search_engine": "search_std",
-                "search_query": query[:70],
-                "count": 5,
-                "search_intent": False,
-                "content_size": "medium",
-            }
-        ).encode(),
-        headers={
-            "Authorization": f"Bearer {settings.llm_api_key}",
-            "Content-Type": "application/json",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        data: Any = json.loads(resp.read())
-    lines = []
-    for i, r in enumerate(data.get("search_result", []), 1):
-        lines.append(f"[{i}] {r.get('title')}\n{r.get('link')}\n{r.get('content','')[:300]}")
-    return "\n\n".join(lines) or "(无搜索结果)"
-
-
-def _tavily_search(query: str) -> str:
-    """Tavily(LLM 原生搜索,免费 1000 次/月)。"""
+def _tavily_search(query: str, recency: str | None = None) -> str:
+    """Tavily(LLM 原生,免费 1000/月;官方英文内容强)。"""
+    body: dict[str, Any] = {"query": query, "max_results": 5, "search_depth": "basic"}
+    if recency:
+        body["days"] = {"day": 1, "week": 7, "month": 30, "year": 365}[recency]
     req = urllib.request.Request(
         "https://api.tavily.com/search",
-        data=json.dumps(
-            {"query": query, "max_results": 5, "search_depth": "basic"}
-        ).encode(),
+        data=json.dumps(body).encode(),
         headers={
             "Authorization": f"Bearer {settings.tavily_api_key}",
             "Content-Type": "application/json",
@@ -81,31 +60,76 @@ def _tavily_search(query: str) -> str:
     return "\n\n".join(lines) or "(无搜索结果)"
 
 
+def _zhipu_search(query: str, recency: str | None = None) -> str:
+    """智谱 Web Search(search_std,¥0.01/次按量,Coding Plan 不含工具)。"""
+    body: dict[str, Any] = {
+        "search_engine": "search_std",
+        "search_query": query[:70],
+        "count": 5,
+        "search_intent": False,
+        "content_size": "medium",
+    }
+    if recency:
+        body["search_recency_filter"] = {"day": "oneDay", "week": "oneWeek",
+                                         "month": "oneMonth", "year": "oneYear"}[recency]
+    req = urllib.request.Request(
+        "https://open.bigmodel.cn/api/paas/v4/web_search",
+        data=json.dumps(body).encode(),
+        headers={
+            "Authorization": f"Bearer {settings.llm_api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data: Any = json.loads(resp.read())
+    lines = []
+    for i, r in enumerate(data.get("search_result", []), 1):
+        lines.append(f"[{i}] {r.get('title')}\n{r.get('link')}\n{r.get('content','')[:300]}")
+    return "\n\n".join(lines) or "(无搜索结果)"
+
+
+# 引擎注册表:名字 / 调用 / key 探测(顺序即优先级)
+_ENGINES: list[tuple[str, Any, Any]] = [
+    ("bocha", _bocha_search, lambda: settings.search_api_key),
+    ("tavily", _tavily_search, lambda: settings.tavily_api_key),
+    ("zhipu", _zhipu_search, lambda: settings.llm_api_key),
+]
+
+
 def search_provider() -> str | None:
-    """当前可用的搜索 provider:博查 → Tavily → 智谱(按量),谁配了用谁。"""
-    if settings.search_api_key:
-        return "bocha"
-    if settings.tavily_api_key:
-        return "tavily"
-    if settings.llm_api_key:
-        return "zhipu"
+    """主 provider(单引擎调用,答疑用):博查 → Tavily → 智谱。"""
+    for name, _fn, has_key in _ENGINES:
+        if has_key():
+            return name
     return None
 
 
-def web_search(query: str) -> str:
-    """联网搜索(自动选 provider),返回 top 结果的标题/链接/摘要文本。"""
+def web_search(query: str, recency: str | None = None) -> str:
+    """联网搜索(主 provider),返回 top 结果的标题/链接/摘要文本。答疑用。"""
     p = search_provider()
-    try:
-        if p == "bocha":
-            return _bocha_search(query)
-        if p == "tavily":
-            return _tavily_search(query)
-        if p == "zhipu":
-            return _zhipu_search(query)
-    except urllib.error.HTTPError as e:
-        body = e.read().decode()[:200]
-        return f"(搜索失败 HTTP {e.code}:{body}——基于已有知识回答并注明未经核实)"
+    for name, fn, has_key in _ENGINES:
+        if p == name and has_key():
+            try:
+                return str(fn(query, recency))
+            except urllib.error.HTTPError as e:
+                body = e.read().decode()[:200]
+                return f"(搜索失败 HTTP {e.code}:{body}——基于已有知识回答并注明未经核实)"
     return "(搜索不可用:未配置任何搜索 key。请基于已有知识回答,并注明未经联网核实)"
+
+
+def web_search_multi(query: str, recency: str | None = None) -> str:
+    """多引擎合并观测(找资料 agent 用):博查中文生态 + Tavily 官方英文互补;
+    单引擎失败不拖垮整体——把「社区视角」和「官方最新视角」都摆给模型。"""
+    parts: list[str] = []
+    for name, fn, has_key in _ENGINES:
+        if not has_key():
+            continue
+        try:
+            r = fn(query, recency)
+        except urllib.error.HTTPError as e:
+            r = f"(该引擎失败 HTTP {e.code},忽略)"
+        parts.append(f"## 搜索引擎 {name}\n{r}")
+    return "\n\n".join(parts) if parts else web_search(query, recency)
 
 
 def read_notes(keyword: str) -> str:
