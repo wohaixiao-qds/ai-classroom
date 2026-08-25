@@ -218,3 +218,16 @@ body.reveal-viewport,
 .chat-md blockquote {
   border-left: 3px solid var(--line); padding-left: 0.8em; margin: 0.5em 0; color: var(--muted);
 }
+
+/* ---- 滚动条:替换系统默认(全局,跟主题变量走) ---- */
+* { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box; /* 两侧留缝,细而不实心 */
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: content-box; }
+*::-webkit-scrollbar-corner { background: transparent; }
