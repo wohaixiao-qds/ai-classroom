@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Markdown from "react-markdown";
+import { normalizeBold } from "../../utils/md";
 
 /** 复述检查点弹层:复述文本 → POST /grade 批改(✅/⚠️/❌ + 🎯精准版)
  * pass 解锁继续;warn 看完精准版可继续或重述;fail 必须重述。
@@ -78,14 +79,14 @@ export function CheckpointOverlay({
               <div className="mb-1 text-lg">
                 {result.verdict === "pass" ? "✅" : result.verdict === "warn" ? "⚠️" : "❌"}{" "}
                 <span className="chat-md inline-block text-base leading-relaxed">
-                  <Markdown>{result.comment}</Markdown>
+                  <Markdown>{normalizeBold(result.comment)}</Markdown>
                 </span>
               </div>
               {result.precise && (
                 <div className="accent mt-2 text-sm leading-relaxed">
                   🎯 精准版:
                   <span className="chat-md inline-block">
-                    <Markdown>{result.precise}</Markdown>
+                    <Markdown>{normalizeBold(result.precise)}</Markdown>
                   </span>
                 </div>
               )}

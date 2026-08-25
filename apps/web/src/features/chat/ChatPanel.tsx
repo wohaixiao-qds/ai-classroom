@@ -4,6 +4,7 @@ import Markdown from "react-markdown";
 import type { components } from "../../types/api.gen";
 import type { Course } from "../../types/csl";
 import type { usePlayback } from "../player/usePlayback";
+import { normalizeBold } from "../../utils/md";
 
 interface Msg {
   role: "user" | "assistant";
@@ -254,7 +255,7 @@ export function ChatPanel({
               ) : (
                 <div className="chat-md text-sm leading-relaxed">
                   {m.text ? (
-                    <Markdown components={mdComponents}>{m.text}</Markdown>
+                    <Markdown components={mdComponents}>{normalizeBold(m.text)}</Markdown>
                   ) : isLive ? (
                     <span className="muted">思考中…</span>
                   ) : null}
