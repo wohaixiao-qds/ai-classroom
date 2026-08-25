@@ -68,7 +68,7 @@ _FRAMEWORK_PROMPT = """你是学习路线调研员,为一个学习主题产出�
 {seed}
 
 先 web_search 扫该主题的权威知识地图(官方文档目录结构 / GitHub 高星项目 docs /
-经典教程章节),再按下述规则合流:
+经典教程章节;搜索默认限定近一年,时效敏感处用 week/month 再扫一遍),再按下述规则合流:
 - 用户清单里已有的子题:保留,且排在前面、保持用户的相对顺序(origin 标 "user")
 - 地图里有、用户清单没有的:列为补充(origin 标 "map")——这是用户清单外的缺口
 - 用户有、地图没有的:保留(origin 标 "user",独特衍生往往最值钱)
@@ -83,7 +83,10 @@ _MATERIAL_PROMPT = """你是课题调研员,为课件作者收集一个子题的
 
 主题:{topic} / 本次子题:{subtopic}
 
-用 web_search 找资料,fetch_page 深读原文。凑够 8~20 条要点、3 个以上不同来源再交付。
+调研分两步走:
+第〇步(必做):先用 recency=week 搜「主题 + 最新 release/开源/版本/动向」,确认近一周
+有没有大事件(新版本、开源、安全公告)——有则纳入要点,别等捡到;没有再进第一步。
+第一步:常规搜集,fetch_page 深读原文,凑够 8~20 条要点、3 个以上不同来源再交付。
 
 来源三要求(按此配比挑,不是随便搜到什么用什么):
 1. **最权威**:官方文档/规范/官方 changelog 打底(概念与机制的唯一依据)
@@ -191,7 +194,8 @@ def _execute(name: str, args: dict[str, Any]) -> str:
     if name == "web_search":
         from app.agent.tools import web_search_multi
 
-        return web_search_multi(args["query"], args.get("recency"))
+        # 默认时间窗近一年(不靠模型自觉传参——实测漏传导致上周开源事件被漏掉)
+        return web_search_multi(args["query"], args.get("recency") or "year")
     if name == "fetch_page":
         return fetch_page(args["url"])
     return f"(未知工具 {name})"
