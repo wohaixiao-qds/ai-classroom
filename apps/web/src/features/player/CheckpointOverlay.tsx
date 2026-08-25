@@ -1,7 +1,9 @@
 import { useState } from "react";
+import Markdown from "react-markdown";
 
 /** 复述检查点弹层:复述文本 → POST /grade 批改(✅/⚠️/❌ + 🎯精准版)
- * pass 解锁继续;warn 看完精准版可继续或重述;fail 必须重述。 */
+ * pass 解锁继续;warn 看完精准版可继续或重述;fail 必须重述。
+ * 批改文本按 markdown 渲染(grader 会用 **加粗** 等标记,纯文本会裸露星号)。 */
 export function CheckpointOverlay({
   question,
   hint,
@@ -73,12 +75,19 @@ export function CheckpointOverlay({
         ) : (
           <>
             <div className="mb-4 rounded-lg border border-(--line) bg-(--bg) p-4">
-              <p className="mb-1 text-lg">
+              <div className="mb-1 text-lg">
                 {result.verdict === "pass" ? "✅" : result.verdict === "warn" ? "⚠️" : "❌"}{" "}
-                {result.comment}
-              </p>
+                <span className="chat-md inline-block text-base leading-relaxed">
+                  <Markdown>{result.comment}</Markdown>
+                </span>
+              </div>
               {result.precise && (
-                <p className="accent mt-2 text-sm leading-relaxed">🎯 精准版: {result.precise}</p>
+                <div className="accent mt-2 text-sm leading-relaxed">
+                  🎯 精准版:
+                  <span className="chat-md inline-block">
+                    <Markdown>{result.precise}</Markdown>
+                  </span>
+                </div>
               )}
             </div>
             <div className="flex justify-end gap-3">
