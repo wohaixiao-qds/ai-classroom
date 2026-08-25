@@ -234,6 +234,65 @@ def build_draft(course_id: str) -> dict[str, Any]:
     }
 
 
+_RECHECK_PROMPT = """你是笔记审校员。学员有一篇已学的笔记,现在拿到了一份基于最新开源实践
+(Codex CLI/DeepSeek dsh/Anthropic 工程博客)的外证调研材料。
+只输出**要追加到笔记末尾的日期块**——对照笔记原文,给「印证/补充/演进」三类增量;
+笔记里已被印证的论断只需一句点名(不重抄),重点是笔记没有的新东西。
+原文一字不提修改建议;没增量就只输出一行"(外证完成:本文论断全部被最新实践印证)"。
+
+已有笔记:
+{note}
+
+外证材料(最新实践,带来源):
+{material}
+
+输出格式(Markdown,从 ## 开始,不要额外说明):
+## ⏫ {date} 外证增补(来源:Codex CLI / DeepSeek dsh / Anthropic 工程博客)
+### ✅ 被印证的(逐条一句点名,注 [[相关原文小节]])
+### ➕ 新补充的(笔记没有的新知识/新数字,重要概念 [[双链]])
+### 🔀 已演进的(笔记说法需更新的地方:旧说法 → 现状,带来源)
+"""
+
+
+def build_recheck(note_rel: str, material_path: str) -> dict[str, Any]:
+    """外证增补:已有笔记 + 最新调研材料 → 末尾日期块草稿(不落盘,确认闸后追加)。"""
+    import time
+
+    note_path = settings.kb_dir / note_rel
+    note_text = note_path.read_text(encoding="utf-8")
+    material = json.loads(Path(material_path).read_text(encoding="utf-8"))
+
+    src_lines = "\n".join(
+        f"[{s['id']}] {s['title'][:40]} | {s['url'][:60]}" for s in material["sources"]
+    )
+    mat_lines = ""
+    for g in material["groups"]:
+        mat_lines += f"\n## {g['heading']}"
+        for p in g["points"]:
+            sid = f"(源[{p.get('source_id')}])" if p.get("source_id") else ""
+            mat_lines += f"\n- {p['text']}{sid}"
+
+    client = get_llm_client()
+    resp = client.messages.create(
+        model=settings.llm_model,
+        max_tokens=4096,
+        messages=[
+            {
+                "role": "user",
+                "content": _RECHECK_PROMPT.format(
+                    note=note_text[:5000],
+                    material=(src_lines + mat_lines)[:7000],
+                    date=time.strftime("%Y-%m-%d"),
+                ),
+            }
+        ],
+    )
+    content = "".join(b.text for b in resp.content if b.type == "text").strip()
+    if content.startswith("```"):
+        content = content.strip("`").removeprefix("markdown").strip()
+    return {"mode": "append", "note_path": str(note_path), "content": content, "todo_edit": None}
+
+
 def apply_draft(draft: dict[str, Any]) -> None:
     """确认后执行写回:新笔记 / 追加块 / 待探勾选。只这三种动作,别的不碰。"""
     p = Path(draft["note_path"])
@@ -254,11 +313,20 @@ if __name__ == "__main__":
     import argparse
 
     ap = argparse.ArgumentParser(description="学习沉淀写回(P3):草稿→确认→落盘")
-    ap.add_argument("course_id")
+    ap.add_argument("course_id", nargs="?", help="按课件写回(学完闸由 API 层把关)")
+    ap.add_argument("--recheck", metavar="NOTE", help="外证增补模式:vault 笔记相对路径")
+    ap.add_argument("--material", help="外证材料 JSON 路径(--recheck 时必填)")
     ap.add_argument("--dry", action="store_true", help="只看草稿,不询问不落盘")
     a = ap.parse_args()
 
-    d = build_draft(a.course_id)
+    if a.recheck:
+        if not a.material:
+            ap.error("--recheck 需要同时给 --material <调研材料.json>")
+        d = build_recheck(a.recheck, a.material)
+    elif a.course_id:
+        d = build_draft(a.course_id)
+    else:
+        ap.error("给 course_id,或 --recheck NOTE --material MAT")
     print(f"模式:{'追加到已有笔记' if d['mode'] == 'append' else '新建笔记'}")
     print(f"落点:{d['note_path']}")
     if d["todo_edit"]:
