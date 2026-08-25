@@ -1,0 +1,855 @@
+{
+  "id": "harness-engineering-practice",
+  "title": "Harness 最新工程实践：Codex、DeepSeek 与 Anthropic 演进",
+  "scenario": "自学",
+  "meta": {
+    "source_notes": [
+      "data/research/Agent-harness-工程.harness-最新工程实践-OpenAI-Codex-CLI-开源实现-Dee.material.json"
+    ],
+    "sources": [
+      {
+        "title": "OpenAI Codex - GitHub",
+        "url": "https://github.com/openai/codex"
+      },
+      {
+        "title": "OpenAI Codex README",
+        "url": "https://github.com/openai/codex/blob/main/README.md"
+      },
+      {
+        "title": "DeepSeek Harness - GitHub",
+        "url": "https://github.com/deepseek-ai/deepseek-harness"
+      },
+      {
+        "title": "DeepSeek Harness Developer Preview",
+        "url": "https://deepseek.com/harness/en"
+      },
+      {
+        "title": "Anthropic Engineering Blog",
+        "url": "https://www.anthropic.com/engineering"
+      },
+      {
+        "title": "Effective harnesses for long-running agents - Anthropic",
+        "url": "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents"
+      },
+      {
+        "title": "Writing effective tools for agents - Anthropic",
+        "url": "https://www.anthropic.com/engineering/writing-tools-for-agents"
+      },
+      {
+        "title": "Building effective agents - Anthropic",
+        "url": "https://www.anthropic.com/engineering/building-effective-agents"
+      },
+      {
+        "title": "Code execution with MCP: Building more efficient agents - Anthropic",
+        "url": "https://www.anthropic.com/engineering/code-execution-with-mcp"
+      },
+      {
+        "title": "Equipping agents for the real world with Agent Skills - Anthropic",
+        "url": "https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills"
+      },
+      {
+        "title": "Scaling Managed Agents: Decoupling the brain from the hands - Anthropic",
+        "url": "https://www.anthropic.com/engineering/managed-agents"
+      },
+      {
+        "title": "Get started with Claude Managed Agents - Claude Platform Docs",
+        "url": "https://platform.claude.com/docs/en/managed-agents/quickstart"
+      },
+      {
+        "title": "Computer use tool - Claude Platform Docs",
+        "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool"
+      },
+      {
+        "title": "Beyond permission prompts: making Claude Code more secure and autonomous - Anthr",
+        "url": "https://www.anthropic.com/engineering/claude-code-sandboxing"
+      },
+      {
+        "title": "How we contain Claude across products - Anthropic",
+        "url": "https://www.anthropic.com/engineering/how-we-contain-claude"
+      }
+    ],
+    "topic": "Agent harness 工程",
+    "duration_min": null,
+    "version": 1
+  },
+  "pages": [
+    {
+      "id": "p1-cover",
+      "eyebrow": "Agent harness 工程",
+      "title": "Harness 最新工程实践全景",
+      "content": {
+        "kind": "cover",
+        "equation": "Harness = 本地运行 + 插件化 + 安全隔离",
+        "meta": [
+          [
+            "讲师",
+            "AI 老师"
+          ],
+          [
+            "来源",
+            "OpenAI/DeepSeek/Anthropic 官方资料"
+          ],
+          [
+            "时长",
+            "约12分钟"
+          ]
+        ]
+      },
+      "script": [
+        {
+          "text": "上节课我们讲了 harness 是什么——它是连接大模型与真实世界的控制框架。",
+          "audio": "audio/harness-engineering-practice/p1-cover-s0.mp3"
+        },
+        {
+          "text": "今天我们看业界最新的三个 harness 实践。",
+          "audio": "audio/harness-engineering-practice/p1-cover-s1.mp3"
+        },
+        {
+          "text": "OpenAI 的 Codex CLI，轻量可本地运行。",
+          "audio": "audio/harness-engineering-practice/p1-cover-s2.mp3"
+        },
+        {
+          "text": "DeepSeek 的插件化架构，一切皆插件。",
+          "audio": "audio/harness-engineering-practice/p1-cover-s3.mp3"
+        },
+        {
+          "text": "Anthropic 从简单模式一路演进到完整的 Managed Agents 体系。",
+          "audio": "audio/harness-engineering-practice/p1-cover-s4.mp3"
+        },
+        {
+          "text": "核心公式写在画面上：本地运行加插件化，再加安全隔离。",
+          "audio": "audio/harness-engineering-practice/p1-cover-s5.mp3"
+        },
+        {
+          "text": "这就是现代 harness 的三大支柱。",
+          "audio": "audio/harness-engineering-practice/p1-cover-s6.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "fade",
+          "target": null,
+          "with_sentence": 6
+        }
+      ],
+      "checkpoint": null
+    },
+    {
+      "id": "p2-codex-formula",
+      "eyebrow": "OpenAI Codex CLI",
+      "title": "Codex 四核心能力",
+      "content": {
+        "kind": "formula",
+        "items": [
+          "本地运行：npm/Homebrew/GitHub 安装，支持 macOS/Linux/Windows",
+          "多模态输入：读写代码 + 执行命令 + 截图交互",
+          "沙箱隔离：三档安全模式（ReadOnly/Auto/Full Access）",
+          "账户集成：ChatGPT Plus/Pro/Business 或 API Key"
+        ],
+        "conclusion": "Apache-2.0 开源许可的轻量终端编程智能体"
+      },
+      "script": [
+        {
+          "text": "先看 OpenAI 的 Codex CLI。",
+          "audio": "audio/harness-engineering-practice/p2-codex-formula-s0.mp3"
+        },
+        {
+          "text": "第一个能力是本地运行。",
+          "audio": "audio/harness-engineering-practice/p2-codex-formula-s1.mp3"
+        },
+        {
+          "text": "支持三种主流系统，可以用 npm、Homebrew 或者 GitHub 二进制包安装。",
+          "audio": "audio/harness-engineering-practice/p2-codex-formula-s2.mp3"
+        },
+        {
+          "text": "安装完就能在终端里直接用。",
+          "audio": "audio/harness-engineering-practice/p2-codex-formula-s3.mp3"
+        },
+        {
+          "text": "第二个能力是多模态输入。",
+          "audio": "audio/harness-engineering-practice/p2-codex-formula-s4.mp3"
+        },
+        {
+          "text": "既能读写代码，又能执行命令，还支持截图交互。",
+          "audio": "audio/harness-engineering-practice/p2-codex-formula-s5.mp3"
+        },
+        {
+          "text": "第三个关键能力是沙箱隔离。",
+          "audio": "audio/harness-engineering-practice/p2-codex-formula-s6.mp3"
+        },
+        {
+          "text": "提供三档安全模式让你选。",
+          "audio": "audio/harness-engineering-practice/p2-codex-formula-s7.mp3"
+        },
+        {
+          "text": "ReadOnly 模式只能看文件，Auto 模式自动执行，Full Access 就是完全开放。",
+          "audio": "audio/harness-engineering-practice/p2-codex-formula-s8.mp3"
+        },
+        {
+          "text": "第四个能力是账户集成。",
+          "audio": "audio/harness-engineering-practice/p2-codex-formula-s9.mp3"
+        },
+        {
+          "text": "可以用 ChatGPT 的各类账号，或者自己的 API Key。",
+          "audio": "audio/harness-engineering-practice/p2-codex-formula-s10.mp3"
+        },
+        {
+          "text": "整个项目是 Apache-2.0 开源的，代码在 GitHub 上。",
+          "audio": "audio/harness-engineering-practice/p2-codex-formula-s11.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "pop",
+          "target": "本地运行：npm/Homebrew/GitHub 安装，支持 macOS/Linux/Windows",
+          "with_sentence": 2
+        },
+        {
+          "effect": "pop",
+          "target": "多模态输入：读写代码 + 执行命令 + 截图交互",
+          "with_sentence": 5
+        },
+        {
+          "effect": "pop",
+          "target": "沙箱隔离：三档安全模式（ReadOnly/Auto/Full Access）",
+          "with_sentence": 8
+        },
+        {
+          "effect": "pop",
+          "target": "账户集成：ChatGPT Plus/Pro/Business 或 API Key",
+          "with_sentence": 10
+        },
+        {
+          "effect": "fade",
+          "target": null,
+          "with_sentence": 11
+        }
+      ],
+      "checkpoint": {
+        "question": "复述 Codex CLI 的四核心能力",
+        "hint": "本地运行、多模态输入、沙箱隔离、账户集成",
+        "pass_rule": "准确说出四个能力，沙箱模式提三档即通过"
+      }
+    },
+    {
+      "id": "p3-duo-codex-deepseek",
+      "eyebrow": "开源实现对比",
+      "title": "Codex vs DeepSeek Harness",
+      "content": {
+        "kind": "duo",
+        "left": {
+          "title": "OpenAI Codex CLI",
+          "tag": "轻量终端智能体",
+          "body": "- **本地优先**：直接运行在用户机器上\n- **安全审批**：ReadOnly/Auto/Full Access 三档\n- **账户绑定**：集成 ChatGPT 或 API Key\n- **开源许可**：Apache-2.0，社区可自由修改\n- **安装简单**：npm/Homebrew/GitHub 一键部署"
+        },
+        "right": {
+          "title": "DeepSeek Harness (dsh)",
+          "tag": "插件化架构",
+          "body": "- **一切皆插件**：模型/工具/技能/沙箱均可热插拔\n- **Cordis 内核**：负责插件挂载/卸载与依赖管理\n- **四种运行模式**：Standard/Code/Minimal/Creator\n- **全程可追溯**：会话日志仅追加，支持 Resume/Fork\n- **开发者预览**：MIT 许可，当前存在兼容性破坏变更"
+        }
+      },
+      "script": [
+        {
+          "text": "现在对比两个开源实现。",
+          "audio": "audio/harness-engineering-practice/p3-duo-codex-deepseek-s0.mp3"
+        },
+        {
+          "text": "左边是 OpenAI 的 Codex CLI，主打轻量级终端智能体。",
+          "audio": "audio/harness-engineering-practice/p3-duo-codex-deepseek-s1.mp3"
+        },
+        {
+          "text": "它优先在本地运行，直接装在你机器上。",
+          "audio": "audio/harness-engineering-practice/p3-duo-codex-deepseek-s2.mp3"
+        },
+        {
+          "text": "安全审批分三档，从只读到完全开放。",
+          "audio": "audio/harness-engineering-practice/p3-duo-codex-deepseek-s3.mp3"
+        },
+        {
+          "text": "账户绑定 ChatGPT 或 API Key，开源许可宽松。",
+          "audio": "audio/harness-engineering-practice/p3-duo-codex-deepseek-s4.mp3"
+        },
+        {
+          "text": "右边是 DeepSeek 的 Harness，代号 dsh。",
+          "audio": "audio/harness-engineering-practice/p3-duo-codex-deepseek-s5.mp3"
+        },
+        {
+          "text": "它的核心理念是一切皆插件。",
+          "audio": "audio/harness-engineering-practice/p3-duo-codex-deepseek-s6.mp3"
+        },
+        {
+          "text": "模型、工具、技能、沙箱全部可以热插拔。",
+          "audio": "audio/harness-engineering-practice/p3-duo-codex-deepseek-s7.mp3"
+        },
+        {
+          "text": "由 Cordis 内核统一管理插件的挂载和卸载。",
+          "audio": "audio/harness-engineering-practice/p3-duo-codex-deepseek-s8.mp3"
+        },
+        {
+          "text": "提供四种运行模式适应不同场景。",
+          "audio": "audio/harness-engineering-practice/p3-duo-codex-deepseek-s9.mp3"
+        },
+        {
+          "text": "会话全程可追溯，支持暂停、恢复和分支。",
+          "audio": "audio/harness-engineering-practice/p3-duo-codex-deepseek-s10.mp3"
+        },
+        {
+          "text": "目前是开发者预览版，MIT 许可，但还有兼容性破坏变更。",
+          "audio": "audio/harness-engineering-practice/p3-duo-codex-deepseek-s11.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "fade",
+          "target": "left",
+          "with_sentence": 2
+        },
+        {
+          "effect": "fade",
+          "target": "right",
+          "with_sentence": 7
+        }
+      ],
+      "checkpoint": {
+        "question": "对比 Codex CLI 和 DeepSeek Harness 的核心差异",
+        "hint": "Codex 轻量终端 vs DeepSeek 插件化架构",
+        "pass_rule": "说出 Codex 本地运行三档模式、DeepSeek 一切皆插件和四种运行模式即通过"
+      }
+    },
+    {
+      "id": "p4-anthropic-roadmap",
+      "eyebrow": "Anthropic 工程演进",
+      "title": "从简单模式到完整 Harness",
+      "content": {
+        "kind": "formula",
+        "items": [
+          "2024-12 简单可组合模式：提示链、路由、并行化（优先用工作流而非复杂框架）",
+          "2025-09 工具契约迭代：原型-评估-协同优化，强调命名边界、高效返回、令牌优化",
+          "2025-10 Agent Skills：SKILL.md 目录 + 渐进式披露，通用智能体动态加载领域能力",
+          "2025-11 两层解法：Initializer 搭建环境，Coding Agent 增量进展 + 留下清晰制品",
+          "2025-11 MCP 代码执行：按需加载工具，示例令牌节省 98.7%",
+          "2026-04 Managed Agents：会话/Harness/沙箱解耦，容错恢复，支持远程基础设施"
+        ],
+        "conclusion": "工程选择优先级：优化单次 LLM → 确定性工作流 → 动态智能体"
+      },
+      "script": [
+        {
+          "text": "现在看 Anthropic 的工程演进路线。",
+          "audio": "audio/harness-engineering-practice/p4-anthropic-roadmap-s0.mp3"
+        },
+        {
+          "text": "2024 年底的思路是尽量简单。",
+          "audio": "audio/harness-engineering-practice/p4-anthropic-roadmap-s1.mp3"
+        },
+        {
+          "text": "提示链、路由、并行化这些可组合模式，比复杂框架更可靠。",
+          "audio": "audio/harness-engineering-practice/p4-anthropic-roadmap-s2.mp3"
+        },
+        {
+          "text": "到 2025 年 9 月，重点转向工具设计。",
+          "audio": "audio/harness-engineering-practice/p4-anthropic-roadmap-s3.mp3"
+        },
+        {
+          "text": "工具是和非确定性智能体的契约，需要原型、评估、协同优化三步走。",
+          "audio": "audio/harness-engineering-practice/p4-anthropic-roadmap-s4.mp3"
+        },
+        {
+          "text": "同年 10 月提出 Agent Skills。",
+          "audio": "audio/harness-engineering-practice/p4-anthropic-roadmap-s5.mp3"
+        },
+        {
+          "text": "通过 SKILL.md 目录实现渐进式披露，让通用智能体动态加载领域能力。",
+          "audio": "audio/harness-engineering-practice/p4-anthropic-roadmap-s6.mp3"
+        },
+        {
+          "text": "11 月出现两个关键突破。",
+          "audio": "audio/harness-engineering-practice/p4-anthropic-roadmap-s7.mp3"
+        },
+        {
+          "text": "一个是两层解法，Initializer 搭环境，Coding Agent 做增量进展。",
+          "audio": "audio/harness-engineering-practice/p4-anthropic-roadmap-s8.mp3"
+        },
+        {
+          "text": "另一个是 MCP 代码执行，令牌节省近 99%。",
+          "audio": "audio/harness-engineering-practice/p4-anthropic-roadmap-s9.mp3"
+        },
+        {
+          "text": "到了 2026 年，演进到 Managed Agents 体系。",
+          "audio": "audio/harness-engineering-practice/p4-anthropic-roadmap-s10.mp3"
+        },
+        {
+          "text": "会话、Harness、沙箱三层解耦，容错恢复能力大幅提升。",
+          "audio": "audio/harness-engineering-practice/p4-anthropic-roadmap-s11.mp3"
+        },
+        {
+          "text": "整个路线给我们的启示是什么？",
+          "audio": "audio/harness-engineering-practice/p4-anthropic-roadmap-s12.mp3"
+        },
+        {
+          "text": "优先优化单次 LLM 调用，再考虑确定性工作流，最后才用动态智能体。",
+          "audio": "audio/harness-engineering-practice/p4-anthropic-roadmap-s13.mp3"
+        },
+        {
+          "text": "框架能用，但别上来就上黑盒。",
+          "audio": "audio/harness-engineering-practice/p4-anthropic-roadmap-s14.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "pop",
+          "target": "2024-12 简单可组合模式：提示链、路由、并行化（优先用工作流而非复杂框架）",
+          "with_sentence": 2
+        },
+        {
+          "effect": "pop",
+          "target": "2025-09 工具契约迭代：原型-评估-协同优化，强调命名边界、高效返回、令牌优化",
+          "with_sentence": 4
+        },
+        {
+          "effect": "pop",
+          "target": "2025-10 Agent Skills：SKILL.md 目录 + 渐进式披露，通用智能体动态加载领域能力",
+          "with_sentence": 7
+        },
+        {
+          "effect": "pop",
+          "target": "2025-11 两层解法：Initializer 搭建环境，Coding Agent 增量进展 + 留下清晰制品",
+          "with_sentence": 9
+        },
+        {
+          "effect": "pop",
+          "target": "2025-11 MCP 代码执行：按需加载工具，示例令牌节省 98.7%",
+          "with_sentence": 10
+        },
+        {
+          "effect": "pop",
+          "target": "2026-04 Managed Agents：会话/Harness/沙箱解耦，容错恢复，支持远程基础设施",
+          "with_sentence": 12
+        },
+        {
+          "effect": "fade",
+          "target": null,
+          "with_sentence": 14
+        }
+      ],
+      "checkpoint": {
+        "question": "复述 Anthropic 工程演进的三个关键节点及其启示",
+        "hint": "简单模式→工具契约→两层解法→Managed Agents，优先级是单次优化→工作流→智能体",
+        "pass_rule": "说出简单模式、工具契约、两层解法或 MCP、Managed Agents 中的三个，并讲清优先级即通过"
+      }
+    },
+    {
+      "id": "p5-mcp-code-execution",
+      "eyebrow": "令牌优化实践",
+      "title": "MCP 代码执行模式",
+      "content": {
+        "kind": "code",
+        "language": "typescript",
+        "lines": [
+          {
+            "code": "// 传统模式：工具定义膨胀 + 上下文消耗",
+            "comment": "问题：每次调用都加载完整工具定义",
+            "highlight": null
+          },
+          {
+            "code": "const tools = [listFilesTool, searchTool, editTool, ...]; // 数百个工具",
+            "comment": "工具列表塞满上下文窗口",
+            "highlight": null
+          },
+          {
+            "code": "const result = await agent.call(tool, context); // 全量返回",
+            "comment": "中间结果全部回传 LLM",
+            "highlight": null
+          },
+          {
+            "code": "",
+            "comment": "",
+            "highlight": null
+          },
+          {
+            "code": "// MCP 模式：代码按需发现 + 数据过滤",
+            "comment": "解法：执行环境动态加载工具",
+            "highlight": null
+          },
+          {
+            "code": "const mcpServer = await MCP.connect('fs-executor');",
+            "comment": "连接文件系统执行器",
+            "highlight": null
+          },
+          {
+            "code": "const filtered = await mcpServer.exec(`ls *.py | grep test`);",
+            "comment": "在沙箱内过滤数据",
+            "highlight": null
+          },
+          {
+            "code": "await context.writeSummary(filtered); // 仅写摘要",
+            "comment": "只输出结果摘要",
+            "highlight": null
+          }
+        ],
+        "note": "Anthropic 报告：MCP 代码执行在规模化场景下令牌节省达 98.7%"
+      },
+      "script": [
+        {
+          "text": "深入看一个关键工程突破：MCP 代码执行模式。",
+          "audio": "audio/harness-engineering-practice/p5-mcp-code-execution-s0.mp3"
+        },
+        {
+          "text": "问题是什么？",
+          "audio": "audio/harness-engineering-practice/p5-mcp-code-execution-s1.mp3"
+        },
+        {
+          "text": "传统模式下，工具定义全部塞进上下文，每次调用都加载完整列表。",
+          "audio": "audio/harness-engineering-practice/p5-mcp-code-execution-s2.mp3"
+        },
+        {
+          "text": "中间结果全部回传给大模型，上下文迅速膨胀。",
+          "audio": "audio/harness-engineering-practice/p5-mcp-code-execution-s3.mp3"
+        },
+        {
+          "text": "MCP 的思路是什么？",
+          "audio": "audio/harness-engineering-practice/p5-mcp-code-execution-s4.mp3"
+        },
+        {
+          "text": "让代码执行环境动态加载工具，而不是预先定义。",
+          "audio": "audio/harness-engineering-practice/p5-mcp-code-execution-s5.mp3"
+        },
+        {
+          "text": "在沙箱内过滤数据，只输出结果摘要。",
+          "audio": "audio/harness-engineering-practice/p5-mcp-code-execution-s6.mp3"
+        },
+        {
+          "text": "看代码右边注释的对比。",
+          "audio": "audio/harness-engineering-practice/p5-mcp-code-execution-s7.mp3"
+        },
+        {
+          "text": "上面是传统模式，工具列表塞满上下文，全量返回结果。",
+          "audio": "audio/harness-engineering-practice/p5-mcp-code-execution-s8.mp3"
+        },
+        {
+          "text": "下面是 MCP 模式，按需连接执行器，在沙箱过滤数据。",
+          "audio": "audio/harness-engineering-practice/p5-mcp-code-execution-s9.mp3"
+        },
+        {
+          "text": "Anthropic 的实测数据显示，规模化场景下令牌节省近 99%。",
+          "audio": "audio/harness-engineering-practice/p5-mcp-code-execution-s10.mp3"
+        },
+        {
+          "text": "这就是从工具定义膨胀到按需加载的工程思路转变。",
+          "audio": "audio/harness-engineering-practice/p5-mcp-code-execution-s11.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "fade",
+          "target": null,
+          "with_sentence": 1
+        },
+        {
+          "effect": "rise",
+          "target": "const tools = [listFilesTool, searchTool, editTool, ...]; // 数百个工具",
+          "with_sentence": 3
+        },
+        {
+          "effect": "rise",
+          "target": "const result = await agent.call(tool, context); // 全量返回",
+          "with_sentence": 4
+        },
+        {
+          "effect": "rise",
+          "target": "const mcpServer = await MCP.connect('fs-executor');",
+          "with_sentence": 7
+        },
+        {
+          "effect": "rise",
+          "target": "const filtered = await mcpServer.exec(`ls *.py | grep test`);",
+          "with_sentence": 8
+        },
+        {
+          "effect": "rise",
+          "target": "await context.writeSummary(filtered); // 仅写摘要",
+          "with_sentence": 9
+        },
+        {
+          "effect": "fade",
+          "target": null,
+          "with_sentence": 11
+        }
+      ],
+      "checkpoint": {
+        "question": "解释 MCP 代码执行模式如何解决上下文膨胀问题",
+        "hint": "按需加载工具、沙箱内过滤数据、仅输出摘要",
+        "pass_rule": "说出传统模式工具定义膨胀问题，并讲清 MCP 按需发现+过滤数据思路，提及 98.7% 即通过"
+      }
+    },
+    {
+      "id": "p6-duo-skills-computer-use",
+      "eyebrow": "能力扩展路径",
+      "title": "Agent Skills vs Computer Use",
+      "content": {
+        "kind": "duo",
+        "left": {
+          "title": "Agent Skills",
+          "tag": "领域能力复用",
+          "body": "- **标准化目录**：SKILL.md 开头 + YAML 元数据\n- **渐进式披露**：元数据 → 正文 → 附加文件按需加载\n- **可执行代码**：捆绑代码供智能体调用，解决确定性与效率\n- **与代码执行结合**：扩展可组合上下文边界\n- **评估驱动迭代**：从评估缺口起步优化触发逻辑"
+        },
+        "right": {
+          "title": "Computer Use",
+          "tag": "全桌面交互工具集",
+          "body": "- **17 个基础工具**：screenshot/left_click/type/zoom 等\n- **客户端执行**：截图/鼠标/键盘在你可控环境中处理\n- **实时处理**：Anthropic 仅处理图像与动作请求\n- **安全防护**：专用 VM/容器、最小权限、域名白名单\n- **提示注入防御**：分类器防护 + 人类确认关键决策"
+        }
+      },
+      "script": [
+        {
+          "text": "现在对比两种能力扩展路径。",
+          "audio": "audio/harness-engineering-practice/p6-duo-skills-computer-use-s0.mp3"
+        },
+        {
+          "text": "左边是 Agent Skills，解决领域能力复用。",
+          "audio": "audio/harness-engineering-practice/p6-duo-skills-computer-use-s1.mp3"
+        },
+        {
+          "text": "核心是 SKILL.md 标准化目录。",
+          "audio": "audio/harness-engineering-practice/p6-duo-skills-computer-use-s2.mp3"
+        },
+        {
+          "text": "元数据先加载，正文和附加文件按需披露。",
+          "audio": "audio/harness-engineering-practice/p6-duo-skills-computer-use-s3.mp3"
+        },
+        {
+          "text": "可以捆绑可执行代码，让智能体直接调用。",
+          "audio": "audio/harness-engineering-practice/p6-duo-skills-computer-use-s4.mp3"
+        },
+        {
+          "text": "这样既能保证确定性，又能提升效率。",
+          "audio": "audio/harness-engineering-practice/p6-duo-skills-computer-use-s5.mp3"
+        },
+        {
+          "text": "右边是 Computer Use，让智能体能操作整个桌面。",
+          "audio": "audio/harness-engineering-practice/p6-duo-skills-computer-use-s6.mp3"
+        },
+        {
+          "text": "提供 17 个基础工具，从截图到鼠标键盘。",
+          "audio": "audio/harness-engineering-practice/p6-duo-skills-computer-use-s7.mp3"
+        },
+        {
+          "text": "关键在于所有执行都在你可控的环境中完成。",
+          "audio": "audio/harness-engineering-practice/p6-duo-skills-computer-use-s8.mp3"
+        },
+        {
+          "text": "Anthropic 只处理截图图像和动作请求。",
+          "audio": "audio/harness-engineering-practice/p6-duo-skills-computer-use-s9.mp3"
+        },
+        {
+          "text": "安全防护必不可少：专用容器、最小权限、域名白名单。",
+          "audio": "audio/harness-engineering-practice/p6-duo-skills-computer-use-s10.mp3"
+        },
+        {
+          "text": "还要防止提示注入，用分类器和人工确认把关。",
+          "audio": "audio/harness-engineering-practice/p6-duo-skills-computer-use-s11.mp3"
+        },
+        {
+          "text": "两条路径互补：Skills 管知识复用，Computer Use 管操作交互。",
+          "audio": "audio/harness-engineering-practice/p6-duo-skills-computer-use-s12.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "fade",
+          "target": "left",
+          "with_sentence": 2
+        },
+        {
+          "effect": "fade",
+          "target": "right",
+          "with_sentence": 8
+        }
+      ],
+      "checkpoint": {
+        "question": "对比 Agent Skills 和 Computer Use 的定位与安全考量",
+        "hint": "Skills 领域知识复用，Computer Use 全桌面交互；两者都需安全防护",
+        "pass_rule": "说出 Skills 渐进式披露和 Computer Use 17 工具客户端执行，各提一个安全点即通过"
+      }
+    },
+    {
+      "id": "p7-table-decision",
+      "eyebrow": "工程选择与安全",
+      "title": "决策矩阵与防护层次",
+      "content": {
+        "kind": "table",
+        "headers": [
+          "场景/需求",
+          "推荐方案",
+          "关键权衡",
+          "安全防护"
+        ],
+        "rows": [
+          [
+            "单次任务优化",
+            "检索增强/上下文示例",
+            "直接用 LLM API，避免抽象黑盒",
+            "模型层系统提示+分类器"
+          ],
+          [
+            "确定性工作流",
+            "提示链/路由/并行化",
+            "优先用简单可组合模式",
+            "模型层防护+外部内容权限控制"
+          ],
+          [
+            "长周期任务",
+            "两层解法：Initializer + Coding Agent",
+            "进度追踪+增量提交+回滚机制",
+            "环境隔离（沙箱/VM/出口控制）"
+          ],
+          [
+            "工具规模化",
+            "MCP 代码执行模式",
+            "按需发现/加载工具，过滤数据节省令牌",
+            "凭据隔离于沙箱或使用代理金库"
+          ],
+          [
+            "领域知识复用",
+            "Agent Skills 目录",
+            "SKILL.md 标准化+渐进式披露+评估迭代",
+            "Skills 代码审计+执行权限限制"
+          ],
+          [
+            "全桌面交互",
+            "Computer Use 工具集",
+            "17 工具客户端执行+人类确认关键决策",
+            "专用容器+域名白名单+分类器防护"
+          ],
+          [
+            "容错恢复需求",
+            "Managed Agents 解耦",
+            "会话/Harness/沙箱分离，容错为 cattle 非 pet",
+            "三层防护：环境隔离+模型层+外部边界"
+          ]
+        ],
+        "note": "核心原则：安全多层重叠，上下文管理与模型窗口解耦"
+      },
+      "script": [
+        {
+          "text": "最后一页是工程选择决策矩阵。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s0.mp3"
+        },
+        {
+          "text": "七行对应七种常见场景。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s1.mp3"
+        },
+        {
+          "text": "第一行是单次任务优化，直接用 LLM API，别上复杂框架。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s2.mp3"
+        },
+        {
+          "text": "第二行是确定性工作流，优先提示链、路由、并行化。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s3.mp3"
+        },
+        {
+          "text": "第三行是长周期任务，必须上两层解法。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s4.mp3"
+        },
+        {
+          "text": "Initializer 搭环境，Coding Agent 增量进展，配合进度追踪和回滚。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s5.mp3"
+        },
+        {
+          "text": "第四行是工具规模化，用 MCP 代码执行模式。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s6.mp3"
+        },
+        {
+          "text": "按需加载工具，在执行环境过滤数据，令牌节省显著。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s7.mp3"
+        },
+        {
+          "text": "第五行是领域知识复用，上 Agent Skills。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s8.mp3"
+        },
+        {
+          "text": "标准化目录、渐进披露、评估迭代，缺一不可。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s9.mp3"
+        },
+        {
+          "text": "第六行是全桌面交互，Computer Use 工具集。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s10.mp3"
+        },
+        {
+          "text": "人类确认关键决策，配合容器隔离和域名白名单。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s11.mp3"
+        },
+        {
+          "text": "第七行是容错恢复需求，用 Managed Agents 解耦。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s12.mp3"
+        },
+        {
+          "text": "会话、Harness、沙箱三层分离，故障时重启就恢复。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s13.mp3"
+        },
+        {
+          "text": "最后一列是安全防护，每层都要上。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s14.mp3"
+        },
+        {
+          "text": "环境隔离、模型层防护、外部内容边界控制，三层重叠。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s15.mp3"
+        },
+        {
+          "text": "核心原则就两个：安全多层重叠，上下文管理与模型窗口解耦。",
+          "audio": "audio/harness-engineering-practice/p7-table-decision-s16.mp3"
+        }
+      ],
+      "fragments": [
+        {
+          "effect": "fade",
+          "target": null,
+          "with_sentence": 1
+        },
+        {
+          "effect": "rise",
+          "target": "单次任务优化",
+          "with_sentence": 3
+        },
+        {
+          "effect": "rise",
+          "target": "确定性工作流",
+          "with_sentence": 4
+        },
+        {
+          "effect": "rise",
+          "target": "长周期任务",
+          "with_sentence": 5
+        },
+        {
+          "effect": "rise",
+          "target": "工具规模化",
+          "with_sentence": 7
+        },
+        {
+          "effect": "rise",
+          "target": "领域知识复用",
+          "with_sentence": 9
+        },
+        {
+          "effect": "rise",
+          "target": "全桌面交互",
+          "with_sentence": 11
+        },
+        {
+          "effect": "rise",
+          "target": "容错恢复需求",
+          "with_sentence": 13
+        },
+        {
+          "effect": "fade",
+          "target": null,
+          "with_sentence": 16
+        }
+      ],
+      "checkpoint": {
+        "question": "复述工程选择的七种场景及其核心原则",
+        "hint": "从单次优化到 Managed Agents，安全多层重叠，上下文解耦",
+        "pass_rule": "说出至少四种场景的推荐方案，并讲清安全多层重叠和上下文解耦两个原则即通过"
+      }
+    }
+  ]
+}
