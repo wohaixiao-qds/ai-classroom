@@ -101,11 +101,15 @@ export function SlideDeck({
         );
       });
     };
-    deck.on("fragmentchanged", onFrag);
+    // 注意:reveal 的事件是 fragmentshown/fragmenthidden——不存在 fragmentchanged!
+    // (曾监听不存在的事件,引擎对页内步进全程失聪,三连修无效的根中根)
+    deck.on("fragmentshown", onFrag);
+    deck.on("fragmenthidden", onFrag);
     return () => {
       document.removeEventListener("keydown", onKey);
       deck.off("slidechanged", onSlide);
-      deck.off("fragmentchanged", onFrag);
+      deck.off("fragmentshown", onFrag);
+      deck.off("fragmenthidden", onFrag);
       void deck.destroy();
       onDeck(null);
     };
