@@ -15,7 +15,7 @@ app = FastAPI(title="AI 课堂 API", version="0.1.0")
 # 本地前端 dev 端口
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5180", "http://127.0.0.1:5180"],
+    allow_origins=["http://localhost:5273", "http://127.0.0.1:5273"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

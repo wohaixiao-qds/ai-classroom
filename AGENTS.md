@@ -104,7 +104,7 @@
 - ✅ **P4 第二轮·信息架构五区制(2026-08-24,`0eecb31`)**:对标 LearnHouse/ClassroomIO×OpenMAIC——Shell 四区导航;学习台(继续学断点+推荐)/课程库+**详情页**(大纲+来源可点)/生成中心(我想学+笔记备课+任务状态)/课堂/观测;CatalogPage 拆除分流;共享 useCatalog+Lane
 - ⏭ P4 第三轮候选:①观测拆 tab(agent 质量/学习进度);②生成中心·框架审阅 UI(双源框架→挑子题,现仅 CLI);③课程库按主题分组
 - ✅ 收尾已清(2026-08-24):gen-types 管线接上(catalog `59f15bc` + sessions `89b8ac1`;csl.ts 经决策保持手写——稳定的作者态契约,理由注记在文件头)、A4 多页可点(`5349427`)、B2 显示自评瞎编率(`6ecd5be`)、traces/ 移出 git(`05a0c2d`)。**P1/P1.5 收口完成**
-- ⚠️ 长期记账(不阻塞 P2):①A4/ChatPanel 的 typescript-reviewer 屡被中转挡,恢复后补(现以 §3.1 自查+浏览器实测代替);②A6 局限:伪造「课件第N页」假引用会绕过自评 → `self_eval_fabricated` 是下限;③dev 服务器(API :8100 / web :5173)会话结束需重启
+- ⚠️ 长期记账(不阻塞 P2):①A4/ChatPanel 的 typescript-reviewer 屡被中转挡,恢复后补(现以 §3.1 自查+浏览器实测代替);②A6 局限:伪造「课件第N页」假引用会绕过自评 → `self_eval_fabricated` 是下限;③dev 服务器(API :8100 / web :5273,原 5173 与他项目冲突已改)会话结束需重启
 
 ---
 
