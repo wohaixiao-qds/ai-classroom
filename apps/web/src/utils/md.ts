@@ -16,6 +16,9 @@ export function normalizeBold(md: string): string {
     store.push(m);
     return `${CODE}${store.length - 1}${CODE}`;
   });
+  // 0.5) GLM 招牌句式「**标签:**内容」:冒号留在粗体内破坏右 flanking,
+  //      CommonMark 判废整对→字面星号(实测 react-markdown 渲染复现)。冒号挪出粗体即可解析。
+  t = t.replace(/\*\*([^*\n]*?):(\s*)\*\*/g, (_m, inner: string, sp: string) => `**${inner}**:${sp}`);
   // 1) 嵌套拍扁(最多三层迭代):**A␣**B** C** → **A␣B** C
   //    特征:X 尾随空白(嵌套误写的痕迹)、Y 两端无空白(真·紧贴的内层粗体)
   const nested =
