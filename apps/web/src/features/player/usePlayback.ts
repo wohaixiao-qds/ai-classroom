@@ -42,10 +42,13 @@ export function usePlayback(
   // 标记可能无人消费而泄漏——过期判定防止吞掉下一次真实手动翻页(实测踩过)。
   const engineNavRef = useRef(false);
   const lastNavAt = useRef(0);
+  const lastEnginePage = useRef(-1); // 引擎最近定位到的页(回声判定用:事件页号≠它→必是真人翻页)
+  const resumeTimer = useRef<number | null>(null); // 快进去抖:停手后续播
 
-  const markEngineNav = useCallback(() => {
+  const markEngineNav = useCallback((page: number) => {
     engineNavRef.current = true;
     lastNavAt.current = Date.now();
+    lastEnginePage.current = page;
   }, []);
 
   /** 引擎导航是否发生在近 400ms 内(自己 slide 的回声窗口) */
@@ -66,7 +69,7 @@ export function usePlayback(
       const { p } = JSON.parse(saved) as { p: number; s: number };
       if (0 < p && p < course.pages.length) {
         setState((s) => ({ ...s, page: p }));
-        markEngineNav();
+        markEngineNav(p);
         deck()?.slide(p);
       }
     } catch {
@@ -102,7 +105,7 @@ export function usePlayback(
       if (!audioRef.current) audioRef.current = new Audio();
       // 「讲到什么,亮什么」+ 精确定位:slide 到本页、fragment 索引 = 累计数-1
       // (reveal fragment 索引从 0 计,-1 表示一个都不显示)
-      markEngineNav();
+      markEngineNav(page);
       deck()?.slide(page, 0, fragmentCountUpto(page, sentence) - 1);
 
       const audio = audioRef.current;
@@ -182,9 +185,14 @@ export function usePlayback(
   /** 手动跳页(键盘/点目录触发 slidechanged);引擎自己翻页时被 engineNavRef 挡掉 */
   const gotoPage = useCallback(
     (page: number) => {
-      // 引擎自己触发的翻页:仅在回声窗口内忽略(同页定位不触发 slidechanged,
-      // 标记可能泄漏,过期后必须放行真实手动翻页)
-      if (engineNavRef.current && Date.now() - lastNavAt.current < 400) {
+      // 引擎自己触发的翻页:仅当「事件页号==引擎刚定位的页」且在回声窗口内才忽略。
+      // 真人按键跨页的页号必不同——此前纯时间窗判定会把 400ms 内的真实跨页吞掉
+      // (画面走了引擎赖在原页,音画分家,用户实测踩过)。
+      if (
+        engineNavRef.current &&
+        page === lastEnginePage.current &&
+        Date.now() - lastNavAt.current < 400
+      ) {
         engineNavRef.current = false;
         return;
       }
@@ -212,7 +220,7 @@ export function usePlayback(
       if (page < 0 || page >= course.pages.length) return;
       audioRef.current?.pause();
       advancedRef.current = null;
-      markEngineNav();
+      markEngineNav(page);
       deck()?.slide(page, 0, fragmentCountUpto(page, 0) - 1);
       setState((s) => ({ ...s, page, sentence: 0, checkpointOpen: false, playing: false }));
       saveProgress(page, 0);
@@ -228,7 +236,7 @@ export function usePlayback(
       if (!pageData || sentence < 0 || sentence >= pageData.script.length) return;
       audioRef.current?.pause();
       advancedRef.current = null;
-      markEngineNav();
+      markEngineNav(page);
       deck()?.slide(page, 0, fragmentCountUpto(page, sentence) - 1);
       loadedRef.current = null; // 播放时从该句重念(不续旧音频)
       setState((s) => ({ ...s, sentence, playing: false, checkpointOpen: false }));
@@ -253,13 +261,18 @@ export function usePlayback(
         else break;
       }
       advancedRef.current = null;
+      audioRef.current?.pause();
+      loadedRef.current = null;
+      setState((st) => ({ ...st, sentence: s, playing }));
+      saveProgress(page, s);
       if (playing) {
-        playSentence(page, s); // 快进语义:解说跳到新句接着讲
-      } else {
-        audioRef.current?.pause();
-        loadedRef.current = null;
-        setState((st) => ({ ...st, sentence: s, playing: false }));
-        saveProgress(page, s);
+        // 快进去抖续播:连按期间静默对齐,停手 650ms 后从落点接着讲——
+        // 逐步重启音频会「咔哒-重来」不停,听着像解说跟不上(用户实测踩过)
+        if (resumeTimer.current) window.clearTimeout(resumeTimer.current);
+        resumeTimer.current = window.setTimeout(() => {
+          resumeTimer.current = null;
+          if (stRef.current.playing) playSentence(stRef.current.page, stRef.current.sentence);
+        }, 650);
       }
     },
     [course.pages, fragmentCountUpto, playSentence, saveProgress],
