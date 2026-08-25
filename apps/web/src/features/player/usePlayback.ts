@@ -260,10 +260,16 @@ export function usePlayback(
       const pageData = course.pages[page];
       if (!pageData || checkpointOpen) return;
       if (visibleCount === fragmentCountUpto(page, sentence)) return; // 回声/已同步
-      let s = 0;
+      // 映射方向(修「页内多节点快进音画不对」):步进到第 V 个节点 → 从**拥有该节点
+      // 的最早一句**开始讲(fcu(i) >= V 的最小 i)——快进向前。
+      // 旧映射取 fcu<=V 的最大 i=「已讲完 V 个节点的上一句」,一句多节点时会回退半句:
+      // 声音往回跳、画面被拽回(fcu(s) < V),音画就此对不上(用户实测踩过)。
+      let s = pageData.script.length - 1; // V 超出全部节点 → 最后一句
       for (let i = 0; i < pageData.script.length; i++) {
-        if (fragmentCountUpto(page, i) <= visibleCount) s = i;
-        else break;
+        if (fragmentCountUpto(page, i) >= visibleCount) {
+          s = i;
+          break;
+        }
       }
       advancedRef.current = null;
       audioRef.current?.pause();
