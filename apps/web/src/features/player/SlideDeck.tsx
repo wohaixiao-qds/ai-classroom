@@ -92,7 +92,13 @@ export function SlideDeck({
     // 此前引擎对此事件是聋的:画面走了 sentence 停在原地,再播放就把画面拽回去(音画分家)。
     const onFrag = () => {
       requestAnimationFrame(() => {
-        playback.onManualFragment(document.querySelectorAll(".present .fragment.visible").length);
+        // 带上画面真实页号(而非引擎状态):跨页瞬间的回声靠它识别
+        const slides = [...document.querySelectorAll(".reveal .slides > section")];
+        const cur = slides.findIndex((el) => el.classList.contains("present"));
+        playback.onManualFragment(
+          cur,
+          document.querySelectorAll(".present .fragment.visible").length,
+        );
       });
     };
     deck.on("fragmentchanged", onFrag);

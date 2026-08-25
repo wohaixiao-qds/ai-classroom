@@ -250,8 +250,13 @@ export function usePlayback(
    *  - 对齐句号(反查:可见 fragment 数→句号)
    *  - 快进续播:原来在播 → 从对齐后的句子**接着讲**;原来暂停 → 只对齐不停播状态 */
   const onManualFragment = useCallback(
-    (visibleCount: number) => {
+    (deckPage: number, visibleCount: number) => {
       const { page, sentence, playing, checkpointOpen } = stRef.current;
+      // 跨页瞬间竞态:gotoPage→playSentence 的 slide 也会触发 fragmentchanged,
+      // 而此刻 React 页号未提交(还是旧页)——若不挡,会在旧页里算出错误句号,
+      // 650ms 后音频跳回旧页播(用户实测「快进后音画不同步」的真根因)。
+      // 页号不一致 → 这是跨页回声,翻页只归 gotoPage 管。
+      if (deckPage !== page) return;
       const pageData = course.pages[page];
       if (!pageData || checkpointOpen) return;
       if (visibleCount === fragmentCountUpto(page, sentence)) return; // 回声/已同步
@@ -271,7 +276,11 @@ export function usePlayback(
         if (resumeTimer.current) window.clearTimeout(resumeTimer.current);
         resumeTimer.current = window.setTimeout(() => {
           resumeTimer.current = null;
-          if (stRef.current.playing) playSentence(stRef.current.page, stRef.current.sentence);
+          // 已在播(比如跨页续播已启动)就不重启同句,免得音频重头
+          const a = audioRef.current;
+          if (stRef.current.playing && (!a || a.paused)) {
+            playSentence(stRef.current.page, stRef.current.sentence);
+          }
         }, 650);
       }
     },
