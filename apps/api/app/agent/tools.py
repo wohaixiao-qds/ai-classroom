@@ -89,11 +89,67 @@ def _zhipu_search(query: str, recency: str | None = None) -> str:
 
 
 # 引擎注册表:名字 / 调用 / key 探测(顺序即优先级)
+def _anysearch_search(query: str, recency: str | None = None) -> str:
+    """AnySearch(agent 原生搜索;API 无时间过滤参数,recency 忽略——多引擎合并时由其它引擎兜时效)。"""
+    headers = {
+        "Content-Type": "application/json",
+        "X-Anysearch-Client": "classroom/1.0",
+    }
+    if settings.anysearch_api_key:
+        headers["Authorization"] = f"Bearer {settings.anysearch_api_key}"
+    req = urllib.request.Request(
+        "https://api.anysearch.com/v1/search",
+        data=json.dumps({"query": query, "max_results": 5}).encode(),
+        headers=headers,
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        envelope: Any = json.loads(resp.read())
+    if envelope.get("code", 0) != 0:
+        msg = f"(AnySearch 错误:{envelope.get('message', '?')})"
+        raise OSError(msg)
+    lines = []
+    for i, r in enumerate((envelope.get("data") or {}).get("results") or [], 1):
+        lines.append(
+            f"[{i}] {r.get('title') or '(无题)'}\n{r.get('url')}"
+            f"\n{str(r.get('content') or r.get('snippet') or '')[:300]}"
+        )
+    return "\n\n".join(lines) or "(无搜索结果)"
+
+
+def anysearch_extract(url: str) -> str:
+    """AnySearch 全文提取(干净 Markdown,截 5 万字)→ 统一 [标题|URL] 头。"""
+    headers = {
+        "Content-Type": "application/json",
+        "X-Anysearch-Client": "classroom/1.0",
+    }
+    if settings.anysearch_api_key:
+        headers["Authorization"] = f"Bearer {settings.anysearch_api_key}"
+    req = urllib.request.Request(
+        "https://api.anysearch.com/v1/extract",
+        data=json.dumps({"url": url}).encode(),
+        headers=headers,
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        envelope: Any = json.loads(resp.read())
+    if envelope.get("code", 0) != 0:
+        msg = f"AnySearch extract 错误:{envelope.get('message', '?')}"
+        raise OSError(msg)
+    d = envelope.get("data") or {}
+    title = str(d.get("title") or url)[:120]
+    return f"[{title} | {url}]\n{str(d.get('content') or '')[:8000]}"
+
+
+
+
 _ENGINES: list[tuple[str, Any, Any]] = [
     ("bocha", _bocha_search, lambda: settings.search_api_key),
+    ("anysearch", _anysearch_search, lambda: True),  # 匿名可用,永远参与合并
     ("tavily", _tavily_search, lambda: settings.tavily_api_key),
     ("zhipu", _zhipu_search, lambda: settings.llm_api_key),
 ]
+
+
+
 
 
 def search_provider() -> str | None:
@@ -118,10 +174,12 @@ def web_search(query: str, recency: str | None = None) -> str:
 
 
 def web_search_multi(query: str, recency: str | None = None) -> str:
-    """多引擎合并观测(找资料 agent 用):博查中文生态 + Tavily 官方英文互补;
-    单引擎失败不拖垮整体——把「社区视角」和「官方最新视角」都摆给模型。"""
+    """多引擎合并观测(找资料 agent 用):博查中文生态 + AnySearch/Tavily 官方英文互补;
+    单引擎失败不拖垮整体——把「社区视角」和「官方最新视角」都摆给模型。
+    智谱按量(常无余额)只在其它引擎全缺 key 时才顶上,免当死重喂失败噪音。"""
+    usable = [e for e in _ENGINES if e[0] != "zhipu" and e[2]()] or _ENGINES
     parts: list[str] = []
-    for name, fn, has_key in _ENGINES:
+    for name, fn, has_key in usable:
         if not has_key():
             continue
         try:
@@ -155,10 +213,14 @@ def read_notes(keyword: str) -> str:
 
 
 def fetch_page(url: str) -> str:
-    """抓网页正文(标准库剥标签,截断防超上下文)。
+    """抓网页正文:优先 AnySearch 提取(干净 Markdown),失败回落本地剥标签(截断防超上下文)。
 
     返回体强制带 [标题|URL] 头——调用方(找资料 agent)引用内容时一定拿得到出处。
     """
+    try:
+        return anysearch_extract(url)
+    except Exception:  # noqa: BLE001 提取服务不可用/不支持该页 → 本地剥标签兜底
+        pass
     req = urllib.request.Request(
         url, headers={"User-Agent": "Mozilla/5.0 (compatible; ClassroomResearch/1.0)"}
     )
