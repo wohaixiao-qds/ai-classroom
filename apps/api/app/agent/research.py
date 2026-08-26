@@ -208,7 +208,10 @@ def _require_search() -> None:
 
     p = search_provider()
     if not p:
-        msg = "无可用搜索 provider:请在 apps/api/.env 配 SEARCH_API_KEY(博查)或给智谱账户充值(按量)"
+        msg = (
+            "无可用搜索 provider:请在 apps/api/.env 配 SEARCH_API_KEY(博查)"
+            "或 TAVILY_API_KEY;AnySearch 匿名亦可,请检查网络"
+        )
         raise RuntimeError(msg)
     probe = web_search("connectivity probe")
     if probe.startswith("(搜索失败") or probe.startswith("(搜索不可用"):

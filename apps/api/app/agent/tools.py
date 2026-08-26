@@ -60,34 +60,6 @@ def _tavily_search(query: str, recency: str | None = None) -> str:
     return "\n\n".join(lines) or "(无搜索结果)"
 
 
-def _zhipu_search(query: str, recency: str | None = None) -> str:
-    """智谱 Web Search(search_std,¥0.01/次按量,Coding Plan 不含工具)。"""
-    body: dict[str, Any] = {
-        "search_engine": "search_std",
-        "search_query": query[:70],
-        "count": 5,
-        "search_intent": False,
-        "content_size": "medium",
-    }
-    if recency:
-        body["search_recency_filter"] = {"day": "oneDay", "week": "oneWeek",
-                                         "month": "oneMonth", "year": "oneYear"}[recency]
-    req = urllib.request.Request(
-        "https://open.bigmodel.cn/api/paas/v4/web_search",
-        data=json.dumps(body).encode(),
-        headers={
-            "Authorization": f"Bearer {settings.llm_api_key}",
-            "Content-Type": "application/json",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        data: Any = json.loads(resp.read())
-    lines = []
-    for i, r in enumerate(data.get("search_result", []), 1):
-        lines.append(f"[{i}] {r.get('title')}\n{r.get('link')}\n{r.get('content','')[:300]}")
-    return "\n\n".join(lines) or "(无搜索结果)"
-
-
 # 引擎注册表:名字 / 调用 / key 探测(顺序即优先级)
 def _anysearch_search(query: str, recency: str | None = None) -> str:
     """AnySearch(agent 原生搜索;API 无时间过滤参数,recency 忽略——多引擎合并时由其它引擎兜时效)。"""
@@ -145,7 +117,6 @@ _ENGINES: list[tuple[str, Any, Any]] = [
     ("bocha", _bocha_search, lambda: settings.search_api_key),
     ("anysearch", _anysearch_search, lambda: True),  # 匿名可用,永远参与合并
     ("tavily", _tavily_search, lambda: settings.tavily_api_key),
-    ("zhipu", _zhipu_search, lambda: settings.llm_api_key),
 ]
 
 
@@ -153,7 +124,7 @@ _ENGINES: list[tuple[str, Any, Any]] = [
 
 
 def search_provider() -> str | None:
-    """主 provider(单引擎调用,答疑用):博查 → Tavily → 智谱。"""
+    """主 provider(单引擎调用,答疑用):博查 → AnySearch → Tavily。"""
     for name, _fn, has_key in _ENGINES:
         if has_key():
             return name
@@ -175,11 +146,9 @@ def web_search(query: str, recency: str | None = None) -> str:
 
 def web_search_multi(query: str, recency: str | None = None) -> str:
     """多引擎合并观测(找资料 agent 用):博查中文生态 + AnySearch/Tavily 官方英文互补;
-    单引擎失败不拖垮整体——把「社区视角」和「官方最新视角」都摆给模型。
-    智谱按量(常无余额)只在其它引擎全缺 key 时才顶上,免当死重喂失败噪音。"""
-    usable = [e for e in _ENGINES if e[0] != "zhipu" and e[2]()] or _ENGINES
+    单引擎失败不拖垮整体——把「社区视角」和「官方最新视角」都摆给模型。"""
     parts: list[str] = []
-    for name, fn, has_key in usable:
+    for name, fn, has_key in _ENGINES:
         if not has_key():
             continue
         try:
