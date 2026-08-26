@@ -111,9 +111,9 @@
 ## 常用命令（代码初始化后生效）
 
 ```bash
-make dev        # 同时起前后端
-make lint       # ruff + eslint
-make gen-types  # OpenAPI → packages/api-types
+./start.sh          # 一键起前后端(旧进程自动先杀再重启;./start.sh api|web 单独重启)
+cd apps/api && uv run ruff check app && cd ../web && pnpm run lint   # lint
+pnpm -C apps/web gen-types   # OpenAPI → TS(需 API 已启动)
 ```
 
 ## AI 工具差异说明
