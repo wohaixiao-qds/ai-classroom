@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     zhipu_api_key: str = ""  # 环境变量/.env 里的 ZHIPU_API_KEY 自动注入
     llm_model: str = "glm-4.6"
 
-    # 搜索(博查优先 → AnySearch → Tavily → 智谱按量,tools.search_provider 自动选择)
+    # 搜索(博查 → AnySearch → Tavily,tools.search_provider 自动选择;ZHIPU_API_KEY 仅作 LLM 用)
     search_api_key: str = ""
     anysearch_api_key: str = ""
     tavily_api_key: str = ""
