@@ -1,11 +1,18 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 @import "reveal.js/reveal.css";
 
-/* ---- 设计 token(与样例课件一致,Linear 式深色) ---- */
-/* ---- 三套主题 token(B 默认;A/C 由 html[data-theme] 切换) ---- */
+/* =====================================================================
+   设计 token · Linear 式深色(深色一等公民)
+   三主题(B 默认;A/C 由 html[data-theme] 切换,ThemeSwitcher 写 dataset)
+   色彩唯一事实源 = 下面三块裸 CSS 变量;@theme inline 只做 shadcn 命名映射。
+   字体由 main.tsx 引入 @fontsource-variable(自托管,离线可用)。
+   z-index 约定:nav=30 / subtitle=40 / dialog=50 / tooltip=60,勿用魔数。
+   ===================================================================== */
 :root,
 [data-theme="b"] {
   /* B · 墨蓝+青(科技感,用户选定默认) */
+  --radius: 0.625rem;
   --bg: #0b1020;
   --surface: #141c33;
   --surface2: #131a30;
@@ -14,10 +21,15 @@
   --accent: #4ddbc4;
   --blue: #7dc4ff;
   --line: rgba(125, 196, 255, 0.22);
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --overlay: rgba(4, 8, 20, 0.72);
 }
 
 [data-theme="a"] {
   /* A · 石墨蓝+琥珀(层级加强版) */
+  --radius: 0.625rem;
   --bg: #0e1116;
   --surface: #1a222d;
   --surface2: #1d242e;
@@ -26,10 +38,15 @@
   --accent: #ffb224;
   --blue: #6cb6ff;
   --line: rgba(255, 255, 255, 0.14);
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --overlay: rgba(2, 4, 8, 0.72);
 }
 
 [data-theme="c"] {
   /* C · 暖纸深底+奶白+橙红(最高对比) */
+  --radius: 0.625rem;
   --bg: #1a1712;
   --surface: #26211a;
   --surface2: #241f18;
@@ -38,19 +55,60 @@
   --accent: #ff8a4c;
   --blue: #ffb35c;
   --line: rgba(255, 178, 92, 0.25);
+  --success: #86efac;
+  --warning: #fcd34d;
+  --danger: #fb7185;
+  --overlay: rgba(12, 9, 5, 0.75);
 }
 
-html,
-body,
-#root {
-  height: 100%;
+/* shadcn 语义色 → 三主题裸变量的映射,使拷贝来的 shadcn 组件零改动可用。
+   注意命名陷阱:shadcn 的 accent 指「hover 底色」,品牌强调色叫 primary(原 --accent)。 */
+@theme inline {
+  --font-sans: "Noto Sans SC Variable", "Noto Sans SC", "PingFang SC", sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--text);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--bg);
+  --color-secondary: var(--surface2);
+  --color-secondary-foreground: var(--text);
+  --color-muted: var(--surface2);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--surface2);
+  --color-accent-foreground: var(--text);
+  --color-info: var(--blue);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-destructive: var(--danger);
+  --color-border: var(--line);
+  --color-input: var(--line);
+  --color-ring: var(--accent);
+  --color-overlay: var(--overlay);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: "Noto Sans SC", "PingFang SC", sans-serif;
-  overflow: hidden;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    overflow: hidden;
+  }
 }
 
 /* reveal 6 会给 body 挂 .reveal-viewport 并强写白底黑字(body.reveal-viewport
@@ -85,9 +143,9 @@ body.reveal-viewport,
   color: var(--muted);
 }
 
-/* ---- 页元素样式 ---- */
+/* ---- 页元素样式(课件排版,视觉≈samples 样例的定稿,勿擅改) ---- */
 .eyebrow {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.8rem;
   letter-spacing: 0.25em;
   color: var(--accent);
@@ -105,6 +163,9 @@ body.reveal-viewport,
   line-height: 1.25;
   margin-bottom: 2.2rem;
 }
+
+/* ---- 课件内容专用色工具类(pages.tsx 渲染 deck 用,视觉≈samples 定稿;
+ ---- 壳层 UI 请用语义工具类 text-muted-foreground / text-primary 等) ---- */
 .muted {
   color: var(--muted);
 }
@@ -207,7 +268,7 @@ body.reveal-viewport,
 .chat-md strong { color: var(--text); font-weight: 600; }
 .chat-md a { color: var(--blue); text-decoration: underline; }
 .chat-md code {
-  font-family: "JetBrains Mono", monospace; font-size: 0.85em;
+  font-family: var(--font-mono); font-size: 0.85em;
   background: var(--bg); padding: 0.1em 0.35em; border-radius: 4px;
 }
 .chat-md pre {
