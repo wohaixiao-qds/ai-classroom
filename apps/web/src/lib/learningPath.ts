@@ -13,16 +13,25 @@ export async function fetchAllCourses(): Promise<{
   const items = (cat as { learning: { id: string; topic: string | null; ready: boolean }[] })
     .learning;
   const metaById = new Map(items.map((c) => [c.id, c]));
-  const courses = await Promise.all(
+  // 单门课拉取失败(404→SPA 兜底 HTML/坏 JSON)只跳过该门,不炸整页课程库。
+  // 真实事故:备课中途被杀留下骨架课,发布副本缺失,catalog 有 id 而 public 无文件。
+  const loaded = await Promise.all(
     items.map((c) =>
-      fetch(`/courses/${c.id}.csl.json`).then((r) => r.json().then(parseCourse)),
+      fetch(`/courses/${c.id}.csl.json`)
+        .then((r) => r.json())
+        .then(parseCourse)
+        .catch((e: unknown) => {
+          console.warn(`课程 ${c.id} 加载失败,已跳过:`, e);
+          return null;
+        }),
     ),
-  ).then((all) =>
-    all.map((c) => ({
+  );
+  const courses = loaded
+    .filter((c): c is AnyCourse => c !== null)
+    .map((c) => ({
       ...c,
       meta: { ...c.meta, topic: c.meta.topic ?? metaById.get(c.id)?.topic ?? null },
-    })),
-  );
+    }));
   return {
     courses,
     readyById: new Map(items.map((c) => [c.id, c.ready])),
