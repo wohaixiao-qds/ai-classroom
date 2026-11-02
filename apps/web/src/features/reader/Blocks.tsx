@@ -22,8 +22,10 @@ export function Blocks({ blocks, courseId }: { blocks: Block[]; courseId: string
 function BlockView({ block, courseId }: { block: Block; courseId: string }) {
   switch (block.type) {
     case "p":
+      // prose 管结构默认(列表/引用/标题节奏);中文微排版按 CLREQ:行高 1.9、
+      // 两端对齐、中西文间距(text-autospace,Chrome 123+)、避免孤字(text-wrap pretty)
       return (
-        <div className="text-[15px] leading-8 text-foreground/90 [&_code]:rounded [&_code]:bg-secondary [&_code]:px-1 [&_code]:font-mono [&_code]:text-[13px] [&_strong]:text-foreground">
+        <div className="prose max-w-none text-[15.5px] prose-p:my-0 prose-p:leading-[1.9] prose-p:text-justify prose-p:text-foreground/90 prose-p:[text-wrap:pretty] prose-strong:text-foreground prose-code:rounded prose-code:bg-secondary prose-code:px-1 prose-code:font-mono prose-code:text-[13px] prose-code:text-primary prose-code:before:content-[''] prose-code:after:content-['']">
           <Markdown>{normalizeBold(block.text)}</Markdown>
         </div>
       );
