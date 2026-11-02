@@ -18,17 +18,12 @@ from app.core.config import settings
 from app.schemas.csl import (
     CalloutBlock,
     CodeBlock,
-    CodeContent,
-    Course,
     CourseV2,
     DiagramBlock,
     FlashcardsBlock,
-    FormulaContent,
     ParagraphBlock,
     QuizBlock,
-    QuizContent,
     TableBlock,
-    TableContent,
 )
 
 # 这些页型的内容生来就该逐步揭示(模板定义),零 fragment = 整页一次性亮,
@@ -98,81 +93,16 @@ def validate_course(d: dict[str, Any]) -> dict[str, Any]:
 
 
 def _validate_v1(d: dict[str, Any]) -> dict[str, Any]:
-    try:
-        course = Course.model_validate(d)
-    except ValidationError as e:
-        return {
-            "ok": False,
-            "errors": _parse_errors(e),
-            "warnings": [],
-            "summary": f"结构错误 {len(e.errors())} 处,未进入规则校验",
-        }
-
-    errors: list[str] = []
-    warnings: list[str] = []
-
-    # ---- 课件级 + 先修依赖(v1/v2 同一套) ----
-    _meta_checks(
-        course.id, course.title, course.scenario,
-        course.meta.source_notes, course.meta.depends_on, errors, warnings,
-    )
-    if course.scenario in ("自学", "复习") and not any(p.checkpoint for p in course.pages):
-        errors.append(f"场景为「{course.scenario}」但没有任何复述检查点")
-
-    seen_ids: set[str] = set()
-    for i, page in enumerate(course.pages, 1):
-        where = f"第{i}页 {page.id}"
-        if page.id in seen_ids:
-            errors.append(f"{where}: 页 id 重复(播放器按 id 定位)")
-        seen_ids.add(page.id)
-
-        # ---- 讲稿 ----
-        n = len(page.script)
-        if n == 0:
-            errors.append(f"{where}: 讲稿为空")
-        for si, s in enumerate(page.script, 1):
-            if not s.text.strip():
-                errors.append(f"{where}: 第{si}句讲稿是空文本")
-            if not s.audio:
-                warnings.append(f"{where}: 第{si}句无音频路径(TTS 编译前属正常)")
-
-        # ---- 动画:越界 + 讲到什么亮什么 ----
-        for f in page.fragments:
-            if not 0 <= f.with_sentence < n:
-                errors.append(
-                    f"{where}: fragment({f.effect},{f.target}) 的 with_sentence={f.with_sentence} "
-                    f"越界——0 起算,该页讲稿 {n} 句,合法范围 0~{n - 1}"
-                )
-        if page.content.kind in _REVEAL_KINDS and not page.fragments:
-            errors.append(
-                f"{where}: {page.content.kind} 页型零 fragment——内容生来逐步揭示,"
-                f"整页一次亮违背「讲到什么亮什么」;应给每个揭示单元挂 with_sentence"
-            )
-
-        # ---- 各页型内容非空(Pydantic 只查类型,不查空列表;isinstance 才能收窄 union)----
-        c = page.content
-        if isinstance(c, FormulaContent) and not c.items:
-            errors.append(f"{where}: formula 页 items 为空")
-        if isinstance(c, CodeContent) and not c.lines:
-            errors.append(f"{where}: code 页 lines 为空")
-        if isinstance(c, TableContent) and not c.rows:
-            errors.append(f"{where}: table 页 rows 为空")
-        if isinstance(c, QuizContent) and not c.questions:
-            errors.append(f"{where}: quiz 页 questions 为空")
-
-        # ---- 检查点质量提示 ----
-        if page.checkpoint and not page.checkpoint.pass_rule:
-            warnings.append(f"{where}: 检查点缺 pass_rule,批改只能凭感觉(建议写通过标准)")
-
-    ok = not errors
-    cp = sum(1 for p in course.pages if p.checkpoint)
-    sents = sum(len(p.script) for p in course.pages)
-    summary = (
-        f"{course.id}: {len(course.pages)} 页 / {sents} 句 / {cp} 检查点 / {course.scenario}"
-        if ok
-        else f"error {len(errors)} 处 · warning {len(warnings)} 处,按上面逐条修"
-    )
-    return {"ok": ok, "errors": errors, "warnings": warnings, "summary": summary}
+    """v1 已退役(P6 flip 后全量为 v2):只指路,不再做规则校验。"""
+    return {
+        "ok": False,
+        "errors": [
+            "v1 页/句课件已退役——请产出 v2 书页格式(节→块);"
+            "存量迁移用 scripts/migrate_csl_v2.py"
+        ],
+        "warnings": [],
+        "summary": "v1 已退役",
+    }
 
 
 # ---------- v2 书页规则(P6·M1) ----------

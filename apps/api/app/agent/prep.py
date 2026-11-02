@@ -1,12 +1,15 @@
-"""备课 Agent(P2·M2b)—— 备课材料(调研原料/笔记)→ CSL 课件,离线 CLI。
+"""备课 Agent(P6·M3)—— 备课材料(调研原料/笔记)→ v2 书页课件(节→块),离线 CLI。
 
-设计(docs/P2执行计划.md M2b,2026-08-24 对齐):
+设计(docs/P6执行计划.md M3,2026-11-02 对齐):
 - 一课=一个子题:开场承接前置子题(位置感),不是「一个主题一课」
-- 工具四件(铁律8 精选):init_course / write_page(按页追加落盘) / validate_csl / read_notes
+- 规划外显:submit_plan 先行,harness 校验(节覆盖材料组/quiz≥3 硬闸/3~9 节),
+  交互模式人审(回车照单/文字意见喂回重排一次);两次不过→静态模板兜底,永不空转
+- 工具五件(铁律8 精选):submit_plan / init_course / write_section(upsert-by-id)
+  / validate_csl / read_notes
 - 终止客观化:模型自然收笔时,harness 再跑一次全文件校验——不过就打回继续,
   过了才算完(尺子说了算,不信模型嘴上说"好了")
 - 来源确定性带入:init_course 后 harness 自动把材料来源写进 meta.sources(不靠模型自觉)
-- MAX_TURNS=24 软着陆:耗尽交付当前版本+未完成清单(已写页都在盘上)
+- MAX_TURNS=24 软着陆:耗尽交付当前版本(已写节都在盘上)
 - trace 落 prep.jsonl(validate_failures=打回次数,循环健康度关键观测)
 
 用法:
@@ -19,6 +22,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -27,16 +31,16 @@ from app.agent.tools import read_notes
 from app.core.config import settings
 from app.core.llm import get_llm_client
 from app.core.trace import trace_prep
-from app.schemas.csl import Page
+from app.schemas.csl import Section
 from app.services.csl_validator import validate_course
 
 MAX_TURNS = 24
 
-PREP_PROMPT = """你是课件作者,把备课材料变成一份 CSL 课件(讲稿+动画+检查点)。
+PREP_PROMPT = """你是教材作者,把备课材料写成一份 v2 书页课件(滚动文章:节→块,给「读」不给「念」)。
 
 {position}
 
-# 备课材料(每条要点带来源 id,讲稿里用到哪条就有据可查)
+# 备课材料(每条要点带来源 id,写进正文的内容都可溯源)
 {material}
 
 # 学员已有课程(判断先修关系用;学习路线的学习顺序就靠它生长)
@@ -47,41 +51,41 @@ init_course 时填 depends_on:本课内容**预设**了哪门已有课的概念,
 - id 只能取上面清单里的,不许编造;至多 2 门(先修链宁短勿长)
 - 独立入门课/什么都不预设 → 填 []。判断标准:删掉那门课的知识,本课还讲不讲得通?
 
-# 页型菜单(JSON 结构,kind 必须精确匹配)
-- cover 封面:{{"kind":"cover","equation":"一句话核心公式(可空)",
-  "meta":[["讲师","AI 老师"],["来源","调研/笔记"],["时长","约N分钟"]]}}
-- formula 公式:{{"kind":"formula","items":["逐项弹出的元素"],"conclusion":"大字结论"}}
-- duo 对比:{{"kind":"duo","left":{{"title":"…","tag":"小标签","body":"支持**加粗**"}},
-  "right":{{…}}}}
-- code 代码:{{"kind":"code","language":"python",
-  "lines":[{{"code":"…","comment":"行尾注释"}}],"note":"结论"}}
-- table 总结:{{"kind":"table","headers":["…"],"rows":[["…"]],"note":"结论"}}
-- quiz 自测:{{"kind":"quiz","questions":["…"]}}
+# 第一步:submit_plan(规划先行,人审通过才能动笔)
+sections: [{{"id":"s1-xxx(英文slug)","heading":"节标题",
+"has_quiz":true,"covers":"材料组名(可逗号分隔多个)"}}]
+- 3~9 节,每节一个论点群;带复述检查点(has_quiz)的节 ≥3(材料组不足 3 组时每组都带)
+- covers 保证材料每组都被至少一节覆盖,别漏组
+- 规划会给人审;被给修改意见就按意见重排再交
 
-页骨架:{{"id":"p2-formula(英文slug)","eyebrow":"眉标","title":"页题","content":{{…}},
-"script":[{{"text":"一句讲稿","audio":null}}],
-"fragments":[{{"effect":"fade|pop|rise","target":null,"with_sentence":0}}],
-"checkpoint":null 或 {{"question":"复述问题","hint":null,"pass_rule":"通过标准"}}}}
+# 块型菜单(blocks 数组,type 必须精确匹配)
+- p 段落(主力):{{"type":"p","text":"书面 prose 一段,3~6 句,支持**加粗**与 `行内代码`"}}
+- diagram 示意图(每课 1~3 张,只画流程/结构/关系):
+  {{"type":"diagram","lang":"mermaid","code":"graph TD\\n  A[输入] --> B[输出]","caption":"图题"}}
+  ⚠ 只写保守的 graph TD / graph LR;节点文本别带括号引号等特殊字符——语法错前端会降级成代码块
+- code:{{"type":"code","language":"python","code":"真实可读的示例","caption":"说明"}}
+- table:{{"type":"table","header":["…"],"rows":[["…"]],"caption":"表题"}}
+- callout:{{"type":"callout","kind":"tip|warn|note","text":"关键结论或容易踩的坑"}}
+- quiz 复述检查点(has_quiz 的节末必放):
+  {{"type":"quiz","id":"<节id>-cp","question":"复述问题","hint":null,"pass_rule":"具体可判的通过标准"}}
+- flashcards(选配,每节 0~2 张):{{"type":"flashcards","cards":[{{"front":"问","back":"答"}}]}}
 
-⚠ with_sentence 从 0 起算:第 1 句=0、第 2 句=1…;target 只能是字符串元素 id 或 null。
-write_page 重交同 id 的页 = 替换那页(改错就重交同 id,不要换 id 重写)。
+# 文风(书面 prose)
+一段只讲一个论点;术语首现给一句白话解释;类比保留但别滥用。
+禁课堂腔(「接下来我们」「好了,以上就是」「让我们」);不写「本课将介绍」,
+第一节直接进主题。每节 2~4 个 p 块,宁短勿凑。
 
-# 讲到什么,亮什么(质量底线)
-每写一句讲稿自问:这句话提到的元素,画面上有吗?fragment.with_sentence 挂到
-提到它的那句;formula 逐项弹、code 逐行浮、table 逐行进——零 fragment 的动画页过不了校验。
-
-# 讲稿风格(给 TTS 念的)
-口语短句,每句 1~2 个逗号句;类比优先;宁少勿多。共 5~9 页,总时长 8~15 分钟。
-
-# 检查点(场景为自学/复习时)
-每个讲完的大子题,那页 checkpoint 填复述问题+pass_rule(通过标准写具体)。
+# 检查点纪律(教学闸)
+quiz 的 question 问「关系/区别/步骤/为什么」这类要动脑复述的,别问填空「是什么」;
+pass_rule 写具体判定标准(例:「答出四层名称和顺序」),批改 agent 靠它判;
+id 固定用「<节id>-cp」。
 
 # 流程
-1. 先在心里排页面规划(几页、每页讲什么)并对照已有课程判断先修
+1. submit_plan(规划 → 人审)
 2. init_course(id=子题英文slug, title=子题名, scenario="自学",
    source_notes=["材料路径"], depends_on=[先修课,见上节])
-3. write_page 逐页追加(一次一页,别贪)
-4. 每写 2~3 页 validate_csl 自查一次,有错即改
+3. write_section 逐节追加(一次一节,照计划写;重交同 id = 替换该节,改错别换 id)
+4. 每写 2~3 节 validate_csl 自查一次,有错即改
 5. 全部写完终验通过后,收笔说一句交付总结(不再调工具)"""
 
 
@@ -128,12 +132,93 @@ def _course_brief() -> str:
     return "\n".join(lines)
 
 
+def _covers_key(s: str) -> str:
+    """covers/组名匹配键:去空白取前 8 字,容忍模型改写组名时的微小漂移。"""
+    return "".join(str(s).split())[:8]
+
+
+def _template_plan(groups: list[str], subtopic: str) -> list[dict[str, Any]]:
+    """静态默认规划(两次规划未过时兜底,DeepTutor #25「永不空转」):
+    首节 intro + 每材料组一节;末 3 组带检查点(不足 3 组则全带)。"""
+    quiz_groups = set(groups[-3:]) if len(groups) >= 3 else set(groups)
+    secs: list[dict[str, Any]] = [
+        {"id": "s0-intro", "heading": f"{subtopic}:这门课讲什么", "has_quiz": False, "covers": ""}
+    ]
+    for i, g in enumerate(groups, 1):
+        secs.append(
+            {"id": f"s{i}", "heading": g[:30], "has_quiz": g in quiz_groups, "covers": g}
+        )
+    return secs
+
+
 def _make_tools(
     material_sources: list[dict[str, Any]],
     material_path: str | None = None,
     material_topic: str | None = None,
+    material_groups: list[str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
-    state: dict[str, Any] = {"course_id": None}
+    groups = material_groups or []
+    state: dict[str, Any] = {"course_id": None, "plan": None, "plan_reviews": 0}
+
+    def submit_plan(sections: list[dict[str, Any]]) -> str:
+        """规划外显(P5·T2 并入):harness 确定性校验 → 人审 → 兜底。"""
+        state["plan_reviews"] += 1
+        problems: list[str] = []
+        n = len(sections)
+        if not 3 <= n <= 9:
+            problems.append(f"规划了 {n} 节,合法范围 3~9")
+        n_quiz = sum(1 for s in sections if isinstance(s, dict) and s.get("has_quiz"))
+        need = min(3, len(groups)) if groups else 0
+        if n_quiz < need:
+            problems.append(
+                f"带检查点的节只有 {n_quiz},至少 {need}(材料共 {len(groups)} 组)"
+            )
+        # 材料组覆盖:covers 显式指认,集合差直接点名(比标题模糊匹配可靠)
+        if groups:
+            covered: set[str] = set()
+            for s in sections:
+                if not isinstance(s, dict):
+                    continue
+                for item in str(s.get("covers", "")).replace("，", ",").split(","):
+                    covered.add(_covers_key(item))
+            missing = [g for g in groups if _covers_key(g) not in covered]
+            if missing:
+                problems.append(f"材料组未被任何节覆盖:{missing[:5]}")
+        if problems and state["plan_reviews"] > 2:
+            # 两次人审路径都走不通 → 静态模板兜底,循环绝不卡在规划上
+            plan = _template_plan(groups, str(state.get("subtopic") or "本课"))
+            state["plan"] = plan
+            return (
+                "(两次规划未过校验,已改用默认规划,照它写,别再 submit_plan):\n"
+                + json.dumps(plan, ensure_ascii=False)
+            )
+        if problems:
+            return "(规划有问题,重排后再 submit_plan):\n- " + "\n- ".join(problems)
+
+        plan = [
+            {
+                "id": str(s.get("id", f"s{i}")),
+                "heading": str(s.get("heading", ""))[:40],
+                "has_quiz": bool(s.get("has_quiz")),
+            }
+            for i, s in enumerate(sections)
+            if isinstance(s, dict)
+        ]
+        # 人审(仅交互 tty;生成中心 auto 直接照单)。意见只喂回重排一次。
+        if sys.stdin.isatty():
+            print("\n课程规划(书页节序):")
+            for i, s in enumerate(plan, 1):
+                mark = " ◆" if s["has_quiz"] else ""
+                print(f"  {i}. {s['heading']}{mark}")
+            raw = input("回车照单 / 输入修改意见: ").strip()
+            if raw and state["plan_reviews"] <= 2:
+                state["plan_reviews"] += 1
+                return f"(学员对规划有意见,按它重排后再 submit_plan):{raw}"
+        state["plan"] = plan
+        return (
+            f"规划通过({len(plan)} 节 / {n_quiz} 检查点)。"
+            "继续:init_course → write_section 逐节写。"
+        )
 
     def init_course(  # noqa: A002
         id: str,
@@ -142,6 +227,8 @@ def _make_tools(
         source_notes: list[str],
         depends_on: list[dict[str, Any]] | None = None,
     ) -> str:
+        if state["plan"] is None:
+            return "(还没 submit_plan,先规划再建课件)"
         p = _course_path(id)
         if p.exists():
             return f"(课件 {id} 已存在,换个 id 或先删旧文件)"
@@ -180,6 +267,7 @@ def _make_tools(
             "id": id,
             "title": title,
             "scenario": scenario,
+            "version": 2,  # 书页课件(顶层版本标记,v2 唯一真相)
             "meta": {
                 "source_notes": source_notes,
                 "topic": material_topic,  # 课程库分组钥匙,harness 确定性写入
@@ -191,9 +279,8 @@ def _make_tools(
                 # 先修建议是教学判断,归模型;合法性归上面的即时校验 + 收笔终验
                 "depends_on": deps,
                 "duration_min": None,
-                "version": 1,
             },
-            "pages": [],
+            "sections": [],
         }
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(course, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -201,30 +288,40 @@ def _make_tools(
         dep_msg = (
             "、".join(f"{d['id']}({d['reason'][:20]})" for d in deps) if deps else "无先修"
         )
-        return f"课件骨架已建:{p.name}。先修:{dep_msg}。现在 write_page 逐页追加。"
+        return f"课件骨架已建:{p.name}。先修:{dep_msg}。现在按计划 write_section 逐节写。"
 
-    def write_page(page: dict[str, Any]) -> str:
+    def write_section(section: dict[str, Any]) -> str:
         cid = state["course_id"]
+        if state["plan"] is None:
+            return "(还没 submit_plan,先规划)"
         if not cid:
             return "(还没 init_course,先建课件骨架)"
         try:
-            Page.model_validate(page)  # 单页即时校验:错了当场反馈,别等终验
+            Section.model_validate(section)  # 单节即时校验:错了当场反馈,别等终验
         except Exception as e:  # noqa: BLE001 校验反馈本身就是观测
-            return f"(这页结构不对,改完重交:{e})"[:600]
+            return f"(这节结构不对,改完重交:{e})"[:600]
         p = _course_path(cid)
         course = _load(p)
         if course is None:
             return "(课件文件读不回,重新 init_course)"
-        # upsert-by-id:同 id = 替换该页(改错的原语),否则追加。
-        # 没有替换语义,模型改错只能整页重交 → 追加出重复页,循环空转(实测踩过)。
-        pid = page.get("id")
-        idx = next((i for i, pg in enumerate(course["pages"]) if pg.get("id") == pid), None)
+        # upsert-by-id:同 id = 替换该节(改错的原语),否则追加。
+        sid = section.get("id")
+        idx = next((i for i, sc in enumerate(course["sections"]) if sc.get("id") == sid), None)
         if idx is None:
-            course["pages"].append(page)
-            msg = f"已写入第{len(course['pages'])}页({pid}),共需 5~9 页。"
+            course["sections"].append(section)
+            n_quiz = sum(
+                1
+                for sc in course["sections"]
+                for b in sc.get("blocks", [])
+                if b.get("type") == "quiz"
+            )
+            msg = (
+                f"已写入第{len(course['sections'])}节({sid}),"
+                f"计划 {len(state['plan'])} 节,已有 {n_quiz} 个检查点。"
+            )
         else:
-            course["pages"][idx] = page
-            msg = f"已替换第{idx + 1}页({pid})。"
+            course["sections"][idx] = section
+            msg = f"已替换第{idx + 1}节({sid})。"
         p.write_text(json.dumps(course, ensure_ascii=False, indent=2), encoding="utf-8")
         return msg
 
@@ -239,17 +336,44 @@ def _make_tools(
         head = ("✅ " if r["ok"] else "❌ ") + str(r["summary"])
         body = "".join(f"\n  ✗ {e}" for e in r["errors"])
         warns = r["warnings"]
-        # 音频缺失是生成期正常态,warn 又多又吵——只放前 5 条,免得淹没 error
+        # warning(quiz 配额提示/先修缺 reason 等)只放前 5 条,免得淹没 error
         if len(warns) > 5:
             n_more = len(warns) - 5
-            warns = warns[:5] + [f"(其余 {n_more} 条 warning 多为「无音频路径」,TTS 前正常)"]
+            warns = warns[:5] + [f"(其余 {n_more} 条 warning 略)"]
         body += "".join(f"\n  ⚠ {w}" for w in warns)
         return str(head + body)
 
     tools = [
         {
+            "name": "submit_plan",
+            "description": "第一步:提交课程规划(节序),人审通过才能动笔。"
+            "covers 显式指认该节覆盖的材料组名,保证每组都被覆盖。",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "sections": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                                "heading": {"type": "string"},
+                                "has_quiz": {"type": "boolean"},
+                                "covers": {
+                                    "type": "string",
+                                    "description": "该节覆盖的材料组名,逗号分隔",
+                                },
+                            },
+                            "required": ["id", "heading", "has_quiz", "covers"],
+                        },
+                    },
+                },
+                "required": ["sections"],
+            },
+        },
+        {
             "name": "init_course",
-            "description": "建课件骨架(先于 write_page)。id 用子题英文短横线 slug。"
+            "description": "建课件骨架(先于 write_section)。id 用子题英文短横线 slug。"
             "depends_on 按速览判断先修,必填(独立课给 [])。",
             "input_schema": {
                 "type": "object",
@@ -275,18 +399,18 @@ def _make_tools(
             },
         },
         {
-            "name": "write_page",
-            "description": "追加一页(完整页 JSON,结构照页型菜单)。一次一页;"
-            "重交同 id = 替换该页(改错用)。",
+            "name": "write_section",
+            "description": "追加一节(完整节 JSON: id/heading/blocks,块型照菜单)。一次一节;"
+            "重交同 id = 替换该节(改错用)。quiz 块 id 用「<节id>-cp」。",
             "input_schema": {
                 "type": "object",
-                "properties": {"page": {"type": "object"}},
-                "required": ["page"],
+                "properties": {"section": {"type": "object"}},
+                "required": ["section"],
             },
         },
         {
             "name": "validate_csl",
-            "description": "校验当前课件,返回逐条可改的反馈。每写 2~3 页自查一次。",
+            "description": "校验当前课件,返回逐条可改的反馈。每写 2~3 节自查一次。",
             "input_schema": {"type": "object", "properties": {}},
         },
         {
@@ -300,8 +424,9 @@ def _make_tools(
         },
     ]
     dispatch = {
+        "submit_plan": lambda a: submit_plan(a.get("sections", [])),
         "init_course": lambda a: init_course(**a),
-        "write_page": lambda a: write_page(a.get("page", {})),
+        "write_section": lambda a: write_section(a.get("section", {})),
         "validate_csl": lambda _a: validate_csl(),
         "read_notes": lambda a: read_notes(a["keyword"]),
     }
@@ -400,7 +525,9 @@ def run_prep(material: dict[str, Any], prev_subtopic: str | None = None) -> dict
         material.get("sources") or [],
         material_path=material.get("_material_path"),
         material_topic=str(material.get("topic")) or None,
+        material_groups=[str(g.get("heading", "")) for g in material.get("groups", [])],
     )
+    state["subtopic"] = str(material.get("subtopic") or "本课")  # 兜底模板用
     position = (
         f"本课在「{material.get('topic')}」学习框架中的位置:前一课讲了「{prev_subtopic}」,"
         f"开场用一句话承接它。" if prev_subtopic else "这是该主题的第一课。"
@@ -449,7 +576,7 @@ def run_prep(material: dict[str, Any], prev_subtopic: str | None = None) -> dict
                     trace_prep(
                         course_id=str(course["id"]),
                         subtopic=str(material.get("subtopic")),
-                        pages=len(course["pages"]),
+                        sections=len(course.get("sections", [])),
                         validate_failures=validate_failures,
                         ok=True,
                         elapsed_s=time.perf_counter() - t0,
@@ -496,7 +623,7 @@ def run_prep(material: dict[str, Any], prev_subtopic: str | None = None) -> dict
     trace_prep(
         course_id=cid or "",
         subtopic=str(material.get("subtopic")),
-        pages=len(course["pages"]) if course else 0,
+        sections=len(course.get("sections", [])) if course else 0,
         validate_failures=validate_failures,
         ok=False,
         elapsed_s=time.perf_counter() - t0,
@@ -515,28 +642,25 @@ if __name__ == "__main__":
     g.add_argument("--material", help="找资料产出的原料 JSON 路径(新课)")
     g.add_argument("--note", help="vault 笔记相对路径(复习)")
     ap.add_argument("--prev", help="前置子题名(位置感,开场承接)")
-    ap.add_argument("--no-tts", action="store_true", help="跳过音频编译(调试用)")
     a = ap.parse_args()
 
     m = _load_material(a.material) if a.material else _material_from_note(a.note)
     m["_material_path"] = a.material or a.note  # vault 相对路径,课表关联靠它
     r = run_prep(m, prev_subtopic=a.prev)
     if r["ok"]:
-        from app.services.tts_compile import compile_course_audio, publish_courses
+        from app.services.tts_compile import publish_courses
 
         c = r["course"]
+        secs = c.get("sections", [])
+        n_quiz = sum(1 for s in secs for b in s.get("blocks", []) if b.get("type") == "quiz")
         print(f"\n✅ 课件已交付:courses/{c['id']}.csl.json")
-        print(f"   {len(c['pages'])} 页 · {sum(len(p['script']) for p in c['pages'])} 句")
-        print(f"   检查点 {sum(1 for p in c['pages'] if p.get('checkpoint'))} 个")
+        n_blocks = sum(len(s.get("blocks", [])) for s in secs)
+        print(f"   {len(secs)} 节 · {n_blocks} 块 · {n_quiz} 检查点")
         srcs = c.get("meta", {}).get("sources", [])
         if srcs:
             print(f"   来源 {len(srcs)} 个(有据可查)")
         confirm_depends_on(c)
-        if not a.no_tts:
-            print("\n生成音频(edge-tts,句间限速,稍候)…")
-            done, fail = compile_course_audio(str(c["id"]))
-            print(f"音频: 新生成 {done}, 失败 {fail}")
         publish_courses()
-        print("前端已就绪,打开课表即可上课")
+        print("前端已就绪,打开阅读器即可学习")
     else:
         print("\n⚠️ 软着陆:MAX_TURNS 耗尽,当前版本已落盘,人工接着审")

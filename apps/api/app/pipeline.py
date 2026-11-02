@@ -57,7 +57,7 @@ def run_pipeline(
         research_framework,
         research_material,
     )
-    from app.services.tts_compile import compile_course_audio, publish_courses
+    from app.services.tts_compile import publish_courses
 
     t0 = time.perf_counter()
     if refresh:
@@ -92,15 +92,15 @@ def run_pipeline(
     if not auto:  # 交互模式:先修建议过一眼人审;auto(生成中心)直接落盘,日志可查
         confirm_depends_on(course)
 
-    print("\n④ 音频编译 + 发布前端…")
-    done, fail = compile_course_audio(str(course["id"]))
+    print("\n④ 发布前端…")
     publish_courses()
     mins = (time.perf_counter() - t0) / 60
-    cp = sum(1 for p in course["pages"] if p.get("checkpoint"))
+    secs = course.get("sections", [])
+    n_quiz = sum(1 for s in secs for b in s.get("blocks", []) if b.get("type") == "quiz")
     print(
         f"\n{'✅' if mins <= BUDGET_MIN else '⚠️ 超时'} 交付:courses/{course['id']}.csl.json "
-        f"| {len(course['pages'])} 页 / {sum(len(p['script']) for p in course['pages'])} 句 / "
-        f"{cp} 检查点 / 音频 {done} 句(失败 {fail}) | 总耗时 {mins:.1f} 分钟"
+        f"| {len(secs)} 节 / {sum(len(s.get('blocks', [])) for s in secs)} 块 / "
+        f"{n_quiz} 检查点 | 总耗时 {mins:.1f} 分钟"
         f"(红线 {BUDGET_MIN})"
     )
     r["minutes"] = round(mins, 1)

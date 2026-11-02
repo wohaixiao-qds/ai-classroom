@@ -141,7 +141,7 @@ def trace_prep(
     *,
     course_id: str,
     subtopic: str,
-    pages: int,
+    sections: int,
     validate_failures: int,
     ok: bool,
     elapsed_s: float,
@@ -149,13 +149,13 @@ def trace_prep(
     usage: dict[str, Any] | None = None,
     error: str | None = None,
 ) -> None:
-    """备课一轮的轨迹(M2b)。validate_failures=打回次数,是循环健康度的关键观测。"""
+    """备课一轮的轨迹(M2b→M3 书页版)。validate_failures=打回次数,循环健康度关键观测。"""
     _append(
         "prep.jsonl",
         {
             "course_id": course_id,
             "subtopic": subtopic,
-            "pages": pages,
+            "sections": sections,
             "validate_failures": validate_failures,
             "tool_calls": tool_calls or [],
             "ok": ok,
