@@ -86,3 +86,46 @@ export interface Course {
   };
   pages: Page[];
 }
+
+// ---------- v2 书页模型(P6):节→块,与 schemas/csl.py CourseV2 镜像 ----------
+
+export type Block =
+  | { type: "p"; text: string }
+  | { type: "diagram"; lang: "mermaid"; code: string; caption: string | null }
+  | { type: "code"; language: string; code: string; caption: string | null }
+  | { type: "table"; header: string[]; rows: string[][]; caption: string | null }
+  | { type: "callout"; kind: "tip" | "warn" | "note"; text: string }
+  | { type: "quiz"; id: string; question: string; hint: string | null; pass_rule: string | null }
+  | { type: "flashcards"; cards: Flashcard[] };
+
+export interface Flashcard {
+  front: string;
+  back: string;
+}
+
+export interface Section {
+  /** 迁移课的节 id = 旧页 id(复习历史零映射成本) */
+  id: string;
+  heading: string;
+  blocks: Block[];
+  audio: { path: string } | null; // 留位(TTS 砍留位,暂恒 null)
+}
+
+export interface CourseV2 {
+  id: string;
+  title: string;
+  scenario: Scenario;
+  version: 2;
+  meta: Course["meta"];
+  sections: Section[];
+}
+
+/** 按顶层 version 分派(与后端 parse_course 同约定) */
+export function parseCourse(d: unknown): Course | CourseV2 {
+  const o = d as Record<string, unknown>;
+  return o && o.version === 2 ? (d as CourseV2) : (d as Course);
+}
+
+export function isV2(c: Course | CourseV2): c is CourseV2 {
+  return (c as CourseV2).version === 2;
+}

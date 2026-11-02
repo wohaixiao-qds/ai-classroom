@@ -3,12 +3,18 @@ import type { ReactNode } from "react";
 import Markdown from "react-markdown";
 import { History, Plus, Search, Send } from "lucide-react";
 import type { components } from "../../types/api.gen";
-import type { Course } from "../../types/csl";
-import type { usePlayback } from "../player/usePlayback";
+import type { Course, CourseV2 } from "../../types/csl";
 import { normalizeBold } from "../../utils/md";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+
+/** 对进度源的最小结构依赖:幻灯片(usePlayback)与书页(滚动 spy)各给一个适配器。
+ *  不再 import usePlayback 类型——reader 形态不该反向依赖播放器。 */
+export interface ProgressLike {
+  state: { page: number };
+  jumpToPage: (n: number) => void;
+}
 
 interface Msg {
   role: "user" | "assistant";
@@ -27,8 +33,8 @@ export function ChatPanel({
   course,
   playback,
 }: {
-  course: Course;
-  playback: ReturnType<typeof usePlayback>;
+  course: Course | CourseV2;
+  playback: ProgressLike;
 }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -38,7 +44,8 @@ export function ChatPanel({
   const [showList, setShowList] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const currentPage = course.pages[playback.state.page]?.id ?? null;
+  const units = "pages" in course ? course.pages : course.sections;
+  const currentPage = units[playback.state.page]?.id ?? null;
   const sessionKey = `classroom-session-${course.id}`;
 
   /** 把回答里的「课件第N页」变成可点按钮 → 跳到该页(A4)。

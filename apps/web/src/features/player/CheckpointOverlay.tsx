@@ -17,12 +17,15 @@ export function CheckpointOverlay({
   courseId,
   pageId,
   onPass,
+  onClose,
 }: {
   question: string;
   hint: string | null;
   courseId: string;
   pageId: string;
   onPass: () => void;
+  /** 可选退出口:课堂自动弹出用不到;阅读器是用户手点的,要能反悔 */
+  onClose?: () => void;
 }) {
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState<{
@@ -73,7 +76,12 @@ export function CheckpointOverlay({
               placeholder="用你自己的话写下来——说清才算学会"
               className="mb-4 leading-relaxed"
             />
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              {onClose && (
+                <Button variant="ghost" onClick={onClose}>
+                  先不复述
+                </Button>
+              )}
               <Button onClick={submit} disabled={busy || !answer.trim()}>
                 {busy ? "批改中…" : "提交批改"}
               </Button>

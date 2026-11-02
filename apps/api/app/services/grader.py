@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+from typing import Any
 
 from app.core.config import settings
 from app.core.llm import get_llm_client
@@ -37,20 +38,47 @@ GRADE_PROMPT = """你是学习督导,批改学员对刚学内容的复述。严�
 """
 
 
-def grade_recitation(course_id: str, page_id: str, answer: str) -> dict:
+def _locate_v2(d: dict[str, Any], page_id: str) -> tuple[dict[str, Any], str]:
+    """v2 书页:按节 id 或 quiz 块 id 定位。返回 (定位到的 quiz 块, 节内容文本)。"""
+    for sec in d.get("sections", []):
+        quizzes = [b for b in sec.get("blocks", []) if b.get("type") == "quiz"]
+        hit = next((q for q in quizzes if q.get("id") == page_id), None)
+        if hit is None and sec.get("id") == page_id and quizzes:
+            hit = quizzes[0]  # 按节 id 来的:取该节第一个测验
+        if hit is None:
+            continue
+        parts = [f"## {sec.get('heading', '')}"]
+        for b in sec.get("blocks", []):
+            t = b.get("type")
+            if t == "p" or t == "callout":
+                parts.append(str(b.get("text", "")))
+            elif t == "code":
+                parts.append(f"```\n{b.get('code', '')}\n```")
+            elif t == "table":
+                rows = [b.get("header", []), *b.get("rows", [])]
+                parts.extend("|".join(map(str, row)) for row in rows)
+        return hit, "\n".join(parts)
+    msg = f"节/测验不存在: {page_id}"
+    raise KeyError(msg)
+
+
+def grade_recitation(course_id: str, page_id: str, answer: str) -> dict[str, Any]:
     """批改一次复述,返回 {verdict, comment, precise}。"""
     p: Path = settings.courses_dir / f"{course_id}.csl.json"
-    d = json.loads(p.read_text(encoding="utf-8"))
-    page = next((x for x in d["pages"] if x["id"] == page_id), None)
-    if page is None:
-        msg = f"页不存在: {page_id}"
-        raise KeyError(msg)
-    cp = page.get("checkpoint")
-    if not cp:
-        msg = f"该页没有检查点: {page_id}"
-        raise KeyError(msg)
+    d: dict[str, Any] = json.loads(p.read_text(encoding="utf-8"))
+    if d.get("version") == 2:
+        cp, page_content = _locate_v2(d, page_id)
+    else:
+        page = next((x for x in d["pages"] if x["id"] == page_id), None)
+        if page is None:
+            msg = f"页不存在: {page_id}"
+            raise KeyError(msg)
+        cp = page.get("checkpoint")
+        if not cp:
+            msg = f"该页没有检查点: {page_id}"
+            raise KeyError(msg)
+        page_content = "\n".join(f"- {s['text']}" for s in page["script"])
 
-    page_content = "\n".join(f"- {s['text']}" for s in page["script"])
     client = get_llm_client()
     prompt = GRADE_PROMPT.format(
         page_content=page_content,
@@ -67,7 +95,7 @@ def grade_recitation(course_id: str, page_id: str, answer: str) -> dict:
     # 模型偶尔裹 ```json```,剥掉
     if text.startswith("```"):
         text = text.strip("`").removeprefix("json").strip()
-    result = json.loads(text)
+    result: dict[str, Any] = json.loads(text)
     if result.get("verdict") not in ("pass", "warn", "fail"):
         result["verdict"] = "warn"
     trace_grade(
