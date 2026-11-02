@@ -8,6 +8,8 @@
     uv run python -m app.pipeline "主题"                       # 交互:出框架后停下等你挑
     uv run python -m app.pipeline "主题" --subtopic "子题"      # 直接指定子题
     uv run python -m app.pipeline "主题" --auto                # 自动选子题(验收/自动化)
+    uv run python -m app.pipeline "主题" --subtopic "子题" --reuse   # 复用调研缓存重跑(零联网)
+    uv run python -m app.pipeline "主题" --refresh              # 先清该主题调研缓存再全新调研
 """
 
 from __future__ import annotations
@@ -40,14 +42,29 @@ def pick_subtopic(framework: dict[str, Any], auto: bool) -> tuple[str, str | Non
     return chosen["title"], prev
 
 
-def run_pipeline(topic: str, subtopic: str | None = None, auto: bool = False) -> dict[str, Any]:
+def run_pipeline(
+    topic: str,
+    subtopic: str | None = None,
+    auto: bool = False,
+    reuse: bool = False,
+    refresh: bool = False,
+) -> dict[str, Any]:
     from app.agent.prep import confirm_depends_on, run_prep
-    from app.agent.research import research_framework, research_material
+    from app.agent.research import (
+        cached_framework,
+        cached_material,
+        clear_research_cache,
+        research_framework,
+        research_material,
+    )
     from app.services.tts_compile import compile_course_audio, publish_courses
 
     t0 = time.perf_counter()
+    if refresh:
+        n = clear_research_cache(topic, subtopic)
+        print(f"♻️ 已清除调研缓存 {n} 个文件,全新调研")
     print("① 学习框架(双源:权威地图 + 你的待探足迹)…")
-    fw = research_framework(topic)
+    fw = (reuse and cached_framework(topic)) or research_framework(topic)
     print(f"框架 {len(fw['subtopics'])} 个子题:")
     prev = None
     if subtopic:
@@ -59,7 +76,9 @@ def run_pipeline(topic: str, subtopic: str | None = None, auto: bool = False) ->
         subtopic, prev = pick_subtopic(fw, auto)
 
     print("\n② 子题原料(带来源硬闸)…")
-    material = research_material(topic, subtopic)
+    material = (reuse and subtopic and cached_material(topic, subtopic)) or research_material(
+        topic, subtopic
+    )
     n_pts = sum(len(g.get("points", [])) for g in material["groups"])
     print(f"原料:{n_pts} 条要点 / {len(material['sources'])} 个来源")
 
@@ -93,5 +112,10 @@ if __name__ == "__main__":
     ap.add_argument("topic")
     ap.add_argument("--subtopic")
     ap.add_argument("--auto", action="store_true")
+    cache = ap.add_mutually_exclusive_group()
+    cache.add_argument(
+        "--reuse", action="store_true", help="框架/原料命中缓存则不联网(改备课 prompt 重跑同主题用)"
+    )
+    cache.add_argument("--refresh", action="store_true", help="先清除该主题调研缓存再全新调研")
     a = ap.parse_args()
-    run_pipeline(a.topic, subtopic=a.subtopic, auto=a.auto)
+    run_pipeline(a.topic, subtopic=a.subtopic, auto=a.auto, reuse=a.reuse, refresh=a.refresh)

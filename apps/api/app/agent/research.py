@@ -19,6 +19,7 @@ import json
 import re
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from app.agent.tools import (  # noqa: F401  # web_search 供 _require_search 探针
@@ -347,6 +348,65 @@ def _save(d: dict[str, Any], filename: str) -> None:
     d.pop("_usage", None)
     p.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"已落盘: {p}")
+
+
+# ---------- 缓存复用(P5·T1,借鉴 DeepTutor exploration.json #18)----------
+# 调研产物本就按阶段落盘;这里补「读回来」的入口:改备课 prompt 重跑同主题时
+# 零搜索零 fetch,直接进备课循环。缓存经同一套校验器复核,坏了自动回落真实调研。
+
+
+def _load_cached(
+    path: Path, validate: Callable[[dict[str, Any]], list[str]]
+) -> dict[str, Any] | None:
+    """读缓存文件并结构复核;缺失/损坏/校验不过都返回 None(回落真实调研)。"""
+    if not path.exists():
+        return None
+    try:
+        d = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        print(f"缓存损坏({path.name}:{e}),回落真实调研")
+        return None
+    if not isinstance(d, dict):
+        return None
+    errs = validate(d)
+    if errs:
+        print(f"缓存校验不过({path.name}: {errs[:2]}),回落真实调研")
+        return None
+    return d
+
+
+def cached_framework(topic: str) -> dict[str, Any] | None:
+    p = settings.data_dir / "research" / f"{_slug(topic)}.framework.json"
+    d = _load_cached(p, validate_framework)
+    if d is not None:
+        print(f"复用框架缓存:{p.name}({len(d['subtopics'])} 个子题,未联网)")
+    return d
+
+
+def cached_material(topic: str, subtopic: str) -> dict[str, Any] | None:
+    p = settings.data_dir / "research" / f"{_slug(topic)}.{_slug(subtopic)}.material.json"
+    d = _load_cached(p, validate_material)
+    if d is not None:
+        d["_material_path"] = str(p)  # 与 research_material 同:管线往下传
+        n = sum(len(g.get("points", [])) for g in d["groups"])
+        print(f"复用原料缓存:{p.name}({n} 条要点,未联网)")
+    return d
+
+
+def clear_research_cache(topic: str, subtopic: str | None = None) -> int:
+    """删该主题的框架缓存(+全部子题原料,或指定子题的),返回删除数。--refresh 用。"""
+    base = settings.data_dir / "research"
+    targets = [base / f"{_slug(topic)}.framework.json"]
+    if subtopic:
+        targets.append(base / f"{_slug(topic)}.{_slug(subtopic)}.material.json")
+    else:
+        targets.extend(sorted(base.glob(f"{_slug(topic)}.*.material.json")))
+    n = 0
+    for p in targets:
+        if p.exists():
+            p.unlink()
+            n += 1
+    return n
 
 
 def research_framework(topic: str) -> dict[str, Any]:
