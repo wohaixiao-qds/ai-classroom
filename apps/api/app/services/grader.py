@@ -60,7 +60,7 @@ def grade_recitation(course_id: str, page_id: str, answer: str) -> dict:
     t0 = time.perf_counter()
     resp = client.messages.create(
         model=settings.llm_model,
-        max_tokens=512,
+        max_tokens=1024,  # 512 会截断长「精准版」导致 JSON 不完整
         messages=[{"role": "user", "content": prompt}],
     )
     text = "".join(b.text for b in resp.content if b.type == "text").strip()
