@@ -108,6 +108,9 @@
   - ②复习闭环:`services/mastery.py`——/grade 成功后累积掌握度(最近 5 次加权 pass=1/warn=0.5/fail=0,低置信封顶 1 次≤0.5、2 次≤0.8「一次蒙对不算过」)+ 间隔序列 [1,3,7,14,30,60] 天(pass 且≥0.9 进位,fail 回 0 档;至少 pass 过一次才进复习轮)→ 学习台「今日复习」卡片 → 课堂 `?page=N` 深链重测(等 reveal initialize 完成再 slide,否则崩)。存 classroom.db `checkpoint_mastery` 表
   - 实测:批改→落库(0.5 封顶)→回拨到期→复习卡→深链落第 4 页,全链浏览器过;ruff 零错,mypy 与存量基线一致(34 处历史漂移非本次)
   - ⚠️ 课件 JSON 有两份:`apps/api/courses/`(源,后端读)与 `apps/web/public/courses/`(发布副本,前端读)——手改 meta 要两边同步(备课管线的发布步骤会自动拷贝)
+  - ✅ **追加(同日)·先修建议进备课管线(`b0730e0`)**:「内容→顺序」接通——备课 agent 自动产出 depends_on:①「学员已有课程速览」确定性注入 prompt(id|标题|大纲,≤40 门);②`init_course` 增 depends_on 参数,harness 即时校验(自依赖/悬空 id/缺 reason/超 2 门→整体打回重交,不建文件,与 write_page 同自纠风格);③`pipeline.py` 交互模式课件出炉后 `confirm_depends_on` 人审(回车照单/clear/覆盖 id),生成中心 auto 直接落盘,路线拓扑排序自动跟随。实测:错误回收笔记备课全链过,agent 主动给出 `harness-01` 先修+具体教学理由(「死代码搭梯子心智模型直接复用」)
+  - ✅ **追加(同日)·离线 agent 循环超时 60→240s(`b0730e0`)**:prep/research 用 `client.with_options(timeout=240)` 放宽,chat 的 60s 交互护栏不动——实测备课首轮长规划输出 7.4k tokens 在中转 ~46 tok/s 下需 191s,60s 必掐死(三连超时定位:走代理/直连都超时,非网络问题而是输出量×速度)
+  - ⏭ Phase 2 已对齐方向未做:未知领域「该学什么」路线规划——找资料 agent 权威地图升级出课程级拆分(3~6 门+先修链),沉淀 vault「领域路线」笔记+候选池,挑一门钻取成课并自动链回兄弟课(动 research.py,先对齐再写)
 - ✅ **P4 第四轮·全站 UI 重设计:shadcn/ui 落地+三主题视觉升级(2026-11-02,`44ae5ac`+`8bfe4be`)**:技术栈表里的 shadcn/ui 名实相符(此前零组件层,25 个文件全手拼类)。方向经确认:shadcn(补 P1 §0 既定欠账,Mantine/HeroUI 运行时主题体系与 reveal/三主题不合)+视觉升级+全页面范围:
   - token:`@theme inline` 把三主题裸变量映射为 shadcn 语义色(壳层从 `bg-(--accent)` 迁往 `bg-primary` 等);新增 success/warning/danger/overlay 语义色;radius/字体 token;deck 排版类(`.deck-h1/.eyebrow/.muted` 三色工具)保留给 pages.tsx 课件专用,零改动(视觉≈samples 定稿)
   - 组件层:`ui/` 11 个基础组件(Button/Input/Textarea/Card/Badge 状态色/Dialog/DropdownMenu/Tooltip/Slider/Skeleton/Kbd)+共享业务组件 SectionHeader(收敛三种区块标题)/PageState/KindIcon(两份 KIND_ICON emoji 表归一为 lucide)/ThemeSwitcher(radix 重写,Shell 与课堂共用)
