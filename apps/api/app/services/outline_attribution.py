@@ -40,16 +40,15 @@ MATCH_PROMPT = """你在做「旧课归位」:把学员已出的课件,归属到
 {existing_courses}
 
 规则:
-- 只在「这门已出课件教的内容与大纲课实质相同(覆盖其核心 60% 以上)」时才配对;
-  沾边的、只覆盖一部分的,不配对
-- 每门已出课件最多配给一门大纲课;每门大纲课最多收一门
-- 拿不准就不配——漏配无损,错配有毒
-- 主题都不同(如 MCP 课配 harness 课)绝不配
+- 归入标准:这些课件**合起来**实质覆盖该大纲课的核心(60% 以上);单门覆盖也行
+- 每门已出课件只能归入一门大纲课;不属于任何大纲课的课件不要硬塞
+- 拿不准就不归——漏归无损,错归有毒
+- 主题都不同(如 MCP 课件配 harness 大纲课)绝不归
 
 只输出 JSON(不要其他内容):
-{{"matches": [{{"outline_id": "大纲课id", "course_id": "课件id", "reason": "一句话"}}]}}
+{{"matches": [{{"outline_id": "大纲课id", "course_ids": ["课件id", "..."], "reason": "一句话"}}]}}
 
-没有够格的配对就输出 {{"matches": []}}"""
+没有够格的归入就输出 {{"matches": []}}"""
 
 
 def attribute_existing_courses(topic: str) -> dict[str, Any]:
@@ -107,23 +106,30 @@ def attribute_existing_courses(topic: str) -> dict[str, Any]:
     if text.startswith("```"):
         text = text.strip("`").removeprefix("json").strip()
     raw = json.loads(text)
-    matches: list[dict[str, str]] = []
+    matches: list[dict[str, Any]] = []
 
     used_files: set[str] = set()
     outline_ids = {str(c.get("id")) for c in d["courses"]}
     for m in raw.get("matches", []):
-        oid, cid = str(m.get("outline_id", "")), str(m.get("course_id", ""))
-        if oid not in outline_ids or cid not in existing_ids:
-            continue  # 幻觉 id,丢弃
-        if cid in used_files:
-            continue  # 一门课件只归一门
-        target = next((c for c in d["courses"] if str(c.get("id")) == oid), None)
-        if target is None or target.get("course_ref"):
+        oid = str(m.get("outline_id", ""))
+        cids = [str(x) for x in (m.get("course_ids") or [m.get("course_id")] or []) if x]
+        if oid not in outline_ids:
+            continue  # 幻觉大纲课 id
+        cids = [x for x in cids if x in existing_ids and x not in used_files]
+        if not cids:
             continue
-        target["course_ref"] = cid
-        used_files.add(cid)
+        target = next((c for c in d["courses"] if str(c.get("id")) == oid), None)
+        if target is None or target.get("course_refs"):
+            continue  # 已归过的不重复归
+        target["course_refs"] = cids
+        target["course_ref"] = cids[0]  # 兼容单值消费方
+        used_files.update(cids)
         matches.append(
-            {"outline_id": oid, "course_id": cid, "reason": str(m.get("reason", ""))[:80]}
+            {
+                "outline_id": oid,
+                "course_ids": cids,
+                "reason": str(m.get("reason", ""))[:80],
+            }
         )
 
     errs = validate_framework(d)
@@ -133,6 +139,8 @@ def attribute_existing_courses(topic: str) -> dict[str, Any]:
         json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     unmatched = [
-        str(c.get("id")) for c in d["courses"] if not c.get("course_ref")
+        str(c.get("id"))
+        for c in d["courses"]
+        if not c.get("course_refs") and not c.get("course_ref")
     ]
     return {"matches": matches, "unmatched": unmatched, "note": ""}

@@ -13,6 +13,8 @@ interface OutlineCourse {
   part?: string;
   prereq_titles?: string[];
   course_file_id?: string | null;
+  course_file_ids?: string[];
+  course_file_titles?: string[];
   prep_status?: string | null;
 }
 
@@ -99,8 +101,8 @@ export function OutlineToc({
           if (last && last.part === part) last.items.push({ c, i });
           else groups.push({ part, items: [{ c, i }] });
         });
-        const doneCount = d.courses.filter(
-          (c) => c.course_file_id && readyById.get(c.course_file_id),
+        const doneCount = d.courses.filter((c) =>
+          (c.course_file_ids ?? []).some((r) => readyById.get(r)),
         ).length;
         return (
           <Card key={d.topic} className="p-4">
@@ -127,8 +129,9 @@ export function OutlineToc({
                   )}
                   <ol className="space-y-1">
                     {g.items.map(({ c, i }) => {
-                      const done = !!(c.course_file_id && readyById.get(c.course_file_id));
-                      const isCursor = !!c.course_file_id && c.course_file_id === cursorId;
+                      const refs = c.course_file_ids ?? [];
+                      const done = refs.some((r) => readyById.get(r));
+                      const isCursor = !!cursorId && refs.includes(cursorId);
                       const busy =
                         c.prep_status === "queued" || c.prep_status === "running";
                       const inner = (
@@ -159,12 +162,17 @@ export function OutlineToc({
                           >
                             {c.title}
                           </span>
+                          {refs.length > 1 && (
+                            <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                              已挂 {refs.length} 门
+                            </span>
+                          )}
                           {busy && (
                             <span className="shrink-0 text-xs text-warning">
                               {c.prep_status === "running" ? "备课中…" : "排队中…"}
                             </span>
                           )}
-                          {!busy && !c.course_file_id && (
+                          {!busy && refs.length === 0 && (
                             <span className="shrink-0 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
                               点击开始备课
                             </span>
@@ -176,14 +184,29 @@ export function OutlineToc({
                       );
                       return (
                         <li key={c.id} className="group">
-                          {c.course_file_id ? (
-                            <Link
-                              to={`/read/${c.course_file_id}`}
-                              className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-secondary"
-                              title={c.goal}
-                            >
-                              {inner}
-                            </Link>
+                          {refs.length > 0 ? (
+                            <>
+                              <Link
+                                to={`/read/${refs[0]}`}
+                                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-secondary"
+                                title={c.goal}
+                              >
+                                {inner}
+                              </Link>
+                              {refs.length > 1 && (
+                                <div className="mb-1 ml-8 flex flex-wrap gap-1.5">
+                                  {refs.map((fid, k) => (
+                                    <Link
+                                      key={fid}
+                                      to={`/read/${fid}`}
+                                      className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                                    >
+                                      {c.course_file_titles?.[k] ?? `旧课${k + 1}`}
+                                    </Link>
+                                  ))}
+                                </div>
+                              )}
+                            </>
                           ) : (
                             <button
                               type="button"

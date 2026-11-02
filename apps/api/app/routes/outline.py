@@ -21,7 +21,9 @@ from app.services.outline_attribution import _load_outline, _outline_path
 
 router = APIRouter(prefix="/api/v1", tags=["outline"])
 
-_KNOWN_COURSE_KEYS = {"id", "title", "goal", "why", "prereqs", "part", "course_ref", "origin"}
+_KNOWN_COURSE_KEYS = {
+    "id", "title", "goal", "why", "prereqs", "part", "course_ref", "course_refs", "origin"
+}
 
 
 def _existing_course_ids_by_title() -> dict[str, str]:
@@ -100,19 +102,29 @@ def get_outline(topic: str) -> dict[str, Any]:
     linked = _outline_linked_ids()
     status = _prep_status(topic, [str(c.get("title")) for c in d["courses"]])
     existing_ids = set(by_title.values())
+    id_by_title = {v: k for k, v in by_title.items()}
     courses = []
     for c in d["courses"]:
         title = str(c.get("title"))
-        # 出课判定三级:course_ref(调研钦定收编) > meta.outline_course_id(点单出课写回) > 课名
+        # 出课判定(取并集):course_refs 列表 + course_ref + meta.outline_course_id + 课名
         ref = str(c.get("course_ref", "") or "")
         file_id = (
             ref if ref in existing_ids else linked.get(str(c.get("id"))) or by_title.get(title)
         )
+        refs = [
+            r
+            for r in [str(x) for x in (c.get("course_refs") or [])]
+            if r in existing_ids
+        ]
+        if file_id and file_id not in refs:
+            refs.insert(0, file_id)
         courses.append(
             {
                 **c,
                 "prereq_titles": [titles_by_id.get(p, p) for p in c.get("prereqs", [])],
-                "course_file_id": file_id,
+                "course_file_id": refs[0] if refs else None,
+                "course_file_ids": refs,
+                "course_file_titles": [id_by_title.get(r, r) for r in refs],
                 "prep_status": status.get(title),
             }
         )
