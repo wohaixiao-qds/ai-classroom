@@ -14,7 +14,8 @@
         "id": "function-calling-stability",
         "reason": "先懂 function calling 机制本身,再谈工具该切多细"
       }
-    ]
+    ],
+    "topic": "Agent / harness / Scaffolding"
   },
   "sections": [
     {

@@ -46,6 +46,12 @@ def _run() -> str:
         material = cached_material(topic, course_title) or research_material(
             topic, course_title
         )
+        # 知识版图归位:主题串(如 Agent Harness)不进版图,vault 层级才进
+        from app.services.catalog import find_todo_area
+
+        area = find_todo_area(course_title)
+        if area:
+            material["topic"] = area
         prereq_ids = list(outline_course.get("prereqs", []))
         titles_by_id = {c["id"]: c["title"] for c in fw["courses"]}
         prereq_titles = [titles_by_id[pid] for pid in prereq_ids if pid in titles_by_id]
