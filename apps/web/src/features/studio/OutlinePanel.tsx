@@ -21,6 +21,7 @@ interface OutlineCourse {
   goal: string;
   why?: string;
   prereqs: string[];
+  part?: string;
   prereq_titles?: string[];
   origin?: string;
   course_file_id?: string | null;
@@ -171,8 +172,23 @@ export function OutlinePanel() {
                   </Button>
                 )}
               </div>
-              <ol className="space-y-2">
-                {detail.courses.map((c, i) => {
+              {(() => {
+                const groups: { part: string; items: { c: OutlineCourse; i: number }[] }[] = [];
+                for (let i = 0; i < detail.courses.length; i++) {
+                  const part = detail.courses[i].part?.trim() ?? "";
+                  const last = groups[groups.length - 1];
+                  if (last && last.part === part) last.items.push({ c: detail.courses[i], i });
+                  else groups.push({ part, items: [{ c: detail.courses[i], i }] });
+                }
+                return groups.map((g) => (
+                  <div key={g.part || "__none"} className="mb-3">
+                    {g.part && (
+                      <p className="mb-1.5 border-b border-border pb-1 font-mono text-[11px] tracking-widest text-primary">
+                        ◆ {g.part}
+                      </p>
+                    )}
+                    <ol className="space-y-2">
+                      {g.items.map(({ c, i }) => {
                   const busy = c.prep_status === "queued" || c.prep_status === "running";
                   return (
                     <li
@@ -254,8 +270,11 @@ export function OutlinePanel() {
                       </div>
                     </li>
                   );
-                })}
-              </ol>
+                      })}
+                    </ol>
+                  </div>
+                ));
+              })()}
               {msg && <p className="mt-3 text-xs text-muted-foreground">{msg}</p>}
               <p className="mt-3 text-[11px] text-muted-foreground">
                 备课 = 原料调研 → 写课 → 发布,出炉自动按大纲先修链挂进学习路线; minutes 级任务

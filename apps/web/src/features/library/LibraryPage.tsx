@@ -2,6 +2,7 @@
  *  树从 topic 串自动生长("Agent / harness / Runtime"),与 vault 目录心智一致,零手工维护。
  *  topic 真源是后端 catalog 的实时推导(老课件文件里没有);此处拉取时合并进课程数据。 */
 import { BookOpen, ChevronDown, ChevronRight, Folder, LibraryBig, Play, CircleCheck, SquarePen, Route } from "lucide-react";
+import { OutlineToc } from "./OutlineToc";
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
@@ -253,6 +254,10 @@ export function LibraryPage() {
             </ol>
           </section>
         )}
+        {(() => {
+          const cursor = path.find((x) => !(readyById.get(x.id) ?? false));
+          return <OutlineToc readyById={readyById} cursorId={cursor?.id} />;
+        })()}
         {groups.map((g) => (
           <section key={g.topic} className="mb-8">
             <h2 className="mb-3 font-mono text-xs tracking-wider text-muted-foreground">

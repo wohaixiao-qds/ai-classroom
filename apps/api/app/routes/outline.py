@@ -21,7 +21,7 @@ from app.services.executor import start_job
 
 router = APIRouter(prefix="/api/v1", tags=["outline"])
 
-_KNOWN_COURSE_KEYS = {"id", "title", "goal", "why", "prereqs", "origin"}
+_KNOWN_COURSE_KEYS = {"id", "title", "goal", "why", "prereqs", "part", "origin"}
 
 
 def _outline_path(topic: str) -> Path:

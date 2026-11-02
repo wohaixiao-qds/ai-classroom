@@ -84,6 +84,7 @@ _FRAMEWORK_PROMPT = """你是课程大纲设计师,为一个学习主题产出�
       "goal": "学完能做什么(可验证的行为,禁「了解/熟悉」)",
       "why": "一句话:为什么它值得学/为什么放这个位置",
       "prereqs": ["前置课的id(只能取本列表内的id;入口课给 [])"],
+      "part": "所属篇名(把大纲归成 2~4 篇,如「基座」「护栏」「评估迭代」)",
       "origin": "user|map"}}
   ]}}
 
@@ -91,7 +92,8 @@ _FRAMEWORK_PROMPT = """你是课程大纲设计师,为一个学习主题产出�
 - 3~8 门课,每门都是一节能讲完的粒度(参照「harness 是什么」≈8 分钟一课)
 - prereqs 只能引用列表内其他课的 id;不许自依赖;不许成环(先修链必须是 DAG)
 - 入口课(通常 1 门)无前置;其余每门课都能沿先修链从入口走到,不留断链
-- 沿 prereqs 走完全部课 = 覆盖该主题的完整入门路径"""
+- 沿 prereqs 走完全部课 = 覆盖该主题的完整入门路径
+- part 归类像书的篇章:同篇的课程回答同一个大问题,篇名 2~6 字"""
 
 _MATERIAL_PROMPT = """你是课题调研员,为课件作者收集一个子题的带来源原料。
 底线:**每条要点都必须有据可查**。
@@ -152,6 +154,8 @@ def validate_framework(d: dict[str, Any], fetched: set[str] | None = None) -> li
             errs.append(f"课「{cid}」缺 goal——写「学完能做什么」的可验证行为,禁「了解/熟悉」")
         if str(c.get("origin", "")) not in ("user", "map"):
             errs.append(f"课「{cid}」origin 必须是 user 或 map")
+        if c.get("part") is not None and not str(c.get("part", "")).strip():
+            errs.append(f"课「{cid}」part 若提供则不能是空串")
     # prereqs:合法引用 + 去重 + Kahn 环检测(先修链必须是 DAG)
     indeg: dict[str, int] = {cid: 0 for cid in ids}
     dependents: dict[str, list[str]] = {}
@@ -454,6 +458,7 @@ def _legacy_to_outline(d: dict[str, Any]) -> dict[str, Any]:
                 "goal": why or f"学完能讲清「{title[:20]}」",
                 "why": why,
                 "prereqs": [],
+                "part": "",
                 "origin": str(s.get("origin", "map")),
             }
         )
