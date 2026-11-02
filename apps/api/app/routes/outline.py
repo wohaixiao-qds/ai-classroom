@@ -21,7 +21,7 @@ from app.services.executor import start_job
 
 router = APIRouter(prefix="/api/v1", tags=["outline"])
 
-_KNOWN_COURSE_KEYS = {"id", "title", "goal", "why", "prereqs", "part", "origin"}
+_KNOWN_COURSE_KEYS = {"id", "title", "goal", "why", "prereqs", "part", "course_ref", "origin"}
 
 
 def _outline_path(topic: str) -> Path:
@@ -46,6 +46,20 @@ def _existing_course_ids_by_title() -> dict[str, str]:
             d = json.loads(p.read_text(encoding="utf-8"))
             out[str(d.get("title", ""))] = str(d.get("id", ""))
         except Exception:  # noqa: BLE001 坏课件不挡列表
+            continue
+    return out
+
+
+def _outline_linked_ids() -> dict[str, str]:
+    """大纲课 id → 已出课件 id(出课时写进 meta.outline_course_id 的精确链)。"""
+    out: dict[str, str] = {}
+    for p in sorted(settings.courses_dir.glob("*.csl.json")):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+            oid = str(d.get("meta", {}).get("outline_course_id", "") or "")
+            if oid:
+                out[oid] = str(d.get("id", ""))
+        except Exception:  # noqa: BLE001
             continue
     return out
 
@@ -97,15 +111,22 @@ def get_outline(topic: str) -> dict[str, Any]:
     d = _load_outline(topic)
     titles_by_id = {str(c.get("id")): str(c.get("title")) for c in d["courses"]}
     by_title = _existing_course_ids_by_title()
+    linked = _outline_linked_ids()
     status = _prep_status(topic, [str(c.get("title")) for c in d["courses"]])
+    existing_ids = set(by_title.values())
     courses = []
     for c in d["courses"]:
         title = str(c.get("title"))
+        # 出课判定三级:course_ref(调研钦定收编) > meta.outline_course_id(点单出课写回) > 课名
+        ref = str(c.get("course_ref", "") or "")
+        file_id = (
+            ref if ref in existing_ids else linked.get(str(c.get("id"))) or by_title.get(title)
+        )
         courses.append(
             {
                 **c,
                 "prereq_titles": [titles_by_id.get(p, p) for p in c.get("prereqs", [])],
-                "course_file_id": by_title.get(title),
+                "course_file_id": file_id,
                 "prep_status": status.get(title),
             }
         )

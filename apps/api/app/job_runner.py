@@ -96,11 +96,15 @@ def _run() -> str:
             for t in prereq_titles
             if t in by_title and by_title[t] != course["id"]
         ]
+        course["meta"]["outline_course_id"] = outline_course.get("id", "")
         if deps:
             course["meta"]["depends_on"] = deps
-            cp = _course_path(str(course["id"]))
-            cp.write_text(_json.dumps(course, ensure_ascii=False, indent=2), encoding="utf-8")
-            print(f"大纲先修链已写入:{[d['id'] for d in deps]}")
+        cp = _course_path(str(course["id"]))
+        cp.write_text(_json.dumps(course, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(
+            f"大纲挂接完成:outline_course_id={course['meta']['outline_course_id']}"
+            + (f",先修链={[d['id'] for d in deps]}" if deps else "")
+        )
 
     from app.services.tts_compile import publish_courses
 

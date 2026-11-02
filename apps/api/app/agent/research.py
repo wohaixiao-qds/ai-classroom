@@ -22,6 +22,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from app.agent.prep import _course_brief
 from app.agent.tools import (  # noqa: F401  # web_search 供 _require_search 探针
     fetch_page,
     web_search,
@@ -69,6 +70,9 @@ _FRAMEWORK_PROMPT = """你是课程大纲设计师,为一个学习主题产出�
 
 {seed}
 
+# 学员已出的课(已生成的课件——大纲必须把它们「收编」进篇章,不是从零规划)
+{existing_courses}
+
 先 web_search 扫该主题的权威知识地图(官方文档目录结构 / GitHub 高星项目 docs /
 经典教程章节;默认限定近一年,时效敏感处用 week/month 再扫一遍),再按下述规则合流:
 - 用户清单里已有的子题:保留排前(origin 标 "user")
@@ -85,6 +89,7 @@ _FRAMEWORK_PROMPT = """你是课程大纲设计师,为一个学习主题产出�
       "why": "一句话:为什么它值得学/为什么放这个位置",
       "prereqs": ["前置课的id(只能取本列表内的id;入口课给 [])"],
       "part": "所属篇名(把大纲归成 2~4 篇,如「基座」「护栏」「评估迭代」)",
+      "course_ref": "已出课件id(仅当这门课=清单里的某门已出课时填;新课不填)",
       "origin": "user|map"}}
   ]}}
 
@@ -93,7 +98,10 @@ _FRAMEWORK_PROMPT = """你是课程大纲设计师,为一个学习主题产出�
 - prereqs 只能引用列表内其他课的 id;不许自依赖;不许成环(先修链必须是 DAG)
 - 入口课(通常 1 门)无前置;其余每门课都能沿先修链从入口走到,不留断链
 - 沿 prereqs 走完全部课 = 覆盖该主题的完整入门路径
-- part 归类像书的篇章:同篇的课程回答同一个大问题,篇名 2~6 字"""
+- part 归类像书的篇章:同篇的课程回答同一个大问题,篇名 2~6 字
+- **已出的课必须收编**:与「学员已出的课」清单对应的内容,优先用已出课充当
+  大纲课程(填 course_ref=课件id,title 照抄课件标题),并把它们编排进合理的篇;
+  一门课件最多收编一次;清单覆盖不到的缺口才规划为新课(不填 course_ref)"""
 
 _MATERIAL_PROMPT = """你是课题调研员,为课件作者收集一个子题的带来源原料。
 底线:**每条要点都必须有据可查**。
@@ -521,7 +529,9 @@ def research_framework(topic: str) -> dict[str, Any]:
     """阶段1:学习框架(双源合流)。产出交用户审——缺口补不补、子题选哪个,人拍板。"""
     _require_search()
     d = _loop(
-        _FRAMEWORK_PROMPT.format(topic=topic, seed=_user_seed(topic)),
+        _FRAMEWORK_PROMPT.format(
+            topic=topic, seed=_user_seed(topic), existing_courses=_course_brief()
+        ),
         validate_framework,
         topic,
         "framework",

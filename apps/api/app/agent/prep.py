@@ -112,16 +112,22 @@ def _course_ids() -> set[str]:
 def _course_brief() -> str:
     """现有课程速览(注入备课 prompt,判断先修关系用)。一行一门:id | 标题 | 大纲。
 
-    大纲每页标题截 20 字、最多 9 页——够判断「预设了什么概念」即可,不淹没材料。
+    v2 读节 heading、v1 读页标题(迁移期双版本);每门截 9 条、每条 20 字。
     """
     lines: list[str] = []
     for p in sorted(settings.courses_dir.glob("*.csl.json")):
         d = _load(p)
         if d is None:
             continue
+        units = d.get("sections") or d.get("pages") or []
         outline = "/".join(
-            str(pg.get("title") or pg.get("eyebrow") or pg.get("id", ""))[:20]
-            for pg in d.get("pages", [])[:9]
+            str(
+                u.get("heading")
+                or u.get("title")
+                or u.get("eyebrow")
+                or u.get("id", "")
+            )[:20]
+            for u in units[:9]
         )
         lines.append(f"- {d.get('id')} | {d.get('title', '')} | 大纲:{outline}")
         if len(lines) >= 40:
