@@ -8,34 +8,20 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.agent.research import _legacy_to_outline, _slug, validate_framework
+from app.agent.research import validate_framework
 from app.core.catalog_store import record_action
 from app.core.config import settings
 from app.services.executor import start_job
+from app.services.outline_attribution import _load_outline, _outline_path
 
 router = APIRouter(prefix="/api/v1", tags=["outline"])
 
 _KNOWN_COURSE_KEYS = {"id", "title", "goal", "why", "prereqs", "part", "course_ref", "origin"}
-
-
-def _outline_path(topic: str) -> Path:
-    return settings.data_dir / "research" / f"{_slug(topic)}.framework.json"
-
-
-def _load_outline(topic: str) -> dict[str, Any]:
-    p = _outline_path(topic)
-    if not p.exists():
-        raise HTTPException(404, f"没有「{topic}」的大纲——先开课调研出大纲")
-    d = json.loads(p.read_text(encoding="utf-8"))
-    if "courses" not in d:  # 旧框架:前端拿到的形状保持一致
-        d = _legacy_to_outline(d)
-    return d
 
 
 def _existing_course_ids_by_title() -> dict[str, str]:
@@ -155,6 +141,17 @@ def save_outline(topic: str, body: OutlineEdit) -> dict[str, Any]:
 
 class OutlinePrepReq(BaseModel):
     title: str
+
+
+@router.post("/outlines/{topic}/attribute")
+def attribute_courses(topic: str) -> dict[str, Any]:
+    """旧课归位(P7·选2):LLM 匹配已出课件↔大纲课,写 course_ref。幂等可重跑。"""
+    from app.services.outline_attribution import attribute_existing_courses
+
+    try:
+        return attribute_existing_courses(topic)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from None
 
 
 @router.post("/outlines/{topic}/prep")

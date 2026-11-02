@@ -105,6 +105,30 @@ export function OutlinePanel() {
     await loadDetail(detail.topic);
   };
 
+  const attribute = async () => {
+    if (!detail) return;
+    setMsg("归位匹配中(一次 LLM 调用,只配实质相同的)…");
+    const r = await fetch(`/api/v1/outlines/${encodeURIComponent(detail.topic)}/attribute`, {
+      method: "POST",
+    });
+    const d = (await r.json().catch(() => ({}))) as {
+      matches?: { outline_id: string; course_id: string; reason: string }[];
+      unmatched?: string[];
+      detail?: string;
+    };
+    if (!r.ok) {
+      setMsg(`归位失败:${d.detail}`);
+      return;
+    }
+    setMsg(
+      d.matches && d.matches.length
+        ? `归位 ${d.matches.length} 门:${d.matches.map((m) => `${m.outline_id}←${m.course_id}`).join("、")}` +
+            (d.unmatched?.length ? `;未匹配 ${d.unmatched.length} 门(需点单出课)` : "")
+        : "没有够格的配对——未出课的需点单生成",
+    );
+    await loadDetail(detail.topic);
+  };
+
   const prep = async (title: string) => {
     if (!openTopic) return;
     setMsg("");
@@ -166,11 +190,16 @@ export function OutlinePanel() {
                     {detail.courses.length} 门
                   </span>
                 </p>
-                {dirty && (
-                  <Button size="sm" onClick={() => void save()}>
-                    <Save size={13} /> 保存调整
+                <div className="flex items-center gap-2">
+                  {dirty && (
+                    <Button size="sm" onClick={() => void save()}>
+                      <Save size={13} /> 保存调整
+                    </Button>
+                  )}
+                  <Button size="sm" variant="secondary" onClick={() => void attribute()}>
+                    归位旧课
                   </Button>
-                )}
+                </div>
               </div>
               {(() => {
                 const groups: { part: string; items: { c: OutlineCourse; i: number }[] }[] = [];

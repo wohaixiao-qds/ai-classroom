@@ -82,9 +82,10 @@ def _run() -> str:
         return "备课未通过校验(软着陆),产物在 courses/ 可人工接着审"
     course = result["course"]
 
-    # 大纲钦定先修链:覆盖模型建议,只挂已出课的(前置未出课时先欠着,
-    # 那门课出炉后整链会在学习路线里自然续上——按标题匹配课件)
-    if kind == "outline_prep" and prereq_titles:
+    # 大纲挂接(P7·M2):outline_course_id 恒写(目录出课判定靠它);
+    # 先修链覆盖模型建议,只挂已出课的(前置未出课时先欠着,那门课出炉后
+    # 整链会在学习路线里自然续上——按标题匹配课件)
+    if kind == "outline_prep":
         import json as _json
         from pathlib import Path as _Path
 
