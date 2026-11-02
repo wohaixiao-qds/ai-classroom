@@ -163,3 +163,159 @@ class Course(BaseModel):
             if p.id == page_id:
                 return p
         raise KeyError(f"page not found: {page_id}")
+
+    def quiz_lookup(self) -> dict[str, tuple[int, str, str]]:
+        """{页id: (页序, 标题, 问题)} —— 批改/复习按 id 定位检查点。"""
+        out: dict[str, tuple[int, str, str]] = {}
+        for i, p in enumerate(self.pages, 1):
+            if p.checkpoint:
+                out[p.id] = (i, p.title or p.eyebrow or p.id, p.checkpoint.question)
+        return out
+
+    @property
+    def unit_count(self) -> int:
+        return len(self.pages)
+
+    @property
+    def checkpoint_count(self) -> int:
+        return sum(1 for p in self.pages if p.checkpoint)
+
+
+# ---------- v2 书页模型(P6):节→块,文字+插图,滚动阅读 ----------
+# 设计见 docs/P6执行计划.md 第二节。与 v1 并存直至 M3 备课翻版:
+# 顶层 "version": 2 是唯一格式标记(meta.version 是 v1 历史遗留,不作数)。
+
+
+class ParagraphBlock(BaseModel):
+    """书面 prose 段落;支持 **加粗** 与 `行内代码`。"""
+
+    type: Literal["p"] = "p"
+    text: str
+
+
+class DiagramBlock(BaseModel):
+    """mermaid 示意图(P6 插图):前端渲染失败降级为代码块。"""
+
+    type: Literal["diagram"] = "diagram"
+    lang: Literal["mermaid"] = "mermaid"
+    code: str
+    caption: str | None = None
+
+
+class CodeBlock(BaseModel):
+    type: Literal["code"] = "code"
+    language: str = "text"
+    code: str
+    caption: str | None = None
+
+
+class TableBlock(BaseModel):
+    type: Literal["table"] = "table"
+    header: list[str]
+    rows: list[list[str]]
+    caption: str | None = None
+
+
+class CalloutBlock(BaseModel):
+    type: Literal["callout"] = "callout"
+    kind: Literal["tip", "warn", "note"] = "note"
+    text: str
+
+
+class QuizBlock(BaseModel):
+    """复述检查点(原 v1 page.checkpoint)或自测题,内嵌节末。"""
+
+    type: Literal["quiz"] = "quiz"
+    id: str  # 课内唯一,如 "s3-cp";批改/复习按它定位
+    question: str
+    hint: str | None = None
+    pass_rule: str | None = None
+
+
+class Flashcard(BaseModel):
+    front: str
+    back: str
+
+
+class FlashcardsBlock(BaseModel):
+    """闪卡(P5·T5 并入):复习队列的消费单元。"""
+
+    type: Literal["flashcards"] = "flashcards"
+    cards: list[Flashcard]
+
+
+_BlockUnion = (
+    ParagraphBlock | DiagramBlock | CodeBlock | TableBlock
+    | CalloutBlock | QuizBlock | FlashcardsBlock
+)
+
+Block = Annotated[_BlockUnion, Field(discriminator="type")]
+
+
+class SectionAudio(BaseModel):
+    """段级朗读留位(P6 拍板:TTS 先砍不加,字段位留给未来)。"""
+
+    path: str
+
+
+class Section(BaseModel):
+    """书页的一节:标题 + 有序块列表。一节 ≈ 原 v1 一页的容量。"""
+
+    id: str  # 迁移时沿用旧页 id(批改/复习历史零映射成本)
+    heading: str
+    blocks: list[Block]
+    audio: SectionAudio | None = None
+
+
+class CourseV2(BaseModel):
+    """v2 书页课件:滚动文章形态,文字+插图,检查点/闪卡内嵌。"""
+
+    id: str
+    title: str
+    scenario: Literal["自学", "复习", "对外"]
+    version: Literal[2] = 2  # 顶层格式标记
+    meta: CourseMeta
+    sections: list[Section]
+
+    def section(self, section_id: str) -> Section:
+        for s in self.sections:
+            if s.id == section_id:
+                return s
+        raise KeyError(f"section not found: {section_id}")
+
+    def quiz_lookup(self) -> dict[str, tuple[int, str, str]]:
+        """{quiz块id 或 节id: (节序, 标题, 问题)} —— 兼容按节/按块两种定位。"""
+        out: dict[str, tuple[int, str, str]] = {}
+        for i, s in enumerate(self.sections, 1):
+            for b in s.blocks:
+                if isinstance(b, QuizBlock):
+                    out[b.id] = (i, s.heading, b.question)
+            first = next(
+                (b for b in s.blocks if isinstance(b, QuizBlock)), None
+            )
+            if first is not None and s.id not in out:
+                out[s.id] = (i, s.heading, first.question)
+        return out
+
+    @property
+    def unit_count(self) -> int:
+        return len(self.sections)
+
+    @property
+    def checkpoint_count(self) -> int:
+        return sum(
+            1 for s in self.sections for b in s.blocks if isinstance(b, QuizBlock)
+        )
+
+
+AnyCourse = Course | CourseV2
+
+
+def parse_course(text: str) -> AnyCourse:
+    """按顶层 version 分派装载(v1 无顶层 version 字段)。目录扫描/复习/课表统一走这里。"""
+    import json
+
+    d = json.loads(text)
+    if isinstance(d, dict) and d.get("version") == 2:
+        return CourseV2.model_validate(d)
+    return Course.model_validate(d)

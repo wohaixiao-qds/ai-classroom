@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import shutil
 from pathlib import Path
 
@@ -54,6 +55,9 @@ async def _gen(provider: TTSProvider, path: Path) -> tuple[int, int]:
 def compile_course_audio(course_id: str, provider: TTSProvider | None = None) -> tuple[int, int]:
     """编译一门课的音频(入口)。返回 (新生成数, 失败数)。"""
     path = settings.courses_dir / f"{course_id}.csl.json"
+    if json.loads(path.read_text(encoding="utf-8")).get("version") == 2:
+        print(f"↩ {course_id}: v2 书页课件无音频(P6 拍板 TTS 砍留位),跳过编译")
+        return (0, 0)
     return asyncio.run(_gen(provider or EdgeTTSProvider(), path))
 
 

@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from app.core.config import settings
-from app.schemas.csl import Course
+from app.schemas.csl import AnyCourse, parse_course
 from app.schemas.learning import ReviewDue, ReviewItem
 
 _DB = settings.data_dir / "classroom.db"
@@ -106,9 +106,9 @@ def record_grade(course_id: str, page_id: str, verdict: str) -> None:
         )
 
 
-def _load_course(course_id: str) -> Course | None:
+def _load_course(course_id: str) -> AnyCourse | None:
     try:
-        return Course.model_validate_json(
+        return parse_course(
             (settings.courses_dir / f"{course_id}.csl.json").read_text(encoding="utf-8")
         )
     except Exception:  # noqa: BLE001 单个坏课件不拖垮整张复习清单
@@ -125,7 +125,7 @@ def due_reviews() -> ReviewDue:
     now = datetime.now()
     total = len(rows)
     items: list[ReviewItem] = []
-    course_cache: dict[str, Course | None] = {}
+    course_cache: dict[str, AnyCourse | None] = {}
     for r in rows:
         due = datetime.strptime(r["next_review_at"], "%Y-%m-%dT%H:%M:%S")
         if due > now:
@@ -136,20 +136,18 @@ def due_reviews() -> ReviewDue:
         course = course_cache[cid]
         if course is None:
             continue
-        idx = next((i for i, p in enumerate(course.pages) if p.id == r["page_id"]), None)
-        if idx is None:
-            continue
-        page = course.pages[idx]
-        if page.checkpoint is None:
-            continue  # 课件改版删了检查点 → 该卡作废
+        hit = course.quiz_lookup().get(r["page_id"])
+        if hit is None:
+            continue  # 课件改版删了该检查点 → 该卡作废
+        page_no, page_title, question = hit
         items.append(
             ReviewItem(
                 course_id=cid,
                 course_title=course.title,
-                page_id=page.id,
-                page_title=page.title or page.eyebrow or page.id,
-                page_no=idx + 1,
-                question=page.checkpoint.question,
+                page_id=r["page_id"],
+                page_title=page_title,
+                page_no=page_no,
+                question=question,
                 mastery=r["mastery"],
                 next_review_at=r["next_review_at"],
                 overdue_days=max(0, (now - due).days),

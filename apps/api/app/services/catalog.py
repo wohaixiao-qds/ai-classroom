@@ -22,7 +22,7 @@ from app.core.config import settings
 from app.core.progress import completion
 from app.core.trace import read_traces
 from app.schemas.catalog import Catalog, CourseItem, NoteItem, SparkItem, TodoItem
-from app.schemas.csl import Course
+from app.schemas.csl import parse_course
 
 _EXCLUDE_DIRS = {"99-System"}  # 系统目录,非学习内容
 _ROOT_MGMT = {"术语表", "进度", "下次继续", "README", "CLAUDE"}  # 规则一:根目录管理文件
@@ -92,16 +92,15 @@ def _load_courses() -> tuple[list[CourseItem], set[str]]:
     vault_map = _vault_map()
     for p in sorted(settings.courses_dir.glob("*.csl.json")):
         try:
-            course = Course.model_validate_json(p.read_text(encoding="utf-8"))
+            course = parse_course(p.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001 单个坏课件不该拖垮整张课表
             continue
-        checkpoints = sum(1 for pg in course.pages if pg.checkpoint is not None)
         items.append(
             CourseItem(
                 id=course.id,
                 title=course.title,
-                pages=len(course.pages),
-                checkpoints=checkpoints,
+                pages=course.unit_count,
+                checkpoints=course.checkpoint_count,
                 topic=course.meta.topic or _derive_topic(course.meta.source_notes, vault_map),
                 depends_on=course.meta.depends_on,
                 ready=completion(course.id).ready,
@@ -238,7 +237,7 @@ def course_topic(course_id: str) -> str | None:
     """课件的主题(公开入口:P3 写回等要和课程库同一真相源——文件缺 topic 时实时推导)。"""
     p = settings.courses_dir / f"{course_id}.csl.json"
     try:
-        course = Course.model_validate_json(p.read_text(encoding="utf-8"))
+        course = parse_course(p.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001 坏文件给 None,调用方自行兜底
         return None
     return course.meta.topic or _derive_topic(course.meta.source_notes, _vault_map())
