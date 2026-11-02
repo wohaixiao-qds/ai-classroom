@@ -172,6 +172,10 @@ class Course(BaseModel):
                 out[p.id] = (i, p.title or p.eyebrow or p.id, p.checkpoint.question)
         return out
 
+    def flash_lookup(self) -> dict[str, tuple[int, str, str]]:
+        """v1 无闪卡,恒空(与 CourseV2 同接口,消费方免 isinstance)。"""
+        return {}
+
     @property
     def unit_count(self) -> int:
         return len(self.pages)
@@ -306,6 +310,18 @@ class CourseV2(BaseModel):
         return sum(
             1 for s in self.sections for b in s.blocks if isinstance(b, QuizBlock)
         )
+
+    def flash_lookup(self) -> dict[str, tuple[int, str, str]]:
+        """{闪卡块id: (节序, 节标题, 首卡正面)} —— 闪卡 id 渲染期合成:<节id>-fc<序>。"""
+        out: dict[str, tuple[int, str, str]] = {}
+        for i, s in enumerate(self.sections, 1):
+            j = 0
+            for b in s.blocks:
+                if isinstance(b, FlashcardsBlock):
+                    front = b.cards[0].front if b.cards else ""
+                    out[f"{s.id}-fc{j}"] = (i, s.heading, front)
+                    j += 1
+        return out
 
 
 AnyCourse = Course | CourseV2

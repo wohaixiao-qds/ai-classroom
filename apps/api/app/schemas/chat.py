@@ -24,6 +24,14 @@ class GradeRequest(BaseModel):
     answer: str = Field(min_length=1, max_length=2000)
 
 
+class FlashReportRequest(BaseModel):
+    """闪卡自评(M4):记得=pass / 忘了=fail,复用检查点掌握度排期。"""
+
+    course_id: str
+    block_id: str
+    remembered: bool
+
+
 class SessionInfo(BaseModel):
     """会话列表项(A5 历史对话)。"""
 

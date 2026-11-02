@@ -18,6 +18,7 @@ from app.core.memory import ensure_session, list_sessions, new_session, session_
 from app.core.trace import trace_tutor
 from app.schemas.chat import (
     ChatRequest,
+    FlashReportRequest,
     GradeRequest,
     SessionCreateResponse,
     SessionDetailResponse,
@@ -121,3 +122,23 @@ def grade(req: GradeRequest) -> dict:
 
     mastery.record_grade(req.course_id, req.page_id, result["verdict"])
     return result
+
+
+@router.post("/flash/report")
+def flash_report(req: FlashReportRequest) -> dict:
+    """闪卡自评(M4):记得/忘了 → 同一套掌握度累积与间隔排期。无 LLM,纯回写。"""
+    from app.services import mastery
+
+    verdict = "pass" if req.remembered else "fail"
+    mastery.record_grade(req.course_id, req.block_id, verdict)
+    with mastery._conn() as c:
+        row = c.execute(
+            "SELECT mastery, next_review_at FROM checkpoint_mastery"
+            " WHERE course_id=? AND page_id=?",
+            (req.course_id, req.block_id),
+        ).fetchone()
+    return {
+        "ok": True,
+        "mastery": row["mastery"] if row else 0,
+        "next_review_at": row["next_review_at"] if row else None,
+    }

@@ -172,7 +172,7 @@ function Reader({ course }: { course: CourseV2 }) {
                   <span className="font-mono text-sm text-primary">{String(i + 1).padStart(2, "0")}</span>
                   {s.heading}
                 </h2>
-                <Blocks blocks={s.blocks} courseId={course.id} />
+                <Blocks blocks={s.blocks} courseId={course.id} sectionId={s.id} />
               </section>
             ))}
             <footer className="mt-14 border-t border-border pt-8 text-center">

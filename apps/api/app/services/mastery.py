@@ -136,10 +136,16 @@ def due_reviews() -> ReviewDue:
         course = course_cache[cid]
         if course is None:
             continue
+        # 检查点卡(quiz_lookup)优先;闪卡卡(flash_lookup)同表不同键(M4)
         hit = course.quiz_lookup().get(r["page_id"])
-        if hit is None:
-            continue  # 课件改版删了该检查点 → 该卡作废
-        page_no, page_title, question = hit
+        fhit = None if hit else course.flash_lookup().get(r["page_id"])
+        if hit is not None:
+            page_no, page_title, question = hit
+        elif fhit is not None:
+            page_no, sec_title, front = fhit
+            page_title, question = f"闪卡 · {sec_title}", front
+        else:
+            continue  # 课件改版删了该卡 → 该卡作废
         items.append(
             ReviewItem(
                 course_id=cid,

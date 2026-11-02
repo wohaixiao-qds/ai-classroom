@@ -8,18 +8,37 @@ import type { Block } from "../../types/csl";
 import { normalizeBold } from "../../utils/md";
 import { CheckpointOverlay } from "./CheckpointOverlay";
 
-/** v2 块渲染:节内块按序即版式(P6 书页形态)。quiz 内嵌复述卡,闪卡点按翻面。 */
-export function Blocks({ blocks, courseId }: { blocks: Block[]; courseId: string }) {
+/** v2 块渲染:节内块按序即版式(P6 书页形态)。quiz 内嵌复述卡,闪卡点按翻面+自评。 */
+export function Blocks({
+  blocks,
+  courseId,
+  sectionId,
+}: {
+  blocks: Block[];
+  courseId: string;
+  sectionId: string;
+}) {
+  let fcCount = 0;
   return (
     <div className="flex flex-col gap-5">
-      {blocks.map((b, i) => (
-        <BlockView key={i} block={b} courseId={courseId} />
-      ))}
+      {blocks.map((b, i) => {
+        // 闪卡块 id 渲染期合成:<节id>-fc<序>,与后端 flash_lookup 同约定(M4)
+        const blockId = b.type === "flashcards" ? `${sectionId}-fc${fcCount++}` : undefined;
+        return <BlockView key={i} block={b} courseId={courseId} blockId={blockId} />;
+      })}
     </div>
   );
 }
 
-function BlockView({ block, courseId }: { block: Block; courseId: string }) {
+function BlockView({
+  block,
+  courseId,
+  blockId,
+}: {
+  block: Block;
+  courseId: string;
+  blockId?: string;
+}) {
   switch (block.type) {
     case "p":
       // prose 管结构默认(列表/引用/标题节奏);中文微排版按 CLREQ:行高 1.9、
@@ -101,7 +120,7 @@ function BlockView({ block, courseId }: { block: Block; courseId: string }) {
     case "quiz":
       return <QuizCard block={block} courseId={courseId} />;
     case "flashcards":
-      return <FlashCards cards={block.cards} />;
+      return <FlashCards cards={block.cards} courseId={courseId} blockId={blockId ?? ""} />;
   }
 }
 
@@ -193,9 +212,18 @@ function QuizCard({ block, courseId }: { block: Extract<Block, { type: "quiz" }>
   );
 }
 
-/** 闪卡:点按翻面(简单实现,P6 不做 3D 动画) */
-function FlashCards({ cards }: { cards: { front: string; back: string }[] }) {
+/** 闪卡:点按翻面;翻后自评「记得/忘了」→ /flash/report,与检查点同一套间隔排期(M4) */
+function FlashCards({
+  cards,
+  courseId,
+  blockId,
+}: {
+  cards: { front: string; back: string }[];
+  courseId: string;
+  blockId: string;
+}) {
   const [flipped, setFlipped] = useState<Set<number>>(new Set());
+  const [reported, setReported] = useState<Map<number, boolean>>(new Map());
   const toggle = (i: number) =>
     setFlipped((s) => {
       const n = new Set(s);
@@ -203,25 +231,58 @@ function FlashCards({ cards }: { cards: { front: string; back: string }[] }) {
       else n.add(i);
       return n;
     });
+  const report = (i: number, remembered: boolean) => {
+    setReported((m) => new Map(m).set(i, remembered));
+    void fetch("/api/v1/flash/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ course_id: courseId, block_id: blockId, remembered }),
+    }).catch(() => {});
+  };
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      {cards.map((c, i) => (
-        <button
-          key={i}
-          type="button"
-          onClick={() => toggle(i)}
-          className="rounded-xl border border-border bg-card px-4 py-3.5 text-left transition-colors hover:border-primary/40"
-          title={flipped.has(i) ? "点回正面" : "点看答案"}
-        >
-          <p className="font-mono text-[11px] tracking-widest text-muted-foreground">
-            {flipped.has(i) ? "答" : "问"}
-          </p>
-          <p className="mt-1 text-[14px] leading-7">{flipped.has(i) ? c.back : c.front}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[12px] text-muted-foreground">
-            <RotateCw size={11} /> 翻面
-          </span>
-        </button>
-      ))}
+      {cards.map((c, i) => {
+        const isFlipped = flipped.has(i);
+        const verdict = reported.get(i);
+        return (
+          <div
+            key={i}
+            className="rounded-xl border border-border bg-card px-4 py-3.5 transition-colors"
+          >
+            <button
+              type="button"
+              onClick={() => toggle(i)}
+              className="block w-full text-left"
+              title={isFlipped ? "点回正面" : "点看答案"}
+            >
+              <p className="font-mono text-[11px] tracking-widest text-muted-foreground">
+                {isFlipped ? "答" : "问"}
+              </p>
+              <p className="mt-1 text-[14px] leading-7">{isFlipped ? c.back : c.front}</p>
+              {!isFlipped && !verdict && (
+                <span className="mt-2 inline-flex items-center gap-1 text-[12px] text-muted-foreground">
+                  <RotateCw size={11} /> 翻面
+                </span>
+              )}
+            </button>
+            {isFlipped &&
+              (verdict === undefined ? (
+                <div className="mt-2.5 flex gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => report(i, true)}>
+                    记得了
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => report(i, false)}>
+                    忘了
+                  </Button>
+                </div>
+              ) : (
+                <p className="mt-2.5 text-[12px] text-muted-foreground">
+                  {verdict ? "✓ 已记入,按间隔排下次复习" : "↺ 明天再来过这张"}
+                </p>
+              ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
