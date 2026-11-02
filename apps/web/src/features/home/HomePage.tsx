@@ -1,8 +1,9 @@
-/** 学习台(甲方案):今日复习 + 继续学 + 下一步学 + 快捷开课 + 推荐(想学的/刚冒出的)。
+/** 学习台(甲方案):学习路线 + 今日复习 + 继续学 + 下一步学 + 快捷开课 + 推荐。
  *  「在学什么」的首页;课程全量在课程库,生成管理在生成中心。
  *  复习/顺序(2026-11-02):批改结果服务端累积成掌握度,到期检查点回这里重测;
- *  先修依赖来自课件 meta.depends_on(人工/备课标注),学完前置课才推荐后继。 */
-import { BookOpen, Compass, Lightbulb, ListTodo, Play, RotateCcw, Sparkles } from "lucide-react";
+ *  先修依赖来自课件 meta.depends_on(人工/备课标注),学完前置课才推荐后继。
+ *  路线游标(P6 后):拓扑序里第一个未学完的课=当前步,顶部步骤条直答「按什么顺序学」。 */
+import { BookOpen, Compass, Lightbulb, ListTodo, Play, Route, RotateCcw, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -13,15 +14,20 @@ import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { useCatalog } from "../../hooks/useCatalog";
+import { suggestOrder } from "../../lib/learningPath";
+import { cn } from "../../lib/utils";
+import type { AnyCourse } from "../../types/csl";
 import type { components } from "../../types/api.gen";
 
 type ReviewDue = components["schemas"]["ReviewDue"];
 
-/** 读本地断点(与播放引擎同 key):学习台展示「上次学到第N页」 */
-function progressOf(courseId: string): { p: number } | null {
+/** 读阅读器断点:P6 起进度存 reader-pos-{id} = {top, sec};继续学展示「上次读到第N节」 */
+function progressOf(courseId: string): { sec: number } | null {
   try {
-    const raw = localStorage.getItem(`classroom-progress-${courseId}`);
-    return raw ? (JSON.parse(raw) as { p: number }) : null;
+    const raw = localStorage.getItem(`reader-pos-${courseId}`);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as { sec?: number };
+    return Number.isInteger(saved.sec) ? { sec: saved.sec as number } : null;
   } catch {
     return null;
   }
@@ -44,16 +50,23 @@ export function HomePage() {
   if (!cat) return <PageLoading />;
 
   const learning = cat.learning.map((c) => ({ ...c, prog: progressOf(c.id) }));
-  const continuing = learning.filter((c) => c.prog && c.prog.p > 0);
+  const continuing = learning.filter((c) => c.prog !== null);
   const readyById = new Map(learning.map((c) => [c.id, c.ready]));
-  // 下一步学:没学完、没有断点、先修全部学完的课(顺序来自 meta.depends_on)
-  const nextUp = learning.filter(
-    (c) =>
-      !c.ready &&
-      !c.prog &&
-      c.depends_on.length > 0 &&
-      c.depends_on.every((d) => readyById.get(d.id)),
+  // 学习路线:catalog 的 depends_on 就够排拓扑序(不用拉全量课件 JSON)
+  const route = suggestOrder(
+    learning.map(
+      (c) => ({ id: c.id, title: c.title, meta: { depends_on: c.depends_on } }) as AnyCourse,
+    ),
   );
+  const steps = route.map((c, i) => ({
+    id: c.id,
+    title: c.title,
+    step: i + 1,
+    ready: readyById.get(c.id) ?? false,
+  }));
+  // 路线游标:第一个未学完的课=当前步(前置已 ready 的天然靠前)
+  const cursor = steps.find((s) => !s.ready) ?? null;
+  const cursorPrev = cursor && cursor.step > 1 ? steps[cursor.step - 2] : null;
 
   return (
     <div className="mx-auto max-w-4xl space-y-8 px-6 py-8">
@@ -80,6 +93,52 @@ export function HomePage() {
           开课
         </Button>
       </form>
+
+      {/* 学习路线:直答「按什么顺序学」——拓扑序步骤条,当前步即游标 */}
+      {steps.length > 0 && (
+        <section className="rounded-xl border border-border bg-card p-4">
+          <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium">
+            <Route size={14} className="text-primary" /> 学习路线
+            {cursor && (
+              <span className="ml-1 font-mono text-xs font-normal text-muted-foreground">
+                你在第 {cursor.step} / {steps.length} 步
+              </span>
+            )}
+            {!cursor && (
+              <span className="ml-1 font-mono text-xs font-normal text-success">
+                全部学完 🎉
+              </span>
+            )}
+          </h2>
+          <ol className="flex flex-wrap items-center gap-x-2 gap-y-2">
+            {steps.map((s, i) => {
+              const isCursor = cursor?.id === s.id;
+              return (
+                <li key={s.id} className="flex items-center gap-2">
+                  {i > 0 && <span className="text-muted-foreground">→</span>}
+                  <Link
+                    to={isCursor ? `/read/${s.id}` : `/courses/${s.id}`}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                      isCursor
+                        ? "border-primary bg-primary/10 font-medium text-primary"
+                        : s.ready
+                          ? "border-success/50 bg-success/10 text-success"
+                          : "border-border bg-background text-muted-foreground hover:border-primary/40",
+                    )}
+                    title={isCursor ? "当前步,点开就读" : s.ready ? "已学完" : "还没轮到,但也能直接点进去"}
+                  >
+                    <span className="font-mono opacity-70">{i + 1}</span>
+                    {s.ready && "✓"}
+                    {isCursor && "▶ "}
+                    {s.title}
+                  </Link>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      )}
 
       {due && due.items.length > 0 && (
         <section>
@@ -118,10 +177,10 @@ export function HomePage() {
         {continuing.length ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {continuing.map((c) => (
-              <Link key={c.id} to={`/read/${c.id}`} className="group">
+              <Link key={c.id} to={`/read/${c.id}?section=${c.prog!.sec + 1}`} className="group">
                 <Card className="h-full p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:shadow-lg">
                   <p className="mb-1 flex items-center gap-1 font-mono text-xs text-primary">
-                    <Play size={11} /> 接着学 · 第 {c.prog!.p + 1} 页
+                    <Play size={11} /> 接着学 · 第 {c.prog!.sec + 1} 节
                   </p>
                   <h3 className="mb-1 font-medium">{c.title}</h3>
                   <p className="font-mono text-xs text-muted-foreground">
@@ -144,29 +203,31 @@ export function HomePage() {
         )}
       </section>
 
-      {nextUp.length > 0 && (
+      {cursor && (
         <section>
           <SectionHeader
             icon={Compass}
             title="下一步学"
-            count={nextUp.length}
-            hint="先修课都学完了,按学习顺序轮到这些"
+            hint="路线上的当前步:前置课都已学完,学完它自动轮到下一门"
           />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {nextUp.map((c) => (
-              <Link key={c.id} to={`/courses/${c.id}`} className="group">
-                <Card className="h-full p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:shadow-lg">
-                  <p className="mb-1 flex items-center gap-1 font-mono text-xs text-primary">
-                    <Compass size={11} /> 可以开课
-                  </p>
-                  <h3 className="mb-1 font-medium">{c.title}</h3>
-                  <p className="line-clamp-2 font-mono text-xs text-muted-foreground">
-                    {c.depends_on.map((d) => d.reason).filter(Boolean).join(";")}
-                  </p>
-                </Card>
+          <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="mb-1 flex items-center gap-1.5 font-mono text-xs text-primary">
+                <Compass size={12} /> 第 {cursor.step} / {steps.length} 步 · 可以开课
+              </p>
+              <h3 className="mb-1 text-lg font-medium">{cursor.title}</h3>
+              <p className="font-mono text-xs text-muted-foreground">
+                {cursorPrev
+                  ? `承接:你刚学完「${cursorPrev.title}」✓`
+                  : "路线起点,直接开读"}
+              </p>
+            </div>
+            <Button size="lg" asChild className="shrink-0">
+              <Link to={`/read/${cursor.id}`}>
+                <Play size={15} /> 开始学
               </Link>
-            ))}
-          </div>
+            </Button>
+          </Card>
         </section>
       )}
 

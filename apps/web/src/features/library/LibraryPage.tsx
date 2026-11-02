@@ -217,7 +217,7 @@ export function LibraryPage() {
         {path.length > 1 && (
           <section className="mb-8 rounded-xl border border-border bg-card p-4">
             <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium">
-              <Route size={14} className="text-primary" /> 学习路线 · 从这里开始
+              <Route size={14} className="text-primary" /> 学习路线
               <span className="ml-1 font-mono text-xs font-normal text-muted-foreground">
                 按先修依赖自动排出
               </span>
@@ -225,6 +225,8 @@ export function LibraryPage() {
             <ol className="flex flex-wrap items-center gap-x-2 gap-y-2">
               {path.map((c, i) => {
                 const done = readyById.get(c.id) ?? false;
+                const isCursor =
+                  !done && i === path.findIndex((x) => !(readyById.get(x.id) ?? false));
                 return (
                   <li key={c.id} className="flex items-center gap-2">
                     {i > 0 && <ChevronRight size={13} className="shrink-0 text-muted-foreground" />}
@@ -232,12 +234,16 @@ export function LibraryPage() {
                       to={`/courses/${c.id}`}
                       className={cn(
                         "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors",
-                        done
-                          ? "border-success/50 bg-success/10 text-success"
-                          : "border-border bg-background hover:border-primary/40",
+                        isCursor
+                          ? "border-primary bg-primary/10 font-medium text-primary"
+                          : done
+                            ? "border-success/50 bg-success/10 text-success"
+                            : "border-border bg-background hover:border-primary/40",
                       )}
+                      title={isCursor ? "当前步:前置都已学完,点开就读" : done ? "已学完" : undefined}
                     >
                       <span className="font-mono opacity-70">{i + 1}</span>
+                      {isCursor && "▶ "}
                       {c.title}
                       {done && <CircleCheck size={12} />}
                     </Link>

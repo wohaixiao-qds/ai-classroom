@@ -78,13 +78,13 @@ function Reader({ course }: { course: CourseV2 }) {
       if (m.offsetTop <= y) cur = i;
     });
     setActive(cur);
-    // 断点节流落盘(300ms);深链进来的第一次定位前不写
+    // 断点节流落盘(300ms):{top 像素, sec 节序}——学习台「继续学」读 sec
     if (!restoredRef.current) return;
     clearTimeout(Number(el.dataset.tmr));
     el.dataset.tmr = String(
       window.setTimeout(() => {
         try {
-          localStorage.setItem(posKey(course.id), String(el.scrollTop));
+          localStorage.setItem(posKey(course.id), JSON.stringify({ top: el.scrollTop, sec: cur }));
         } catch {
           /* 隐私模式等存不进就算了 */
         }
@@ -92,17 +92,27 @@ function Reader({ course }: { course: CourseV2 }) {
     );
   }, [course.id]);
 
-  // 首次定位:优先深链 ?section=N,否则恢复断点;两者都无则到顶
+  // 首次定位:优先深链 ?section=N,其次断点(节号,老数据退像素),都无则到顶
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const secN = Number(searchParams.get("section"));
-    const saved = Number(localStorage.getItem(posKey(course.id)));
+    let target = -1;
     if (Number.isInteger(secN) && secN >= 1 && secN <= course.sections.length) {
-      el.querySelector(`#sec-${secN - 1}`)?.scrollIntoView({ block: "start" });
-    } else if (saved > 0) {
-      el.scrollTop = saved;
+      target = secN - 1;
+    } else {
+      try {
+        const raw = localStorage.getItem(posKey(course.id));
+        if (raw) {
+          const saved = JSON.parse(raw) as { top?: number; sec?: number };
+          if (Number.isInteger(saved.sec)) target = saved.sec as number;
+          else if ((saved.top ?? 0) > 0) el.scrollTop = saved.top as number;
+        }
+      } catch {
+        /* 坏数据当没断点 */
+      }
     }
+    if (target >= 0) el.querySelector(`#sec-${target}`)?.scrollIntoView({ block: "start" });
     restoredRef.current = true;
     // 深链只在进入时生效一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
