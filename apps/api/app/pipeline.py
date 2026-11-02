@@ -23,10 +23,11 @@ BUDGET_MIN = 30  # 验收红线:30 分钟内变课件
 
 def pick_subtopic(framework: dict[str, Any], auto: bool) -> tuple[str, str | None]:
     """选子题:返回 (子题名, 前置子题名)。auto=足迹优先;交互=打印后等你输入。"""
-    subs = framework["subtopics"]
+    subs = framework["courses"]
     for i, s in enumerate(subs, 1):
         tag = "你的足迹" if s.get("origin") == "user" else "地图补充"
-        print(f"  {i}. {s['title']}  [{tag}] — {s.get('why', '')}")
+        pre = "←" + ",".join(s.get("prereqs", [])) if s.get("prereqs") else ""
+        print(f"  {i}. {s['title']}  [{tag}]{pre} — {s.get('goal') or s.get('why', '')}")
     idx = 0
     if auto:
         for i, s in enumerate(subs):
@@ -65,10 +66,11 @@ def run_pipeline(
         print(f"♻️ 已清除调研缓存 {n} 个文件,全新调研")
     print("① 学习框架(双源:权威地图 + 你的待探足迹)…")
     fw = (reuse and cached_framework(topic)) or research_framework(topic)
-    print(f"框架 {len(fw['subtopics'])} 个子题:")
+    n_prereq = sum(1 for c in fw["courses"] if c.get("prereqs"))
+    print(f"大纲 {len(fw['courses'])} 门课(先修链 {n_prereq} 条):")
     prev = None
     if subtopic:
-        titles = [s["title"] for s in fw["subtopics"]]
+        titles = [c["title"] for c in fw["courses"]]
         i = titles.index(subtopic) if subtopic in titles else 0
         prev = titles[i - 1] if i > 0 else None
         print(f"→ 指定子题:「{subtopic}」(前置:{prev or '无'})")

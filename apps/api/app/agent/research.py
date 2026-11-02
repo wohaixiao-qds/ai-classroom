@@ -62,22 +62,36 @@ RESEARCH_TOOLS = [
     },
 ]
 
-_FRAMEWORK_PROMPT = """你是学习路线调研员,为一个学习主题产出「学习框架」——拆成可逐课学习的子题清单。
+_FRAMEWORK_PROMPT = """你是课程大纲设计师,为一个学习主题产出「领域课程大纲」
+——一组带先修关系的连贯小课。
 
 主题:{topic}
 
 {seed}
 
 先 web_search 扫该主题的权威知识地图(官方文档目录结构 / GitHub 高星项目 docs /
-经典教程章节;搜索默认限定近一年,时效敏感处用 week/month 再扫一遍),再按下述规则合流:
-- 用户清单里已有的子题:保留,且排在前面、保持用户的相对顺序(origin 标 "user")
-- 地图里有、用户清单没有的:列为补充(origin 标 "map")——这是用户清单外的缺口
+经典教程章节;默认限定近一年,时效敏感处用 week/month 再扫一遍),再按下述规则合流:
+- 用户清单里已有的子题:保留排前(origin 标 "user")
+- 地图里有、用户清单没有的:补充(origin 标 "map")——清单外的缺口
 - 用户有、地图没有的:保留(origin 标 "user",独特衍生往往最值钱)
 
 只输出 JSON(不要其他内容):
 {{"topic": "{topic}",
-  "subtopics": [{{"title": "子题名", "why": "一句话:学它解决什么", "origin": "user|map"}}]}}
-子题 5~10 个,每个都是一节课能讲完的粒度(参照「harness 是什么」≈8分钟一课)。"""
+  "domain": "领域名(2~6字,如 Agent 工程)",
+  "courses": [
+    {{"id": "英文短横线slug",
+      "title": "课名(具体,如「解析层:模型输出与工具执行的桥梁」)",
+      "goal": "学完能做什么(可验证的行为,禁「了解/熟悉」)",
+      "why": "一句话:为什么它值得学/为什么放这个位置",
+      "prereqs": ["前置课的id(只能取本列表内的id;入口课给 [])"],
+      "origin": "user|map"}}
+  ]}}
+
+硬规则:
+- 3~8 门课,每门都是一节能讲完的粒度(参照「harness 是什么」≈8 分钟一课)
+- prereqs 只能引用列表内其他课的 id;不许自依赖;不许成环(先修链必须是 DAG)
+- 入口课(通常 1 门)无前置;其余每门课都能沿先修链从入口走到,不留断链
+- 沿 prereqs 走完全部课 = 覆盖该主题的完整入门路径"""
 
 _MATERIAL_PROMPT = """你是课题调研员,为课件作者收集一个子题的带来源原料。
 底线:**每条要点都必须有据可查**。
@@ -116,15 +130,62 @@ recency。拿不准的内容不要写。"""
 
 
 def validate_framework(d: dict[str, Any], fetched: set[str] | None = None) -> list[str]:
-    subs = d.get("subtopics")
-    if not isinstance(subs, list) or not subs:
-        return ["subtopics 缺失或为空——至少给出 5 个子题"]
-    errs = []
-    for i, s in enumerate(subs, 1):
-        if not isinstance(s, dict) or not str(s.get("title", "")).strip():
-            errs.append(f"第{i}个子题缺 title")
-        if str(s.get("origin", "")) not in ("user", "map"):
-            errs.append(f"第{i}个子题 origin 必须是 user 或 map")
+    """领域大纲校验(P7·M1):3~8 门、id 唯一、goal 可验证、prereqs 合法且成 DAG。"""
+    courses = d.get("courses")
+    if not isinstance(courses, list) or not 3 <= len(courses) <= 8:
+        return ["courses 缺失或数量不在 3~8——大纲至少 3 门,至多 8 门"]
+    errs: list[str] = []
+    ids: set[str] = set()
+    for i, c in enumerate(courses, 1):
+        if not isinstance(c, dict):
+            errs.append(f"第{i}门课不是对象")
+            continue
+        cid = str(c.get("id", "")).strip()
+        if not cid:
+            errs.append(f"第{i}门课缺 id")
+        elif cid in ids:
+            errs.append(f"课 id「{cid}」重复")
+        ids.add(cid)
+        if not str(c.get("title", "")).strip():
+            errs.append(f"课「{cid}」缺 title")
+        if not str(c.get("goal", "")).strip():
+            errs.append(f"课「{cid}」缺 goal——写「学完能做什么」的可验证行为,禁「了解/熟悉」")
+        if str(c.get("origin", "")) not in ("user", "map"):
+            errs.append(f"课「{cid}」origin 必须是 user 或 map")
+    # prereqs:合法引用 + 去重 + Kahn 环检测(先修链必须是 DAG)
+    indeg: dict[str, int] = {cid: 0 for cid in ids}
+    dependents: dict[str, list[str]] = {}
+    for c in courses:
+        if not isinstance(c, dict):
+            continue
+        cid = str(c.get("id", "")).strip()
+        seen_p: set[str] = set()
+        for pid in c.get("prereqs", []) or []:
+            pid = str(pid).strip()
+            if pid == cid:
+                errs.append(f"课「{cid}」自依赖没有意义")
+            elif pid not in ids:
+                errs.append(f"课「{cid}」的先修「{pid}」不在大纲里(悬空引用)")
+            elif pid in seen_p:
+                continue
+            else:
+                seen_p.add(pid)
+                indeg[cid] = indeg.get(cid, 0) + 1
+                dependents.setdefault(pid, []).append(cid)
+    queue = [cid for cid in ids if indeg.get(cid, 0) == 0]
+    seen: set[str] = set()
+    while queue:
+        cid = queue.pop()
+        seen.add(cid)
+        for nxt in dependents.get(cid, []):
+            indeg[nxt] = indeg.get(nxt, 0) - 1
+            if indeg[nxt] == 0:
+                queue.append(nxt)
+    cycle = sorted(cid for cid in ids if cid not in seen)
+    if cycle:
+        errs.append(f"先修链成环:{cycle[:5]}——调整 prereqs 使其成 DAG")
+    if not any(indeg.get(cid, 0) == 0 for cid in ids):
+        errs.append("没有无前置的入口课——至少一门 prereqs=[]")
     return errs
 
 
@@ -375,11 +436,53 @@ def _load_cached(
     return d
 
 
+def _legacy_to_outline(d: dict[str, Any]) -> dict[str, Any]:
+    """旧框架(subtopics 清单)→ 大纲(courses)缓存兼容:顺序即位次,goal 借用 why。"""
+    courses: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for i, s in enumerate(d.get("subtopics", []), 1):
+        title = str(s.get("title", "")).strip() if isinstance(s, dict) else ""
+        slug = re.sub(r"[^\w-]+", "-", title.lower()).strip("-")[:24] or f"c{i}"
+        if slug in seen:
+            slug = f"{slug}-{i}"
+        seen.add(slug)
+        why = str(s.get("why", "")) if isinstance(s, dict) else ""
+        courses.append(
+            {
+                "id": slug,
+                "title": title,
+                "goal": why or f"学完能讲清「{title[:20]}」",
+                "why": why,
+                "prereqs": [],
+                "origin": str(s.get("origin", "map")),
+            }
+        )
+    return {**d, "courses": courses, "domain": str(d.get("domain", ""))}
+
+
 def cached_framework(topic: str) -> dict[str, Any] | None:
     p = settings.data_dir / "research" / f"{_slug(topic)}.framework.json"
     d = _load_cached(p, validate_framework)
     if d is not None:
-        print(f"复用框架缓存:{p.name}({len(d['subtopics'])} 个子题,未联网)")
+        print(f"复用大纲缓存:{p.name}({len(d['courses'])} 门,未联网)")
+        return d
+    if not p.exists():
+        return None
+    try:
+        legacy = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not (isinstance(legacy, dict) and "subtopics" in legacy):
+        return None
+    d = _legacy_to_outline(legacy)
+    errs = validate_framework(d)
+    if errs:
+        print(f"旧框架转大纲后仍不合规({errs[:2]}),回落真实调研")
+        return None
+    print(
+        f"复用旧框架缓存并转大纲形态:{p.name}({len(d['courses'])} 门,无先修链;"
+        "建议 --refresh 重出带先修链的新大纲)"
+    )
     return d
 
 
