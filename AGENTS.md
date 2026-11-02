@@ -116,7 +116,8 @@
   - 已拍板:真迁移(2~3 周)/TTS 砍留位/mermaid 并入 v2/不留双视图;v2 schema 草案在 P6 计划第二节
   - M0 拆两半:schema 对齐已过(用户审 P6 计划第二节后拍板「开始吧」);**prep 循环改造设计对齐保留至 M3 动刀前**(学习区闸)
   - ✅ **M1 完成(2026-11-02,`0b26587`)**:v2 节/块模型(7 种块)+双版本校验器+`scripts/migrate_csl_v2.py`;存量 7 门试运行 7/7 过(staging,原件未动,真正 --apply 随 M2);「≥3 测验」降为写作指引 warning(存量 function-calling-stability 仅 2 检查点属合法);节 id 沿用旧页 id→复习历史零映射;mastery/catalog/tts_compile 版本容忍,旧复习卡回归命中
-  - ⏭ 进行中:M2 ArticleView 前端(mermaid 依赖/csl.ts v2 类型/块渲染/内嵌 quiz/深链)——完成后 v1→v2 原地迁移+发布,一次性切换
+  - ✅ **M2 核心完成(2026-11-02,`6c70d19`)**:书页阅读器 `/read/:id`——TOC+滚动 spy+断点(滚动位置 localStorage)+深链 `?section=N`+学完打卡;七种块渲染,mermaid 动态加载+失败降级代码块(含 body 错误元素摘除),quiz 内嵌复述卡复用 /grade(grader 增 v2 按节/块 id 定位),闪卡翻面;CheckpointOverlay 增 onClose;ChatPanel 进度依赖收窄 ProgressLike 双适配;v1 访问 /read 自动回退 /c。全块型预览件+真实迁移课浏览器实测全过;新依赖 mermaid(动态分包)。**预览:http://localhost:5273/read/_v2-preview**
+  - ⏭ **M2 收尾(flip,一次性切换)**:`migrate_csl_v2.py --apply` 原地迁移+发布;全站入口 /c→/read、复习卡 `?page=N`→`?section=N`;退役 reveal(@revealjs/react 依赖、features/player 除 CheckpointOverlay 迁移、deck 排版类);删预览件。→M3 备课 agent 改造(**动刀前过设计:write_section/书面 prose/规划显式化+模板兜底**)→M4 闪卡进复习队列→M5 端到端
   - 差异化记账:转向后与 DeepTutor/Bloom 形态更近,差异化重心移到「生成管线有据硬闸+先修路线+复习闭环」轻量组合,竞品对照需重新校准
 - ✅ **P4 第四轮·全站 UI 重设计:shadcn/ui 落地+三主题视觉升级(2026-11-02,`44ae5ac`+`8bfe4be`)**:技术栈表里的 shadcn/ui 名实相符(此前零组件层,25 个文件全手拼类)。方向经确认:shadcn(补 P1 §0 既定欠账,Mantine/HeroUI 运行时主题体系与 reveal/三主题不合)+视觉升级+全页面范围:
   - token:`@theme inline` 把三主题裸变量映射为 shadcn 语义色(壳层从 `bg-(--accent)` 迁往 `bg-primary` 等);新增 success/warning/danger/overlay 语义色;radius/字体 token;deck 排版类(`.deck-h1/.eyebrow/.muted` 三色工具)保留给 pages.tsx 课件专用,零改动(视觉≈samples 定稿)
