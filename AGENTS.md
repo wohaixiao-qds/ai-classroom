@@ -104,10 +104,17 @@
 - ✅ **P4 第二轮·信息架构五区制(2026-08-24,`0eecb31`)**:对标 LearnHouse/ClassroomIO×OpenMAIC——Shell 四区导航;学习台(继续学断点+推荐)/课程库+**详情页**(大纲+来源可点)/生成中心(我想学+笔记备课+任务状态)/课堂/观测;CatalogPage 拆除分流;共享 useCatalog+Lane
 - ⏭ P4 第三轮候选:①观测拆 tab(agent 质量/学习进度);②生成中心·框架审阅 UI(双源框架→挑子题,现仅 CLI);③课程库按主题分组
 - ✅ **插队任务·学习顺序+复习闭环(2026-11-02)**:用户提出「课表无前后顺序、学完不知怎么复习」,拍板两步走。竞品拆解先行(`docs/参考-同类项目拆解-2026-11.md`,8 项目代码级),采纳 DeepTutor/Study-Mate 裁剪版:
-  - ①学习顺序:CSL `meta.depends_on`(id+reason,**人工标注不自动生成**;6 门课已标,harness-01 为根)→ 课程库卡片「⛓ 先修」+详情页「建议先学」+学习台「下一步学」(前置课 ready 才推荐;**只展示不锁进入**);校验器查自依赖/重复/缺 reason/指向不存在课件。**追加(同日):课程库顶部「学习路线·从这里开始」步骤条 + 卡片「路线第 N 步」+ 详情页「路线第 N/M 步·上一课/下一课」**——用户反馈「散落标记仍不知从哪看起」,按 depends_on 拓扑排序(Kahn,同分保持课程库序,环/悬空垫底)直接给出 1→N 顺序;实现在 `src/lib/learningPath.ts`(纯函数+拉取,课程库/详情页共用)。注意:路线条所在 LibraryPage 等文件尚混有未提交的 shadcn 重构,随重构一并入库
+  - ①学习顺序:CSL `meta.depends_on`(id+reason,**人工标注不自动生成**;6 门课已标,harness-01 为根)→ 课程库卡片「⛓ 先修」+详情页「建议先学」+学习台「下一步学」(前置课 ready 才推荐;**只展示不锁进入**);校验器查自依赖/重复/缺 reason/指向不存在课件。**追加(同日):课程库顶部「学习路线·从这里开始」步骤条 + 卡片「路线第 N 步」+ 详情页「路线第 N/M 步·上一课/下一课」**——用户反馈「散落标记仍不知从哪看起」,按 depends_on 拓扑排序(Kahn,同分保持课程库序,环/悬空垫底)直接给出 1→N 顺序;实现在 `src/lib/learningPath.ts`(纯函数+拉取,课程库/详情页共用)。注意:路线条所在 LibraryPage 等文件尚混有未提交的 shadcn 重构,已随后者入库(`44ae5ac`+`8bfe4be`),路线/复习功能在重构后浏览器复验正常
   - ②复习闭环:`services/mastery.py`——/grade 成功后累积掌握度(最近 5 次加权 pass=1/warn=0.5/fail=0,低置信封顶 1 次≤0.5、2 次≤0.8「一次蒙对不算过」)+ 间隔序列 [1,3,7,14,30,60] 天(pass 且≥0.9 进位,fail 回 0 档;至少 pass 过一次才进复习轮)→ 学习台「今日复习」卡片 → 课堂 `?page=N` 深链重测(等 reveal initialize 完成再 slide,否则崩)。存 classroom.db `checkpoint_mastery` 表
   - 实测:批改→落库(0.5 封顶)→回拨到期→复习卡→深链落第 4 页,全链浏览器过;ruff 零错,mypy 与存量基线一致(34 处历史漂移非本次)
   - ⚠️ 课件 JSON 有两份:`apps/api/courses/`(源,后端读)与 `apps/web/public/courses/`(发布副本,前端读)——手改 meta 要两边同步(备课管线的发布步骤会自动拷贝)
+- ✅ **P4 第四轮·全站 UI 重设计:shadcn/ui 落地+三主题视觉升级(2026-11-02,`44ae5ac`+`8bfe4be`)**:技术栈表里的 shadcn/ui 名实相符(此前零组件层,25 个文件全手拼类)。方向经确认:shadcn(补 P1 §0 既定欠账,Mantine/HeroUI 运行时主题体系与 reveal/三主题不合)+视觉升级+全页面范围:
+  - token:`@theme inline` 把三主题裸变量映射为 shadcn 语义色(壳层从 `bg-(--accent)` 迁往 `bg-primary` 等);新增 success/warning/danger/overlay 语义色;radius/字体 token;deck 排版类(`.deck-h1/.eyebrow/.muted` 三色工具)保留给 pages.tsx 课件专用,零改动(视觉≈samples 定稿)
+  - 组件层:`ui/` 11 个基础组件(Button/Input/Textarea/Card/Badge 状态色/Dialog/DropdownMenu/Tooltip/Slider/Skeleton/Kbd)+共享业务组件 SectionHeader(收敛三种区块标题)/PageState/KindIcon(两份 KIND_ICON emoji 表归一为 lucide)/ThemeSwitcher(radix 重写,Shell 与课堂共用)
+  - 字体真加载:@fontsource-variable 自托管 Noto Sans SC+JetBrains Mono(此前只声明未加载)
+  - 体系化:遮罩统一 `--overlay`(字幕/检查点/Dialog/总览,替代写死 bg-black/70)、z-index 约定(nav=30/subtitle=40/dialog=50/tooltip=60)、focus-visible 全局 ring、emoji→lucide
+  - 顺手修:ControlsBar 禁用态写成裸 JSX 属性的真 bug、播放钮补 aria-label、删 App.css 死代码
+  - 验证:oxlint+tsc build 零错(6 个 warning 均既有模式/shadcn 标准导出);浏览器实测五页×主题切换持久化、播放/句级滑杆/重讲/o 总览/检查点批改弹层全过;与同日插队任务(学习顺序+复习闭环)同工作区并行,其页面层叠于本重构之上随 `8bfe4be` 一并入库,合并后路线条/今日复习复验正常
 - ✅ 收尾已清(2026-08-24):gen-types 管线接上(catalog `59f15bc` + sessions `89b8ac1`;csl.ts 经决策保持手写——稳定的作者态契约,理由注记在文件头)、A4 多页可点(`5349427`)、B2 显示自评瞎编率(`6ecd5be`)、traces/ 移出 git(`05a0c2d`)。**P1/P1.5 收口完成**
 - ⚠️ 长期记账(不阻塞 P2):①A4/ChatPanel 的 typescript-reviewer 屡被中转挡,恢复后补(现以 §3.1 自查+浏览器实测代替);②A6 局限:伪造「课件第N页」假引用会绕过自评 → `self_eval_fabricated` 是下限;③dev 服务器(API :8100 / web :5273,原 5173 与他项目冲突已改)会话结束需重启
 
