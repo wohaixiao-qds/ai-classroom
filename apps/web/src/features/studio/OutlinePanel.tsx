@@ -1,0 +1,269 @@
+/** 领域大纲面板(P7·M2):看大纲 → 调整(调序/删课) → 按课点单备课。
+ *  数据 = /api/v1/outlines(列表)与 /api/v1/outlines/{topic}(详情+备课状态)。
+ *  点「备课」= outline_prep 后台任务(原料调研→备课→按大纲钦定先修链→发布)。 */
+import { ArrowDown, ArrowUp, BookOpen, ListOrdered, LoaderCircle, Save, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+
+import { SectionHeader } from "../../components/SectionHeader";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Card } from "../../components/ui/card";
+
+interface OutlineItem {
+  topic: string;
+  domain: string;
+  count: number;
+}
+
+interface OutlineCourse {
+  id: string;
+  title: string;
+  goal: string;
+  why?: string;
+  prereqs: string[];
+  prereq_titles?: string[];
+  origin?: string;
+  course_file_id?: string | null;
+  prep_status?: string | null;
+}
+
+interface OutlineDetail {
+  topic: string;
+  domain: string;
+  courses: OutlineCourse[];
+}
+
+export function OutlinePanel() {
+  const [outlines, setOutlines] = useState<OutlineItem[] | null>(null);
+  const [openTopic, setOpenTopic] = useState<string | null>(null);
+  const [detail, setDetail] = useState<OutlineDetail | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const loadList = useCallback(() => {
+    void fetch("/api/v1/outlines")
+      .then((r) => r.json())
+      .then(setOutlines)
+      .catch(() => setOutlines([]));
+  }, []);
+
+  const loadDetail = useCallback(async (topic: string) => {
+    const d = (await fetch(`/api/v1/outlines/${encodeURIComponent(topic)}`).then((r) =>
+      r.json(),
+    )) as OutlineDetail;
+    setDetail(d);
+    setDirty(false);
+    return d;
+  }, []);
+
+  useEffect(() => loadList(), [loadList]);
+
+  // 有备课在跑时轮询详情(queued/running → done/failed),按钮状态自动跟走
+  useEffect(() => {
+    if (!openTopic || !detail?.courses.some((c) => c.prep_status === "queued" || c.prep_status === "running"))
+      return;
+    const t = window.setInterval(() => void loadDetail(openTopic), 8000);
+    return () => window.clearInterval(t);
+  }, [openTopic, detail, loadDetail]);
+
+  const open = async (topic: string) => {
+    setOpenTopic(topic);
+    setMsg("");
+    await loadDetail(topic);
+  };
+
+  const move = (i: number, delta: number) => {
+    if (!detail) return;
+    const courses = [...detail.courses];
+    const j = i + delta;
+    if (j < 0 || j >= courses.length) return;
+    [courses[i], courses[j]] = [courses[j], courses[i]];
+    setDetail({ ...detail, courses });
+    setDirty(true);
+  };
+
+  const remove = (i: number) => {
+    if (!detail) return;
+    setDetail({ ...detail, courses: detail.courses.filter((_, k) => k !== i) });
+    setDirty(true);
+  };
+
+  const save = async () => {
+    if (!detail) return;
+    const r = await fetch(`/api/v1/outlines/${encodeURIComponent(detail.topic)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ courses: detail.courses }),
+    });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({ detail: `HTTP ${r.status}` }));
+      setMsg(`保存被校验器打回:${d.detail}`);
+      return;
+    }
+    setMsg("大纲已更新");
+    await loadDetail(detail.topic);
+  };
+
+  const prep = async (title: string) => {
+    if (!openTopic) return;
+    setMsg("");
+    const r = await fetch(`/api/v1/outlines/${encodeURIComponent(openTopic)}/prep`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+    const d = await r.json().catch(() => ({ detail: `HTTP ${r.status}` }));
+    if (!r.ok) {
+      setMsg(`打回:${d.detail}`);
+      return;
+    }
+    setMsg(`「${title}」已排队备课(原料调研→写课→发布),下方状态会自动刷新`);
+    await loadDetail(openTopic);
+  };
+
+  return (
+    <section>
+      <SectionHeader
+        icon={ListOrdered}
+        title="领域大纲"
+        count={outlines?.length ?? 0}
+        hint="调研产出的大纲:调整顺序、逐课点单备课,出炉自动挂进学习路线"
+      />
+      {outlines === null ? (
+        <p className="text-sm text-muted-foreground">加载中…</p>
+      ) : outlines.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          还没有大纲——在上方输入新主题开课,调研完就会出现在这里
+        </p>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {outlines.map((o) => (
+              <button
+                key={o.topic}
+                type="button"
+                onClick={() => void open(o.topic)}
+                className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                  openTopic === o.topic
+                    ? "border-primary bg-primary/10 font-medium text-primary"
+                    : "border-border bg-background hover:border-primary/40"
+                }`}
+              >
+                {o.domain ? `${o.domain} · ` : ""}
+                {o.topic}({o.count})
+              </button>
+            ))}
+          </div>
+
+          {detail && (
+            <Card className="p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-medium">
+                  {detail.domain && `${detail.domain} · `}
+                  {detail.topic}
+                  <span className="ml-2 font-mono text-xs text-muted-foreground">
+                    {detail.courses.length} 门
+                  </span>
+                </p>
+                {dirty && (
+                  <Button size="sm" onClick={() => void save()}>
+                    <Save size={13} /> 保存调整
+                  </Button>
+                )}
+              </div>
+              <ol className="space-y-2">
+                {detail.courses.map((c, i) => {
+                  const busy = c.prep_status === "queued" || c.prep_status === "running";
+                  return (
+                    <li
+                      key={c.id}
+                      className="flex items-start gap-3 rounded-lg border border-border bg-background/50 px-3 py-2"
+                    >
+                      <span className="mt-0.5 font-mono text-xs text-muted-foreground">{i + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                          {c.title}
+                          {c.course_file_id ? (
+                            <Badge variant="success">已出课</Badge>
+                          ) : busy ? (
+                            <Badge variant="warning">
+                              <LoaderCircle size={10} className="mr-0.5 inline animate-spin" />
+                              {c.prep_status === "running" ? "备课中" : "排队中"}
+                            </Badge>
+                          ) : c.prep_status === "failed" ? (
+                            <Badge variant="destructive">上次失败,可重试</Badge>
+                          ) : null}
+                        </p>
+                        {c.goal && (
+                          <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground">
+                            {c.goal}
+                          </p>
+                        )}
+                        {c.prereq_titles && c.prereq_titles.length > 0 && (
+                          <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                            ⛓ 先修:{c.prereq_titles.join("、")}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {c.course_file_id ? (
+                          <Button size="sm" variant="secondary" asChild>
+                            <a href={`/read/${c.course_file_id}`}>
+                              <BookOpen size={13} /> 去读
+                            </a>
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={busy}
+                            onClick={() => void prep(c.title)}
+                          >
+                            备课
+                          </Button>
+                        )}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => move(i, -1)}
+                          disabled={i === 0}
+                          title="上移"
+                        >
+                          <ArrowUp size={13} />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => move(i, 1)}
+                          disabled={i === detail.courses.length - 1}
+                          title="下移"
+                        >
+                          <ArrowDown size={13} />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => remove(i)}
+                          title="从大纲移除"
+                        >
+                          <X size={13} />
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+              {msg && <p className="mt-3 text-xs text-muted-foreground">{msg}</p>}
+              <p className="mt-3 text-[11px] text-muted-foreground">
+                备课 = 原料调研 → 写课 → 发布,出炉自动按大纲先修链挂进学习路线; minutes 级任务
+              </p>
+            </Card>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}

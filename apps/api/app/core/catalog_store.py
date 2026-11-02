@@ -33,6 +33,7 @@ _STATUS = {
     "dismiss_spark": "dismissed",
     "request_prep": "queued",
     "request_research": "queued",
+    "outline_prep": "queued",  # P7·M2:大纲按课点单备课,target = "主题::课名"
 }
 
 

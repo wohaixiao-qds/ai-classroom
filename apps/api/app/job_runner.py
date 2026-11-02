@@ -26,6 +26,31 @@ def _run() -> str:
         material = _material_from_note(target)
         material["_material_path"] = target  # vault 相对路径,课表关联靠它
         result = run_prep(material)
+    elif kind == "outline_prep":
+        # P7·M2:大纲按课点单——原料调研→备课→按大纲钦定先修链→发布
+        topic, _, course_title = target.partition("::")
+        from app.agent.prep import run_prep
+        from app.agent.research import (
+            cached_framework,
+            cached_material,
+            research_framework,
+            research_material,
+        )
+
+        fw = cached_framework(topic) or research_framework(topic)
+        outline_course = next(
+            (c for c in fw["courses"] if c.get("title") == course_title), None
+        )
+        if outline_course is None:
+            return f"大纲里没有这门课: {course_title}"
+        material = cached_material(topic, course_title) or research_material(
+            topic, course_title
+        )
+        prereq_ids = list(outline_course.get("prereqs", []))
+        titles_by_id = {c["id"]: c["title"] for c in fw["courses"]}
+        prereq_titles = [titles_by_id[pid] for pid in prereq_ids if pid in titles_by_id]
+        prev = prereq_titles[-1] if prereq_titles else None
+        result = run_prep(material, prev_subtopic=prev)
     elif kind == "request_research":
         from app.agent.prep import run_prep
         from app.agent.research import research_material
@@ -51,9 +76,34 @@ def _run() -> str:
         return "备课未通过校验(软着陆),产物在 courses/ 可人工接着审"
     course = result["course"]
 
-    from app.services.tts_compile import compile_course_audio, publish_courses
+    # 大纲钦定先修链:覆盖模型建议,只挂已出课的(前置未出课时先欠着,
+    # 那门课出炉后整链会在学习路线里自然续上——按标题匹配课件)
+    if kind == "outline_prep" and prereq_titles:
+        import json as _json
+        from pathlib import Path as _Path
 
-    compile_course_audio(str(course["id"]))
+        from app.agent.prep import _course_path
+
+        by_title: dict[str, str] = {}
+        for p in _Path("courses").glob("*.csl.json"):
+            try:
+                cd = _json.loads(p.read_text(encoding="utf-8"))
+                by_title[str(cd.get("title", ""))] = str(cd.get("id", ""))
+            except Exception:  # noqa: BLE001
+                continue
+        deps = [
+            {"id": by_title[t], "reason": f"大纲先修:{t}"}
+            for t in prereq_titles
+            if t in by_title and by_title[t] != course["id"]
+        ]
+        if deps:
+            course["meta"]["depends_on"] = deps
+            cp = _course_path(str(course["id"]))
+            cp.write_text(_json.dumps(course, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"大纲先修链已写入:{[d['id'] for d in deps]}")
+
+    from app.services.tts_compile import publish_courses
+
     publish_courses()
     return str(course["id"])
 

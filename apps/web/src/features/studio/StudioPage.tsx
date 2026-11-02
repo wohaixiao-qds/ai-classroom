@@ -11,6 +11,7 @@ import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { useCatalog } from "../../hooks/useCatalog";
+import { OutlinePanel } from "./OutlinePanel";
 
 export function StudioPage() {
   const { cat, err, act } = useCatalog();
@@ -56,6 +57,8 @@ export function StudioPage() {
           </Button>
         </form>
       </section>
+
+      <OutlinePanel />
 
       {running.length > 0 && (
         <section>
