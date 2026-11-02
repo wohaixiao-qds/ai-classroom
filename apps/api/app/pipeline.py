@@ -41,7 +41,7 @@ def pick_subtopic(framework: dict[str, Any], auto: bool) -> tuple[str, str | Non
 
 
 def run_pipeline(topic: str, subtopic: str | None = None, auto: bool = False) -> dict[str, Any]:
-    from app.agent.prep import run_prep
+    from app.agent.prep import confirm_depends_on, run_prep
     from app.agent.research import research_framework, research_material
     from app.services.tts_compile import compile_course_audio, publish_courses
 
@@ -69,6 +69,9 @@ def run_pipeline(topic: str, subtopic: str | None = None, auto: bool = False) ->
         print("⚠️ 备课软着陆,人工接着审")
         return r
     course = r["course"]
+
+    if not auto:  # 交互模式:先修建议过一眼人审;auto(生成中心)直接落盘,日志可查
+        confirm_depends_on(course)
 
     print("\n④ 音频编译 + 发布前端…")
     done, fail = compile_course_audio(str(course["id"]))

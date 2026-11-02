@@ -246,7 +246,8 @@ def _loop(
     phase: str,
 ) -> dict[str, Any]:
     """调研循环:工具轮 → 最终交付 JSON → 校验,不过则反馈重交。校验通过才返回。"""
-    client = get_llm_client()
+    # 离线批量循环放宽单次超时(与 prep.py 同因:长交付在中转慢速时 60s 不够)
+    client = get_llm_client().with_options(timeout=240.0)
     messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
     tool_calls: list[dict[str, Any]] = []
     usage = {"input_tokens": 0, "output_tokens": 0}

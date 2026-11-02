@@ -39,6 +39,14 @@ PREP_PROMPT = """你是课件作者,把备课材料变成一份 CSL 课件(讲�
 # 备课材料(每条要点带来源 id,讲稿里用到哪条就有据可查)
 {material}
 
+# 学员已有课程(判断先修关系用;学习路线的学习顺序就靠它生长)
+{existing}
+
+init_course 时填 depends_on:本课内容**预设**了哪门已有课的概念,就填它,
+格式 [{{"id":"已有课id","reason":"为什么先学它(一句话)"}}]。
+- id 只能取上面清单里的,不许编造;至多 2 门(先修链宁短勿长)
+- 独立入门课/什么都不预设 → 填 []。判断标准:删掉那门课的知识,本课还讲不讲得通?
+
 # 页型菜单(JSON 结构,kind 必须精确匹配)
 - cover 封面:{{"kind":"cover","equation":"一句话核心公式(可空)",
   "meta":[["讲师","AI 老师"],["来源","调研/笔记"],["时长","约N分钟"]]}}
@@ -69,8 +77,9 @@ write_page 重交同 id 的页 = 替换那页(改错就重交同 id,不要换 id
 每个讲完的大子题,那页 checkpoint 填复述问题+pass_rule(通过标准写具体)。
 
 # 流程
-1. 先在心里排页面规划(几页、每页讲什么)
-2. init_course(id=子题英文slug, title=子题名, scenario="自学", source_notes=["材料路径"])
+1. 先在心里排页面规划(几页、每页讲什么)并对照已有课程判断先修
+2. init_course(id=子题英文slug, title=子题名, scenario="自学",
+   source_notes=["材料路径"], depends_on=[先修课,见上节])
 3. write_page 逐页追加(一次一页,别贪)
 4. 每写 2~3 页 validate_csl 自查一次,有错即改
 5. 全部写完终验通过后,收笔说一句交付总结(不再调工具)"""
@@ -91,6 +100,34 @@ def _load(path: Path) -> dict[str, Any] | None:
     return d if isinstance(d, dict) else None
 
 
+def _course_ids() -> set[str]:
+    """现有课程 id 集(先修引用的合法域)。"""
+    return {p.name[: -len(".csl.json")] for p in settings.courses_dir.glob("*.csl.json")}
+
+
+def _course_brief() -> str:
+    """现有课程速览(注入备课 prompt,判断先修关系用)。一行一门:id | 标题 | 大纲。
+
+    大纲每页标题截 20 字、最多 9 页——够判断「预设了什么概念」即可,不淹没材料。
+    """
+    lines: list[str] = []
+    for p in sorted(settings.courses_dir.glob("*.csl.json")):
+        d = _load(p)
+        if d is None:
+            continue
+        outline = "/".join(
+            str(pg.get("title") or pg.get("eyebrow") or pg.get("id", ""))[:20]
+            for pg in d.get("pages", [])[:9]
+        )
+        lines.append(f"- {d.get('id')} | {d.get('title', '')} | 大纲:{outline}")
+        if len(lines) >= 40:
+            lines.append("- (其余课程略——先修 id 只可能取自上面列出的)")
+            break
+    if not lines:
+        return "(学员还没有任何课程,本课是第一门,depends_on 填空数组 [])"
+    return "\n".join(lines)
+
+
 def _make_tools(
     material_sources: list[dict[str, Any]],
     material_path: str | None = None,
@@ -98,10 +135,43 @@ def _make_tools(
 ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
     state: dict[str, Any] = {"course_id": None}
 
-    def init_course(id: str, title: str, scenario: str, source_notes: list[str]) -> str:  # noqa: A002
+    def init_course(  # noqa: A002
+        id: str,
+        title: str,
+        scenario: str,
+        source_notes: list[str],
+        depends_on: list[dict[str, Any]] | None = None,
+    ) -> str:
         p = _course_path(id)
         if p.exists():
             return f"(课件 {id} 已存在,换个 id 或先删旧文件)"
+        # depends_on 即时校验(与 write_page 单页校验同一自纠风格:错了当场反馈):
+        # 自依赖/悬空 id/缺 reason 直接打回重交;合法才落盘。上限 2 门,先修链宁短勿长。
+        deps: list[dict[str, str]] = []
+        problems: list[str] = []
+        existing_ids = _course_ids()
+        for d in depends_on or []:
+            did = str(d.get("id", "")).strip() if isinstance(d, dict) else ""
+            reason = str(d.get("reason", "")).strip() if isinstance(d, dict) else ""
+            if not did:
+                problems.append("有条目缺 id")
+            elif did == id:
+                problems.append(f"「{did}」是本课自己,自依赖没有意义")
+            elif did not in existing_ids:
+                problems.append(f"先修 id「{did}」不存在——只许用速览清单里的 id")
+            elif not reason:
+                problems.append(f"先修「{did}」缺 reason,一句话写为什么先学它")
+            elif any(x["id"] == did for x in deps):
+                continue  # 重复条目静默去重
+            else:
+                deps.append({"id": did, "reason": reason})
+        if len(deps) > 2:
+            problems.append(f"先修给了 {len(deps)} 门,至多 2 门——留最不可或缺的")
+        if problems:
+            return (
+                "(depends_on 有问题,课件未创建;改好重新 init_course):\n- "
+                + "\n- ".join(problems)
+            )
         # source_notes 语义=材料路径(vault 相对路径或原料文件),溯源/课表关联靠它。
         # 确定性覆盖:模型爱填小节标题之类的噪音,一律不认(实测踩过)
         if material_path:
@@ -118,6 +188,8 @@ def _make_tools(
                     {"title": str(s.get("title", ""))[:80], "url": str(s.get("url", ""))}
                     for s in material_sources
                 ],
+                # 先修建议是教学判断,归模型;合法性归上面的即时校验 + 收笔终验
+                "depends_on": deps,
                 "duration_min": None,
                 "version": 1,
             },
@@ -126,7 +198,10 @@ def _make_tools(
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(course, ensure_ascii=False, indent=2), encoding="utf-8")
         state["course_id"] = id
-        return f"课件骨架已建:{p.name}。现在 write_page 逐页追加。"
+        dep_msg = (
+            "、".join(f"{d['id']}({d['reason'][:20]})" for d in deps) if deps else "无先修"
+        )
+        return f"课件骨架已建:{p.name}。先修:{dep_msg}。现在 write_page 逐页追加。"
 
     def write_page(page: dict[str, Any]) -> str:
         cid = state["course_id"]
@@ -174,7 +249,8 @@ def _make_tools(
     tools = [
         {
             "name": "init_course",
-            "description": "建课件骨架(先于 write_page)。id 用子题英文短横线 slug。",
+            "description": "建课件骨架(先于 write_page)。id 用子题英文短横线 slug。"
+            "depends_on 按速览判断先修,必填(独立课给 [])。",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -182,6 +258,18 @@ def _make_tools(
                     "title": {"type": "string"},
                     "scenario": {"type": "string", "enum": ["自学", "复习", "对外"]},
                     "source_notes": {"type": "array", "items": {"type": "string"}},
+                    "depends_on": {
+                        "type": "array",
+                        "description": "先修课列表,至多 2 门;每项含 id(速览里已有的)和 reason",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                                "reason": {"type": "string"},
+                            },
+                            "required": ["id", "reason"],
+                        },
+                    },
                 },
                 "required": ["id", "title", "scenario", "source_notes"],
             },
@@ -218,6 +306,40 @@ def _make_tools(
         "read_notes": lambda a: read_notes(a["keyword"]),
     }
     return tools, dispatch, state
+
+
+# ---------- 人审:先修建议确认(交互模式;生成中心 auto 直接落盘) ----------
+
+
+def confirm_depends_on(course: dict[str, Any]) -> None:
+    """课件出炉后、发布前给人看一眼先修建议:回车照单 / clear 清空 / 覆盖 id。
+
+    覆盖格式:逗号分隔课 id(理由保留能对上的,新 id 记「人工标注」)。
+    只改盘上文件的 meta.depends_on,学习路线的拓扑排序会自动跟随。
+    """
+    import sys
+
+    deps = course.get("meta", {}).get("depends_on") or []
+    if not deps or not sys.stdin.isatty():
+        return
+    print("\n先修建议(学习路线会按它排顺序):")
+    for d in deps:
+        print(f"   ← {d['id']}: {d.get('reason', '')}")
+    raw = input("回车照单 / clear 清空 / 输入课 id 覆盖(逗号分隔): ").strip()
+    if not raw:
+        return
+    if raw.lower() == "clear":
+        course["meta"]["depends_on"] = []
+    else:
+        by_id = {d["id"]: d.get("reason", "") for d in deps}
+        course["meta"]["depends_on"] = [
+            {"id": x.strip(), "reason": by_id.get(x.strip(), "人工标注")}
+            for x in raw.split(",")
+            if x.strip()
+        ]
+    p = _course_path(str(course["id"]))
+    p.write_text(json.dumps(course, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"已更新:{p.name} meta.depends_on")
 
 
 # ---------- 材料 ----------
@@ -283,8 +405,12 @@ def run_prep(material: dict[str, Any], prev_subtopic: str | None = None) -> dict
         f"本课在「{material.get('topic')}」学习框架中的位置:前一课讲了「{prev_subtopic}」,"
         f"开场用一句话承接它。" if prev_subtopic else "这是该主题的第一课。"
     )
-    prompt = PREP_PROMPT.format(position=position, material=_render_material(material))
-    client = get_llm_client()
+    prompt = PREP_PROMPT.format(
+        position=position, material=_render_material(material), existing=_course_brief()
+    )
+    # 离线批量循环放宽单次超时:模型一轮会写几千 token 的规划+页 JSON,
+    # 中转慢速时 60s 必掐死(实测 191s);chat 的 60s 交互护栏不受影响
+    client = get_llm_client().with_options(timeout=240.0)
     messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
     usage = {"input_tokens": 0, "output_tokens": 0}
     tool_calls: list[dict[str, Any]] = []
@@ -405,6 +531,7 @@ if __name__ == "__main__":
         srcs = c.get("meta", {}).get("sources", [])
         if srcs:
             print(f"   来源 {len(srcs)} 个(有据可查)")
+        confirm_depends_on(c)
         if not a.no_tts:
             print("\n生成音频(edge-tts,句间限速,稍候)…")
             done, fail = compile_course_audio(str(c["id"]))
