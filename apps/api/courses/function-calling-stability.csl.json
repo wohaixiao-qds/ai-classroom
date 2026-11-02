@@ -34,7 +34,13 @@
       }
     ],
     "duration_min": null,
-    "version": 1
+    "version": 1,
+    "depends_on": [
+      {
+        "id": "parsing-layer",
+        "reason": "稳定性四层防护讲的就是「解析不可靠怎么办」,先懂解析层"
+      }
+    ]
   },
   "pages": [
     {

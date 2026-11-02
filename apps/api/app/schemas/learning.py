@@ -29,3 +29,24 @@ class NoteDraft(BaseModel):
 class ApplyResult(BaseModel):
     written: bool
     note_path: str
+
+
+class ReviewItem(BaseModel):
+    """一条到期的复习卡:某个检查点该重测了。"""
+
+    course_id: str
+    course_title: str
+    page_id: str
+    page_title: str
+    page_no: int  # 1 起算,前端 ?page= 深链直接用
+    question: str  # 复述问题(卡片上直接展示)
+    mastery: float  # 0~1,当前掌握度
+    next_review_at: str
+    overdue_days: int  # 逾期天数(0=今天到期)
+
+
+class ReviewDue(BaseModel):
+    """今日复习清单 + 现役复习卡总数。"""
+
+    items: list[ReviewItem]
+    total: int

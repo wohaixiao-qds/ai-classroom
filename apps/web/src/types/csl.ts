@@ -66,6 +66,12 @@ export interface SourceRef {
   url: string;
 }
 
+export interface CourseDep {
+  /** 先修依赖(学习顺序):开课前建议先学完的课。只作展示,不锁进入 */
+  id: string;
+  reason: string | null;
+}
+
 export interface Course {
   id: string;
   title: string;
@@ -74,6 +80,7 @@ export interface Course {
     source_notes: string[];
     sources?: SourceRef[];
     topic?: string | null; // 所属主题(课程库分组)
+    depends_on?: CourseDep[]; // 先修依赖(root 课为空)
     duration_min: number | null;
     version: number;
   };

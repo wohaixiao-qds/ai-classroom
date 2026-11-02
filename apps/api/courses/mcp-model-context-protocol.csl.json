@@ -50,7 +50,13 @@
     ],
     "topic": "MCP(Model Context Protocol)",
     "duration_min": null,
-    "version": 1
+    "version": 1,
+    "depends_on": [
+      {
+        "id": "harness-01",
+        "reason": "先懂 harness 与工具调用,MCP 协议才有着落点"
+      }
+    ]
   },
   "pages": [
     {

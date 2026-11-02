@@ -132,10 +132,19 @@ class SourceRef(BaseModel):
     url: str
 
 
+class CourseDep(BaseModel):
+    """先修依赖(学习顺序):这门课开课之前建议先学完的课。人工/备课 agent 写,
+    课表「下一步学」与课程库「建议先学」都从这里读;只作展示,不锁进入。"""
+
+    id: str  # 先修课的课件 id(如 "harness-01")
+    reason: str | None = None  # 一句话:为什么先学它
+
+
 class CourseMeta(BaseModel):
     source_notes: list[str] = []  # 来源笔记（知识库文件名），溯源用
     sources: list[SourceRef] = []  # 调研来源(新课走找资料时带;复习课通常为空)
     topic: str | None = None  # 所属主题(备课 harness 从材料确定性写入;课程库分组用)
+    depends_on: list[CourseDep] = []  # 先修依赖(学习顺序;root 课为空)
     duration_min: int | None = None
     version: int = 1
 

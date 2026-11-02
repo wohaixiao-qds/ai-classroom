@@ -1,6 +1,7 @@
-"""学习生命周期路由(P3·N2):进度上报/完成判定 + 笔记草稿/确认落盘。
+"""学习生命周期路由(P3·N2):进度上报/完成判定 + 笔记草稿/确认落盘 + 复习队列。
 
 写回闸门:ready(学完)才允许 draft/apply——「学完才写回」是机制不是自觉。
+复习:批改结果在 /grade 里累积进 checkpoint_mastery,这里只读到期的。
 """
 
 from __future__ import annotations
@@ -10,7 +11,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from app.core.progress import completion, mark_done
-from app.schemas.learning import ApplyResult, CompletionState, NoteDraft, TodoEdit
+from app.schemas.learning import ApplyResult, CompletionState, NoteDraft, ReviewDue, TodoEdit
+from app.services.mastery import due_reviews
 from app.services.note_writer import apply_draft, build_draft
 
 router = APIRouter(prefix="/api/v1", tags=["learning"])
@@ -72,3 +74,9 @@ def note_apply(course_id: str) -> ApplyResult:
     apply_draft(d)
     _DRAFT_CACHE.pop(course_id, None)
     return ApplyResult(written=True, note_path=d["note_path"])
+
+
+@router.get("/review/due", response_model=ReviewDue)
+def review_due() -> ReviewDue:
+    """今日到期复习卡(进课堂重测,批改后自动排下一次)。"""
+    return due_reviews()

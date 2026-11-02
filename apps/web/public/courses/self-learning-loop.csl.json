@@ -8,7 +8,13 @@
     ],
     "sources": [],
     "duration_min": null,
-    "version": 1
+    "version": 1,
+    "depends_on": [
+      {
+        "id": "harness-engineering-practice",
+        "reason": "元课程,建议 harness 主线走完再学"
+      }
+    ]
   },
   "pages": [
     {

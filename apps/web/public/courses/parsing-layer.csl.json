@@ -29,7 +29,13 @@
       }
     ],
     "duration_min": null,
-    "version": 1
+    "version": 1,
+    "depends_on": [
+      {
+        "id": "harness-01",
+        "reason": "先知道 harness 是什么,再拆它的第一个部件"
+      }
+    ]
   },
   "pages": [
     {

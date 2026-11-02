@@ -109,10 +109,15 @@ def create_session(course_id: str) -> dict:
 @router.post("/grade")
 def grade(req: GradeRequest) -> dict:
     try:
-        return grade_recitation(req.course_id, req.page_id, req.answer)
+        result = grade_recitation(req.course_id, req.page_id, req.answer)
     except KeyError as e:
         raise HTTPException(404, str(e)) from None
     except json.JSONDecodeError:
         raise HTTPException(502, "批改返回格式异常,请重试") from None
     except Exception as e:  # noqa: BLE001 LLM 认证/网络等,给可读信息
         raise HTTPException(502, f"批改服务暂不可用: {e}") from None
+    # 批改成功 → 累积掌握度 + 推进复习档位(失败不影响批改结果返回)
+    from app.services import mastery
+
+    mastery.record_grade(req.course_id, req.page_id, result["verdict"])
+    return result

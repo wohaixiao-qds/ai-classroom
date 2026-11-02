@@ -14,6 +14,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from app.core.config import settings
 from app.schemas.csl import (
     CodeContent,
     Course,
@@ -69,6 +70,22 @@ def validate_course(d: dict[str, Any]) -> dict[str, Any]:
         errors.append("meta.source_notes 为空——课表靠它把笔记归入「在学的」,必须写回笔记路径")
     if course.scenario in ("自学", "复习") and not any(p.checkpoint for p in course.pages):
         errors.append(f"场景为「{course.scenario}」但没有任何复述检查点")
+
+    # ---- 先修依赖(学习顺序)----
+    dep_ids = [d.id for d in course.meta.depends_on]
+    if course.id in dep_ids:
+        errors.append("meta.depends_on 引用了课件自身(自依赖没有意义)")
+    if len(dep_ids) != len(set(dep_ids)):
+        errors.append("meta.depends_on 有重复项,只保留第一个并删掉多余")
+    for dep in course.meta.depends_on:
+        if not dep.reason or not dep.reason.strip():
+            warnings.append(
+                f"meta.depends_on: 先修 {dep.id} 缺 reason——「为什么先学它」建议补一句"
+            )
+        if not (settings.courses_dir / f"{dep.id}.csl.json").exists():
+            warnings.append(
+                f"meta.depends_on: 先修课件 {dep.id} 不存在(尚未备课?先修仅作展示,不影响上课)"
+            )
 
     seen_ids: set[str] = set()
     for i, page in enumerate(course.pages, 1):

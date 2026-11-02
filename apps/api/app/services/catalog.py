@@ -19,6 +19,7 @@ from pathlib import Path
 
 from app.core.catalog_store import action_index
 from app.core.config import settings
+from app.core.progress import completion
 from app.core.trace import read_traces
 from app.schemas.catalog import Catalog, CourseItem, NoteItem, SparkItem, TodoItem
 from app.schemas.csl import Course
@@ -102,6 +103,8 @@ def _load_courses() -> tuple[list[CourseItem], set[str]]:
                 pages=len(course.pages),
                 checkpoints=checkpoints,
                 topic=course.meta.topic or _derive_topic(course.meta.source_notes, vault_map),
+                depends_on=course.meta.depends_on,
+                ready=completion(course.id).ready,
             )
         )
         covered.update(_norm_path(sn) for sn in course.meta.source_notes)

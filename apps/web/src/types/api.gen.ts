@@ -281,6 +281,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/review/due": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review Due
+         * @description 今日到期复习卡(进课堂重测,批改后自动排下一次)。
+         */
+        get: operations["review_due_api_v1_review_due_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -360,6 +380,17 @@ export interface components {
             ready: boolean;
         };
         /**
+         * CourseDep
+         * @description 先修依赖(学习顺序):这门课开课之前建议先学完的课。人工/备课 agent 写,
+         *     课表「下一步学」与课程库「建议先学」都从这里读;只作展示,不锁进入。
+         */
+        CourseDep: {
+            /** Id */
+            id: string;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
          * CourseItem
          * @description 在学的:已出课件(点击进课堂,带断点续播)。
          */
@@ -374,6 +405,16 @@ export interface components {
             checkpoints: number;
             /** Topic */
             topic?: string | null;
+            /**
+             * Depends On
+             * @default []
+             */
+            depends_on: components["schemas"]["CourseDep"][];
+            /**
+             * Ready
+             * @default false
+             */
+            ready: boolean;
         };
         /** GradeRequest */
         GradeRequest: {
@@ -419,6 +460,40 @@ export interface components {
             requested: boolean;
             /** Status */
             status?: string | null;
+        };
+        /**
+         * ReviewDue
+         * @description 今日复习清单 + 现役复习卡总数。
+         */
+        ReviewDue: {
+            /** Items */
+            items: components["schemas"]["ReviewItem"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * ReviewItem
+         * @description 一条到期的复习卡:某个检查点该重测了。
+         */
+        ReviewItem: {
+            /** Course Id */
+            course_id: string;
+            /** Course Title */
+            course_title: string;
+            /** Page Id */
+            page_id: string;
+            /** Page Title */
+            page_title: string;
+            /** Page No */
+            page_no: number;
+            /** Question */
+            question: string;
+            /** Mastery */
+            mastery: number;
+            /** Next Review At */
+            next_review_at: string;
+            /** Overdue Days */
+            overdue_days: number;
         };
         /** SessionCreateResponse */
         SessionCreateResponse: {
@@ -999,6 +1074,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_due_api_v1_review_due_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewDue"];
                 };
             };
         };

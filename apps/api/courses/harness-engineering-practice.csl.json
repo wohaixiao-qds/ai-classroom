@@ -110,7 +110,13 @@
     ],
     "topic": "Agent harness 工程",
     "duration_min": null,
-    "version": 1
+    "version": 1,
+    "depends_on": [
+      {
+        "id": "tool-granularity",
+        "reason": "实践综述会同时用到解析、稳定性、粒度三课的概念"
+      }
+    ]
   },
   "pages": [
     {

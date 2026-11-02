@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.schemas.csl import CourseDep
+
 
 class CourseItem(BaseModel):
     """在学的:已出课件(点击进课堂,带断点续播)。"""
@@ -15,6 +17,8 @@ class CourseItem(BaseModel):
     pages: int
     checkpoints: int
     topic: str | None = None  # 所属主题(课程库分组;旧课由 source_notes 实时推导)
+    depends_on: list[CourseDep] = []  # 先修依赖(学习顺序;学习台「下一步学」据此推荐)
+    ready: bool = False  # 学完(进度到底+检查点全过)——「下一步学」的前置判定
 
 
 class NoteItem(BaseModel):
