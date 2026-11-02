@@ -1,26 +1,31 @@
 /** 课程库(甲方案):左侧主题树(领域→主题→层)筛选 + 课程卡 → 详情页 → 课堂。
  *  树从 topic 串自动生长("Agent / harness / Runtime"),与 vault 目录心智一致,零手工维护。
  *  topic 真源是后端 catalog 的实时推导(老课件文件里没有);此处拉取时合并进课程数据。 */
+import { ChevronDown, ChevronRight, Folder, LibraryBig, Play, CircleCheck, SquarePen, Route } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { CheckCircle2, ChevronDown, ChevronRight, Folder, Play } from "lucide-react";
+
+import { KindIcon } from "../../components/KindIcon";
+import { PageError, PageLoading } from "../../components/PageState";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Card } from "../../components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../components/ui/dialog";
+import { fetchAllCourses, suggestOrder } from "../../lib/learningPath";
+import { cn } from "../../lib/utils";
 import type { components } from "../../types/api.gen";
 import type { Course } from "../../types/csl";
 
 type CompletionState = components["schemas"]["CompletionState"];
 type NoteDraft = components["schemas"]["NoteDraft"];
 type ApplyResult = components["schemas"]["ApplyResult"];
-
-/** 页型 → 小图标(详情页大纲用;课堂边栏有自己的一份) */
-const KIND_ICON: Record<string, string> = {
-  cover: "🎬",
-  formula: "📐",
-  diagram: "🖼",
-  duo: "🆚",
-  code: "💻",
-  table: "📊",
-  quiz: "❓",
-};
 
 // ---------- 主题树 ----------
 
@@ -99,11 +104,12 @@ function TreeView({
           <li key={ch.path.join("/")}>
             <button
               onClick={() => onSelect(active ? null : ch.path)}
-              className={`flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-xs transition-colors ${
+              className={cn(
+                "flex w-full items-center gap-1.5 rounded-lg py-1.5 pr-2 text-left text-xs transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40",
                 active
-                  ? "bg-(--accent)/15 font-medium text-(--text) ring-1 ring-(--accent)/40"
-                  : "muted hover:bg-(--surface) hover:text-(--text)"
-              }`}
+                  ? "bg-primary/15 font-medium text-foreground ring-1 ring-primary/40"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
+              )}
               style={{ paddingLeft: 8 + depth * 14 }}
             >
               {ch.children.length > 0 ? (
@@ -137,36 +143,30 @@ function inSelection(c: Course, sel: string[] | null, domains: Set<string>): boo
 
 export function LibraryPage() {
   const [courses, setCourses] = useState<Course[] | null>(null);
+  const [readyById, setReadyById] = useState<Map<string, boolean>>(new Map());
+  const [error, setError] = useState<string | null>(null);
   const [sel, setSel] = useState<string[] | null>(null);
   useEffect(() => {
-    // topic 真源=catalog 的实时推导(老课件文件里没有);拉取时合并进 meta.topic
-    void fetch("/api/v1/catalog")
-      .then((r) => r.json())
-      .then(
-        async (d: {
-          learning: { id: string; topic: string | null }[];
-        }) => {
-          const topicById = new Map(d.learning.map((c) => [c.id, c.topic]));
-          const all = await Promise.all(
-            d.learning.map((c) =>
-              fetch(`/courses/${c.id}.csl.json`).then((r) => r.json() as Promise<Course>),
-            ),
-          );
-          setCourses(
-            all.map((c) => ({
-              ...c,
-              meta: { ...c.meta, topic: c.meta.topic ?? topicById.get(c.id) ?? null },
-            })),
-          );
-        },
-      );
+    setCourses(null);
+    setError(null);
+    fetchAllCourses()
+      .then(({ courses, readyById }) => {
+        setCourses(courses);
+        setReadyById(readyById);
+      })
+      .catch((e: unknown) => setError(String(e)));
   }, []);
 
-  if (!courses) return <div className="muted p-8 text-sm">加载中…</div>;
+  if (error) return <PageError message={`加载失败:${error}`} />;
+  if (!courses) return <PageLoading />;
 
   const domains = deriveDomains(courses);
   const tree = buildTree(courses, domains);
   const shown = sel ? courses.filter((c) => inSelection(c, sel, domains)) : courses;
+  const titleById = new Map(courses.map((c) => [c.id, c.title]));
+  // 学习路线:按先修依赖拓扑排序,给卡片标步数、给顶部路线条供排序
+  const path = suggestOrder(courses);
+  const stepOf = new Map(path.map((c, i) => [c.id, i + 1]));
 
   // 选中节点时右侧仍按主题分节;「全部」时同
   const groups: { topic: string; courses: Course[] }[] = [];
@@ -180,23 +180,27 @@ export function LibraryPage() {
   return (
     <div className="flex h-full">
       {/* 左:主题树(领域→主题→层,点选过滤) */}
-      <aside className="flex w-60 shrink-0 flex-col border-r border-(--line) bg-(--surface2)">
+      <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-secondary/50">
         <div className="flex items-center justify-between px-3 py-2">
-          <span className="muted text-xs font-medium">知识版图</span>
+          <span className="text-xs font-medium text-muted-foreground">知识版图</span>
           {sel && (
-            <button onClick={() => setSel(null)} className="accent text-xs">
+            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setSel(null)}>
               全部
-            </button>
+            </Button>
           )}
         </div>
         <div className="flex-1 overflow-y-auto px-2 pb-3">
           <button
             onClick={() => setSel(null)}
-            className={`mb-1 flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-xs ${
-              sel ? "muted hover:text-(--text)" : "bg-(--accent)/15 font-medium text-(--text)"
-            }`}
+            className={cn(
+              "mb-1 flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-xs transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40",
+              sel
+                ? "text-muted-foreground hover:bg-accent hover:text-foreground"
+                : "bg-primary/15 font-medium text-foreground ring-1 ring-primary/40",
+            )}
           >
-            📚 全部课程
+            <LibraryBig size={12} className="shrink-0" />
+            全部课程
             <span className="ml-auto font-mono opacity-60">{courses.length}</span>
           </button>
           <TreeView node={tree} sel={sel} onSelect={setSel} />
@@ -206,28 +210,70 @@ export function LibraryPage() {
       {/* 右:课程卡(按主题分节) */}
       <div className="min-w-0 flex-1 overflow-y-auto px-6 py-8">
         <h1 className="mb-6 text-2xl font-bold">
-          {sel ? sel.join(" / ") : "课程库"} · {shown.length} 门
+          {sel ? sel.join(" / ") : "课程库"}
+          <span className="ml-2 font-mono text-sm font-normal text-muted-foreground">{shown.length} 门</span>
         </h1>
+        {/* 学习路线:按先修依赖排出 1→N,直接回答「从哪门开始看起」 */}
+        {path.length > 1 && (
+          <section className="mb-8 rounded-xl border border-border bg-card p-4">
+            <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium">
+              <Route size={14} className="text-primary" /> 学习路线 · 从这里开始
+              <span className="ml-1 font-mono text-xs font-normal text-muted-foreground">
+                按先修依赖自动排出
+              </span>
+            </h2>
+            <ol className="flex flex-wrap items-center gap-x-2 gap-y-2">
+              {path.map((c, i) => {
+                const done = readyById.get(c.id) ?? false;
+                return (
+                  <li key={c.id} className="flex items-center gap-2">
+                    {i > 0 && <ChevronRight size={13} className="shrink-0 text-muted-foreground" />}
+                    <Link
+                      to={`/courses/${c.id}`}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                        done
+                          ? "border-success/50 bg-success/10 text-success"
+                          : "border-border bg-background hover:border-primary/40",
+                      )}
+                    >
+                      <span className="font-mono opacity-70">{i + 1}</span>
+                      {c.title}
+                      {done && <CircleCheck size={12} />}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+        )}
         {groups.map((g) => (
           <section key={g.topic} className="mb-8">
-            <h2 className="muted mb-3 font-mono text-xs tracking-wide">
+            <h2 className="mb-3 font-mono text-xs tracking-wider text-muted-foreground">
               {g.topic} · {g.courses.length} 门
             </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {g.courses.map((c) => {
                 const cp = c.pages.filter((p) => p.checkpoint).length;
                 return (
-                  <Link
-                    key={c.id}
-                    to={`/courses/${c.id}`}
-                    className="rounded-xl border border-(--line) bg-(--surface) p-5 transition-colors hover:border-(--accent)"
-                  >
-                    <p className="accent mb-1 font-mono text-xs">✅ 可上课</p>
-                    <h3 className="mb-2 text-lg font-medium">{c.title}</h3>
-                    <p className="muted font-mono text-xs">
-                      {c.pages.length} 页 · {cp} 检查点 · {c.meta.duration_min ?? "—"} 分钟
-                    </p>
-                    <p className="muted mt-2 truncate text-xs">{c.pages[0]?.eyebrow ?? ""}</p>
+                  <Link key={c.id} to={`/courses/${c.id}`} className="group">
+                    <Card className="h-full p-5 transition-all group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:shadow-lg">
+                      <div className="mb-2 flex items-center gap-1.5">
+                        <Badge variant="success">可上课</Badge>
+                        <Badge variant="secondary">路线第 {stepOf.get(c.id)} 步</Badge>
+                      </div>
+                      <h3 className="mb-2 text-lg font-medium">{c.title}</h3>
+                      <p className="font-mono text-xs text-muted-foreground">
+                        {c.pages.length} 页 · {cp} 检查点 · {c.meta.duration_min ?? "—"} 分钟
+                      </p>
+                      {(c.meta.depends_on?.length ?? 0) > 0 && (
+                        <p className="mt-1 font-mono text-xs text-muted-foreground">
+                          ⛓ 先修:
+                          {c.meta.depends_on!.map((d) => titleById.get(d.id) ?? d.id).join("、")}
+                        </p>
+                      )}
+                      <p className="mt-2 truncate text-xs text-muted-foreground">{c.pages[0]?.eyebrow ?? ""}</p>
+                    </Card>
                   </Link>
                 );
               })}
@@ -250,6 +296,26 @@ export function CourseDetailPage() {
   const [draftBusy, setDraftBusy] = useState(false);
   const [draftErr, setDraftErr] = useState<string | null>(null);
   const [written, setWritten] = useState<string | null>(null);
+  const [depTitles, setDepTitles] = useState<Record<string, string>>({});
+  const [path, setPath] = useState<Course[] | null>(null);
+
+  // 先修课标题(详情页展示用;拉不到就用 id 兜底)
+  useEffect(() => {
+    if (!course) return;
+    for (const d of course.meta.depends_on ?? []) {
+      void fetch(`/courses/${d.id}.csl.json`)
+        .then((r) => r.json() as Promise<Course>)
+        .then((c) => setDepTitles((prev) => ({ ...prev, [c.id]: c.title })))
+        .catch(() => {});
+    }
+  }, [course]);
+
+  // 学习路线(本课在整条路径里的位置 + 上一课/下一课)
+  useEffect(() => {
+    void fetchAllCourses()
+      .then(({ courses }) => setPath(suggestOrder(courses)))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     setCourse(null);
@@ -282,6 +348,13 @@ export function CourseDetailPage() {
       .finally(() => setDraftBusy(false));
   }
 
+  function closeDraft() {
+    setDraft(null);
+    setDraftBusy(false);
+    setDraftErr(null);
+    setWritten(null);
+  }
+
   // 课堂学完邀请跳来(?sink=1)→ 自动开草稿
   useEffect(() => {
     if (searchParams.get("sink") === "1" && prog?.ready) {
@@ -305,10 +378,15 @@ export function CourseDetailPage() {
       .catch((e: unknown) => setDraftErr(String(e)));
   }
 
-  if (error) return <div className="muted p-8 text-sm">课件加载失败:{error}</div>;
-  if (!course) return <div className="muted p-8 text-sm">加载中…</div>;
+  if (error) return <PageError message={`课件加载失败:${error}`} back={<Button asChild variant="secondary" size="sm"><Link to="/courses">← 课程库</Link></Button>} />;
+  if (!course) return <PageLoading />;
 
   const cps = course.pages.filter((p) => p.checkpoint);
+  // 本课在路线中的位置(拉不到全量课时不显示)
+  const stepIdx = path ? path.findIndex((c) => c.id === courseId) : -1;
+  const prevCourse = path && stepIdx > 0 ? path[stepIdx - 1] : null;
+  const nextCourse =
+    path && stepIdx >= 0 && stepIdx + 1 < path.length ? path[stepIdx + 1] : null;
   const sinkTip = !prog?.ready
     ? `学完解锁(还差:${[
         !prog?.done ? "播放到最后一页" : "",
@@ -319,62 +397,122 @@ export function CourseDetailPage() {
         .filter(Boolean)
         .join(";")})`
     : "生成笔记草稿,预览确认后写入知识库";
+  const draftOpen = Boolean(draft || draftBusy || draftErr || written);
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
-      <Link to="/courses" className="muted text-xs hover:text-(--text)">
-        ← 课程库
-      </Link>
+      <Button variant="ghost" size="sm" asChild className="-ml-2 text-muted-foreground">
+        <Link to="/courses">← 课程库</Link>
+      </Button>
       {course.meta.topic && (
-        <p className="muted mt-3 font-mono text-xs">📘 {course.meta.topic}</p>
+        <p className="mt-4 flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+          <LibraryBig size={12} /> {course.meta.topic}
+        </p>
       )}
       <div className="mt-3 flex items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold">{course.title}</h1>
-          <p className="muted mt-1 font-mono text-xs">
-            {course.scenario} · {course.pages.length} 页 ·{" "}
-            {sumSentences(course)} 句 · {cps.length} 检查点
+          <p className="mt-1 font-mono text-xs text-muted-foreground">
+            {course.scenario} · {course.pages.length} 页 · {sumSentences(course)} 句 · {cps.length} 检查点
           </p>
         </div>
-        <Link
-          to={`/c/${course.id}`}
-          className="flex shrink-0 items-center gap-2 rounded-full bg-(--accent) px-5 py-2.5 text-sm font-medium text-(--bg) transition-transform hover:scale-105"
-        >
-          <Play size={15} /> 进课堂
-        </Link>
-        <button
-          onClick={openDraft}
-          disabled={!prog?.ready || draftBusy}
-          title={sinkTip}
-          className={`shrink-0 rounded-full border px-4 py-2.5 text-sm transition-colors ${
-            prog?.ready
-              ? "border-(--accent) text-(--accent) hover:bg-(--accent)/10"
-              : "muted cursor-not-allowed border-(--line)"
-          }`}
-        >
-          {draftBusy ? "蒸馏中…" : "📓 沉淀为笔记"}
-        </button>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <Button size="lg" asChild>
+            <Link to={`/c/${course.id}`}>
+              <Play size={15} /> 进课堂
+            </Link>
+          </Button>
+          <Button
+            variant="outline"
+            onClick={openDraft}
+            disabled={!prog?.ready || draftBusy}
+            title={sinkTip}
+          >
+            <SquarePen size={14} /> 沉淀为笔记
+          </Button>
+        </div>
       </div>
 
+      {/* 学习进度:检查点通过度(有进度数据才显示) */}
+      {prog && prog.checkpoints_total > 0 && (
+        <div className="mt-4 flex items-center gap-3">
+          <div className="h-1.5 w-44 overflow-hidden rounded-full bg-secondary">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${Math.round((100 * prog.checkpoints_passed) / prog.checkpoints_total)}%` }}
+            />
+          </div>
+          <span className="font-mono text-xs text-muted-foreground">
+            检查点 {prog.checkpoints_passed}/{prog.checkpoints_total}
+            {prog.ready && " · 学完可沉淀"}
+          </span>
+        </div>
+      )}
+
+      {/* 路线位置:循序渐进的「你在这里」+ 前后课导航 */}
+      {path && stepIdx >= 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1 font-mono">
+            <Route size={12} className="text-primary" /> 路线第 {stepIdx + 1} / {path.length} 步
+          </span>
+          {prevCourse && (
+            <span>
+              ← 上一课:
+              <Link to={`/courses/${prevCourse.id}`} className="text-primary hover:underline">
+                {prevCourse.title}
+              </Link>
+            </span>
+          )}
+          {nextCourse && (
+            <span>
+              下一课:
+              <Link to={`/courses/${nextCourse.id}`} className="text-primary hover:underline">
+                {nextCourse.title}
+              </Link>
+              →
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* 学习顺序:先修依赖(来自 meta.depends_on,人工/备课标注) */}
+      {(course.meta.depends_on?.length ?? 0) > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground">建议先学</h2>
+          <ul className="space-y-1.5">
+            {course.meta.depends_on!.map((d) => (
+              <li key={d.id} className="rounded-lg border border-border bg-card px-4 py-2 text-sm">
+                <Link to={`/courses/${d.id}`} className="text-primary hover:underline">
+                  {depTitles[d.id] ?? d.id}
+                </Link>
+                {d.reason && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">{d.reason}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section className="mt-8">
-        <h2 className="mb-3 text-sm font-medium tracking-wide">本课大纲</h2>
+        <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground">本课大纲</h2>
         <ul className="space-y-1.5">
           {course.pages.map((p, i) => (
             <li
               key={p.id}
-              className="flex items-center gap-3 rounded-lg border border-(--line) bg-(--surface) px-4 py-2 text-sm"
+              className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-2 text-sm transition-colors hover:border-primary/30"
             >
-              <span className="muted font-mono text-xs">{i + 1}</span>
-              <span>{KIND_ICON[p.content.kind] ?? "📄"}</span>
+              <span className="font-mono text-xs text-muted-foreground">{i + 1}</span>
+              <span className="text-muted-foreground">
+                <KindIcon kind={p.content.kind} />
+              </span>
               <span className="flex-1 truncate">{p.title || p.eyebrow || p.id}</span>
               {p.checkpoint && (
-                <span title="有复述检查点" className="flex text-(--accent)">
-                  <CheckCircle2 size={13} />
+                <span title="有复述检查点" className="flex text-primary">
+                  <CircleCheck size={13} />
                 </span>
               )}
-              <span className="muted font-mono text-xs opacity-60">
-                {p.script.length} 句
-              </span>
+              <span className="font-mono text-xs text-muted-foreground opacity-60">{p.script.length} 句</span>
             </li>
           ))}
         </ul>
@@ -382,7 +520,7 @@ export function CourseDetailPage() {
 
       {course.meta.sources?.length ? (
         <section className="mt-8">
-          <h2 className="mb-3 text-sm font-medium tracking-wide">来源(有据可查)</h2>
+          <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground">来源(有据可查)</h2>
           <ul className="space-y-1">
             {course.meta.sources.map((s, i) => (
               <li key={i} className="text-xs">
@@ -390,7 +528,7 @@ export function CourseDetailPage() {
                   href={s.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="accent hover:underline"
+                  className="text-primary hover:underline"
                 >
                   [{i + 1}] {s.title || s.url}
                 </a>
@@ -402,8 +540,8 @@ export function CourseDetailPage() {
 
       {course.meta.source_notes.length ? (
         <section className="mt-8">
-          <h2 className="mb-3 text-sm font-medium tracking-wide">关联材料</h2>
-          <ul className="muted space-y-1 font-mono text-xs">
+          <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground">关联材料</h2>
+          <ul className="space-y-1 font-mono text-xs text-muted-foreground">
             {course.meta.source_notes.map((n) => (
               <li key={n} title={n}>
                 · {n.split("/").slice(-1)[0]}
@@ -414,71 +552,58 @@ export function CourseDetailPage() {
       ) : null}
 
       {/* 写回确认闸:预览(路径+待探勾选+全文)→ 人确认 → 才落盘 vault */}
-      {(draft || draftBusy || draftErr || written) && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-(--bg)/80 p-6 backdrop-blur-sm">
-          <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl border border-(--line) bg-(--surface) shadow-2xl">
-            {written ? (
-              <div className="p-8 text-center">
-                <p className="mb-2 text-3xl">✅</p>
-                <p className="mb-1 font-medium">已写回知识库</p>
-                <p className="muted mb-4 font-mono text-xs break-all">{written}</p>
-                <p className="muted text-xs">巩固区已留空——去 Obsidian 亲手填完它。</p>
-                <button
-                  onClick={() => setWritten(null)}
-                  className="accent mt-4 text-sm underline"
-                >
-                  完成
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="border-b border-(--line) px-6 py-4">
-                  <h3 className="font-medium">写回草稿预览</h3>
-                  {draft && (
-                    <p className="muted mt-1 font-mono text-xs">
-                      {draft.mode === "append" ? "追加到" : "新建"}:{draft.note_path}
-                    </p>
+      <Dialog open={draftOpen} onOpenChange={(o) => !o && closeDraft()}>
+        <DialogContent className="flex max-h-[85vh] flex-col gap-0 p-0 sm:max-w-2xl">
+          {written ? (
+            <div className="p-8 text-center">
+              <CircleCheck size={36} className="mx-auto mb-3 text-success" />
+              <p className="mb-1 font-medium">已写回知识库</p>
+              <p className="mb-4 font-mono text-xs break-all text-muted-foreground">{written}</p>
+              <p className="text-xs text-muted-foreground">巩固区已留空——去 Obsidian 亲手填完它。</p>
+              <Button className="mt-5" onClick={() => setWritten(null)}>
+                完成
+              </Button>
+            </div>
+          ) : (
+            <>
+              <DialogHeader className="border-b border-border px-6 py-4">
+                <DialogTitle>写回草稿预览</DialogTitle>
+                {draft && (
+                  <DialogDescription>
+                    {draft.mode === "append" ? "追加到" : "新建"}:{draft.note_path}
+                  </DialogDescription>
+                )}
+                {draftBusy && (
+                  <DialogDescription className="text-xs">三源蒸馏中(LLM)…</DialogDescription>
+                )}
+                {draftErr && (
+                  <DialogDescription className="text-destructive">{draftErr}</DialogDescription>
+                )}
+              </DialogHeader>
+              {draft && (
+                <div className="flex-1 overflow-y-auto px-6 py-4">
+                  {draft.todo_edit && (
+                    <div className="mb-4 rounded-lg border border-border bg-background p-3 font-mono text-xs">
+                      <p className="mb-1 text-muted-foreground">待探勾选({draft.todo_edit.file}):</p>
+                      <p className="text-muted-foreground/60">- {draft.todo_edit.old_line.trim()}</p>
+                      <p className="text-success">+ {draft.todo_edit.new_line.trim()}</p>
+                    </div>
                   )}
-                  {draftBusy && <p className="muted mt-1 text-xs">三源蒸馏中(LLM)…</p>}
-                  {draftErr && <p className="mt-1 text-xs text-(--accent)">{draftErr}</p>}
+                  <pre className="whitespace-pre-wrap text-xs leading-relaxed">{draft.content}</pre>
                 </div>
-                {draft && (
-                  <div className="flex-1 overflow-y-auto px-6 py-4">
-                    {draft.todo_edit && (
-                      <div className="mb-4 rounded-lg border border-(--line) bg-(--bg) p-3 font-mono text-xs">
-                        <p className="muted mb-1">待探勾选({draft.todo_edit.file}):</p>
-                        <p className="opacity-60">- {draft.todo_edit.old_line.trim()}</p>
-                        <p className="text-(--accent)">
-                          + {draft.todo_edit.new_line.trim()}
-                        </p>
-                      </div>
-                    )}
-                    <pre className="whitespace-pre-wrap text-xs leading-relaxed">
-                      {draft.content}
-                    </pre>
-                  </div>
-                )}
-                {draft && (
-                  <div className="flex justify-end gap-3 border-t border-(--line) px-6 py-4">
-                    <button
-                      onClick={() => setDraft(null)}
-                      className="muted text-sm hover:text-(--text)"
-                    >
-                      取消
-                    </button>
-                    <button
-                      onClick={confirmWrite}
-                      className="rounded-full bg-(--accent) px-5 py-2 text-sm font-medium text-(--bg)"
-                    >
-                      确认写回
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      )}
+              )}
+              {draft && (
+                <DialogFooter className="border-t border-border px-6 py-4">
+                  <Button variant="ghost" onClick={() => setDraft(null)}>
+                    取消
+                  </Button>
+                  <Button onClick={confirmWrite}>确认写回</Button>
+                </DialogFooter>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

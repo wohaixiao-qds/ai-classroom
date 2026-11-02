@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Reveal from "reveal.js";
 import type { RevealApi } from "reveal.js";
-import { CheckCircle2, X } from "lucide-react";
+import { CircleCheck, X } from "lucide-react";
 import type { Course } from "../../types/csl";
 import { SlidePage } from "./pages";
 import { ControlsBar } from "./ControlsBar";
@@ -15,10 +15,12 @@ export function SlideDeck({
   course,
   playback,
   onDeck,
+  onReady,
 }: {
   course: Course;
   playback: ReturnType<typeof usePlayback>;
   onDeck: (deck: RevealApi | null) => void;
+  onReady?: () => void; // initialize 完成(deep-link 跳页要等它,否则 slide 会崩)
 }) {
   const [ready, setReady] = useState(false);
   const [overviewOpen, setOverviewOpen] = useState(false);
@@ -37,7 +39,10 @@ export function SlideDeck({
       keyboard: { 32: () => {}, 78: () => {}, 80: () => {} }, // 方向键仍可用;空格/N/P 交给播放引擎
     });
     onDeck(deck);
-    void deck.initialize().then(() => setReady(true));
+    void deck.initialize().then(() => {
+      setReady(true);
+      onReady?.();
+    });
 
     // 焦点在输入类元素(打字中)时让路,不抢按键
     const isTyping = (t: EventTarget | null) => {
@@ -163,12 +168,16 @@ function PageOverview({
 }) {
   return (
     <div
-      className="fixed inset-0 z-60 flex flex-col bg-(--bg)/95 p-8 backdrop-blur-sm"
+      className="fixed inset-0 z-60 flex flex-col bg-overlay p-8 backdrop-blur-md"
       onClick={onClose}
     >
       <div className="mb-4 flex items-center justify-between">
-        <p className="muted text-sm">全课结构 · 点击进页(检查点页有标记)</p>
-        <button onClick={onClose} className="muted rounded p-1 hover:text-(--text)" title="关闭">
+        <p className="text-sm text-muted-foreground">全课结构 · 点击进页(检查点页有标记)</p>
+        <button
+          onClick={onClose}
+          className="rounded p-1 text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+          title="关闭(Esc / O)"
+        >
           <X size={18} />
         </button>
       </div>
@@ -181,17 +190,17 @@ function PageOverview({
               playback.jumpToPage(i);
               onClose();
             }}
-            className={`flex flex-col gap-2 rounded-xl border p-4 text-left transition-colors ${
+            className={`flex flex-col gap-2 rounded-xl border p-4 text-left transition-all hover:-translate-y-0.5 ${
               i === playback.state.page
-                ? "border-(--accent) bg-(--accent)/10"
-                : "border-(--line) bg-(--surface) hover:border-(--accent)/60"
+                ? "border-primary bg-primary/10 shadow-md"
+                : "border-border bg-card hover:border-primary/60 hover:shadow-md"
             }`}
           >
-            <span className="muted font-mono text-xs">第 {i + 1} 页</span>
+            <span className="font-mono text-xs text-muted-foreground">第 {i + 1} 页</span>
             <span className="text-sm font-medium">{p.title || p.eyebrow || p.id}</span>
             {p.checkpoint && (
-              <span className="accent flex items-center gap-1 text-xs">
-                <CheckCircle2 size={12} /> 检查点
+              <span className="flex items-center gap-1 text-xs text-primary">
+                <CircleCheck size={12} /> 检查点
               </span>
             )}
           </button>

@@ -1,7 +1,8 @@
 import type { Course } from "../../types/csl";
 import type { usePlayback } from "./usePlayback";
 
-/** 字幕栏:显示当前朗读的讲稿句(音频暂停时隐藏) */
+/** 字幕栏:显示当前朗读的讲稿句(音频暂停时隐藏)。
+ *  遮罩用主题 token --overlay(原写死 bg-black/70),三主题下都贴各自底色。 */
 export function SubtitleBar({
   course,
   playback,
@@ -15,7 +16,7 @@ export function SubtitleBar({
   if (!text) return null;
   return (
     <div className="pointer-events-none fixed bottom-20 left-1/2 z-40 w-fit max-w-[80vw] -translate-x-1/2">
-      <p className="rounded-lg border border-(--line) bg-black/70 px-5 py-2.5 text-center text-base leading-relaxed text-(--text) shadow-lg backdrop-blur-sm">
+      <p className="rounded-lg border border-border bg-overlay px-5 py-2.5 text-center text-base leading-relaxed text-foreground shadow-lg backdrop-blur-sm">
         {text}
       </p>
     </div>

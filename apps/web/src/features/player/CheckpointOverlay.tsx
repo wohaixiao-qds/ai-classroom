@@ -1,10 +1,16 @@
 import { useState } from "react";
 import Markdown from "react-markdown";
+import { Sparkles } from "lucide-react";
+
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Textarea } from "../../components/ui/textarea";
 import { normalizeBold } from "../../utils/md";
 
-/** 复述检查点弹层:复述文本 → POST /grade 批改(✅/⚠️/❌ + 🎯精准版)
+/** 复述检查点弹层:复述文本 → POST /grade 批改(通过/存疑/未过 + 精准版)
  * pass 解锁继续;warn 看完精准版可继续或重述;fail 必须重述。
- * 批改文本按 markdown 渲染(grader 会用 **加粗** 等标记,纯文本会裸露星号)。 */
+ * 批改文本按 markdown 渲染(grader 会用 **加粗** 等标记,纯文本会裸露星号)。
+ * 遮罩走主题 token --overlay(与 Dialog/字幕统一,不再写死 bg-black/70)。 */
 export function CheckpointOverlay({
   question,
   hint,
@@ -39,7 +45,11 @@ export function CheckpointOverlay({
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       setResult(await resp.json());
     } catch (e) {
-      setResult({ verdict: "warn", comment: `批改服务异常: ${e}`, precise: "可点「跳过批改」继续(动脑活不许代填的规则仍适用)" });
+      setResult({
+        verdict: "warn",
+        comment: `批改服务异常: ${e}`,
+        precise: "批改服务暂不可用,本轮已放行——但「动脑活不许代填」的规则仍适用,建议自查一遍。",
+      });
       setAcknowledged(true);
     }
     setBusy(false);
@@ -48,81 +58,82 @@ export function CheckpointOverlay({
   const passed = result?.verdict === "pass" || (result?.verdict === "warn" && acknowledged);
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="mx-8 max-h-[85vh] max-w-lg overflow-y-auto rounded-2xl border border-(--line) bg-(--surface) p-8 shadow-2xl">
-        <p className="accent mb-3 font-mono text-xs tracking-widest">◆ 复述检查点</p>
+    <div className="fixed inset-0 z-60 flex items-center justify-center bg-overlay backdrop-blur-sm">
+      <div className="mx-8 max-h-[85vh] max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-8 shadow-2xl">
+        <p className="mb-3 font-mono text-xs tracking-widest text-primary">◆ 复述检查点</p>
         <h3 className="mb-2 text-lg leading-relaxed">{question}</h3>
-        {hint && <p className="muted mb-6 text-sm">提示: {hint}</p>}
+        {hint && <p className="mb-6 text-sm text-muted-foreground">提示: {hint}</p>}
 
         {!result ? (
           <>
-            <textarea
+            <Textarea
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
               rows={4}
               placeholder="用你自己的话写下来——说清才算学会"
-              className="mb-4 w-full rounded-lg border border-(--line) bg-(--bg) p-3 text-sm leading-relaxed outline-none focus:border-(--accent)"
+              className="mb-4 leading-relaxed"
             />
             <div className="flex justify-end">
-              <button
-                onClick={submit}
-                disabled={busy || !answer.trim()}
-                className="rounded-full bg-(--accent) px-6 py-2 font-medium text-(--bg) disabled:opacity-40"
-              >
+              <Button onClick={submit} disabled={busy || !answer.trim()}>
                 {busy ? "批改中…" : "提交批改"}
-              </button>
+              </Button>
             </div>
           </>
         ) : (
           <>
-            <div className="mb-4 rounded-lg border border-(--line) bg-(--bg) p-4">
-              <div className="mb-1 text-lg">
-                {result.verdict === "pass" ? "✅" : result.verdict === "warn" ? "⚠️" : "❌"}{" "}
-                <span className="chat-md inline-block text-base leading-relaxed">
+            <div className="mb-4 rounded-lg border border-border bg-background p-4">
+              <div className="flex items-start gap-2">
+                <Badge
+                  variant={
+                    result.verdict === "pass"
+                      ? "success"
+                      : result.verdict === "warn"
+                        ? "warning"
+                        : "destructive"
+                  }
+                  className="mt-0.5 shrink-0"
+                >
+                  {result.verdict === "pass" ? "通过" : result.verdict === "warn" ? "存疑" : "未过"}
+                </Badge>
+                <span className="chat-md text-base leading-relaxed">
                   <Markdown>{normalizeBold(result.comment)}</Markdown>
                 </span>
               </div>
               {result.precise && (
-                <div className="accent mt-2 text-sm leading-relaxed">
-                  🎯 精准版:
-                  <span className="chat-md inline-block">
-                    {/* grader 偶尔把「🎯精准版:」标签抄进字段,UI 已有标签,剥掉防重复 */}
-                    <Markdown>
-                      {normalizeBold(
-                        result.precise.replace(/^\s*🎯?\s*精准版\s*[:：]?\s*/, ""),
-                      )}
-                    </Markdown>
+                <div className="mt-2 flex items-start gap-1.5 text-sm leading-relaxed text-primary">
+                  <Sparkles size={13} className="mt-1 shrink-0" />
+                  <span>
+                    精准版:
+                    <span className="chat-md block">
+                      {/* grader 偶尔把「🎯精准版:」标签抄进字段,UI 已有标签,剥掉防重复 */}
+                      <Markdown>
+                        {normalizeBold(result.precise.replace(/^\s*🎯?\s*精准版\s*[:：]?\s*/, ""))}
+                      </Markdown>
+                    </span>
                   </span>
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-2">
               {result.verdict !== "pass" && (
-                <button
+                <Button
+                  variant="outline"
                   onClick={() => {
                     setResult(null);
                     setAcknowledged(false);
                   }}
-                  className="rounded-full border border-(--line) px-5 py-2 text-sm"
                 >
                   ↺ 重新复述
-                </button>
+                </Button>
               )}
               {result.verdict === "warn" && !acknowledged && (
-                <button
-                  onClick={() => setAcknowledged(true)}
-                  className="rounded-full border border-(--line) px-5 py-2 text-sm"
-                >
+                <Button variant="outline" onClick={() => setAcknowledged(true)}>
                   看过精准版了
-                </button>
+                </Button>
               )}
-              <button
-                onClick={onPass}
-                disabled={!passed}
-                className="rounded-full bg-(--accent) px-6 py-2 font-medium text-(--bg) disabled:opacity-40"
-              >
+              <Button onClick={onPass} disabled={!passed}>
                 {passed ? "继续上课 →" : "通过后继续"}
-              </button>
+              </Button>
             </div>
           </>
         )}

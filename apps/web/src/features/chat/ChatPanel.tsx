@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Markdown from "react-markdown";
+import { History, Plus, Search, Send } from "lucide-react";
 import type { components } from "../../types/api.gen";
 import type { Course } from "../../types/csl";
 import type { usePlayback } from "../player/usePlayback";
 import { normalizeBold } from "../../utils/md";
+import { cn } from "../../lib/utils";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
 
 interface Msg {
   role: "user" | "assistant";
@@ -66,7 +70,7 @@ export function ChatPanel({
               key={`${k}-${j}-${i}`}
               type="button"
               onClick={() => playback.jumpToPage(pageNo - 1)}
-              className="accent underline decoration-dotted hover:decoration-solid"
+              className="text-primary underline decoration-dotted outline-none hover:decoration-solid focus-visible:ring-[3px] focus-visible:ring-ring/40"
               title={`跳到第 ${pageNo} 页`}
             >
               {m[0]}
@@ -184,40 +188,38 @@ export function ChatPanel({
   }
 
   return (
-    <aside className="flex min-h-0 flex-1 flex-col border-l border-(--line) bg-(--surface2)">
-      <div className="flex items-center justify-between border-b border-(--line) px-4 py-3">
+    <aside className="flex min-h-0 flex-1 flex-col border-l border-border bg-secondary/50">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <span className="text-sm font-medium">AI 老师 · 答疑</span>
         <div className="flex items-center gap-1">
-          <button
+          <Button
+            variant="ghost"
+            size="icon-sm"
             onClick={() => {
               setShowList(!showList);
               if (!showList) void loadSessions();
             }}
-            className="muted rounded px-2 py-1 text-xs hover:text-(--text)"
             title="历史对话"
           >
-            ☰
-          </button>
-          <button
-            onClick={newSession}
-            className="muted rounded px-2 py-1 text-xs hover:text-(--text)"
-            title="开一轮新对话"
-          >
-            ＋
-          </button>
+            <History size={14} />
+          </Button>
+          <Button variant="ghost" size="icon-sm" onClick={newSession} title="开一轮新对话">
+            <Plus size={14} />
+          </Button>
         </div>
       </div>
 
       {showList && (
-        <div className="max-h-48 overflow-y-auto border-b border-(--line) bg-(--bg)">
-          {sessions.length === 0 && <p className="muted p-3 text-xs">还没有历史对话</p>}
+        <div className="max-h-48 overflow-y-auto border-b border-border bg-background/60">
+          {sessions.length === 0 && <p className="p-3 text-xs text-muted-foreground">还没有历史对话</p>}
           {sessions.map((s) => (
             <button
               key={s.id}
               onClick={() => void switchSession(s.id)}
-              className={`block w-full px-3 py-2 text-left text-xs hover:bg-(--surface) ${
-                s.id === sessionId ? "accent" : "muted"
-              }`}
+              className={cn(
+                "block w-full px-3 py-2 text-left text-xs transition-colors outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/40",
+                s.id === sessionId ? "text-primary" : "text-muted-foreground",
+              )}
             >
               <span className="block truncate">{s.title ?? "(空对话)"}</span>
               <span className="font-mono opacity-60">
@@ -230,7 +232,7 @@ export function ChatPanel({
 
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
         {msgs.length === 0 && (
-          <p className="muted text-sm leading-relaxed">
+          <p className="text-sm leading-relaxed text-muted-foreground">
             随时提问——课件内的直接讲,课件外的会联网查,学过的会翻你笔记。
           </p>
         )}
@@ -242,14 +244,15 @@ export function ChatPanel({
               {isLive && m.tools && m.tools.length > 0 && (
                 <div className="mb-1 space-y-0.5">
                   {m.tools.map((t, j) => (
-                    <p key={j} className="muted font-mono text-xs">
-                      🔍 正在查:{String(Object.values(t.args)[0])}
+                    <p key={j} className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+                      <Search size={11} className="shrink-0" />
+                      正在查:{String(Object.values(t.args)[0])}
                     </p>
                   ))}
                 </div>
               )}
               {m.role === "user" ? (
-                <p className="inline-block max-w-[85%] rounded-lg bg-(--accent)/20 px-3 py-2 text-left text-sm">
+                <p className="inline-block max-w-[85%] rounded-lg rounded-br-sm bg-primary/15 px-3 py-2 text-left text-sm">
                   {m.text}
                 </p>
               ) : (
@@ -257,7 +260,7 @@ export function ChatPanel({
                   {m.text ? (
                     <Markdown components={mdComponents}>{normalizeBold(m.text)}</Markdown>
                   ) : isLive ? (
-                    <span className="muted">思考中…</span>
+                    <span className="text-muted-foreground">思考中…</span>
                   ) : null}
                 </div>
               )}
@@ -266,21 +269,17 @@ export function ChatPanel({
         })}
       </div>
 
-      <div className="flex gap-2 border-t border-(--line) p-3">
-        <input
+      <div className="flex gap-2 border-t border-border p-3">
+        <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && ask()}
           placeholder="例如:汽车类比再讲一遍"
-          className="flex-1 rounded-lg border border-(--line) bg-(--bg) px-3 py-2 text-sm outline-none focus:border-(--accent)"
         />
-        <button
-          onClick={ask}
-          disabled={busy || !input.trim()}
-          className="rounded-lg bg-(--accent) px-4 text-sm font-medium text-(--bg) disabled:opacity-40"
-        >
+        <Button onClick={ask} disabled={busy || !input.trim()} title="发送">
+          <Send size={14} />
           发送
-        </button>
+        </Button>
       </div>
     </aside>
   );

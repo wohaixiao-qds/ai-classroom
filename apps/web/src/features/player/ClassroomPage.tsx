@@ -1,10 +1,14 @@
+import { Sparkles } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import type { RevealApi } from "reveal.js";
+
+import { ThemeSwitcher } from "../../components/ThemeSwitcher";
+import { Button } from "../../components/ui/button";
+import { PageError, PageLoading } from "../../components/PageState";
 import { ChatPanel } from "../chat/ChatPanel";
 import { PageSidebar } from "./PageSidebar";
 import { SlideDeck } from "./SlideDeck";
-import { ThemeSwitcher } from "./ThemeSwitcher";
 import { usePlayback } from "./usePlayback";
 import type { Course } from "../../types/csl";
 
@@ -31,15 +35,16 @@ export function ClassroomPage() {
 
   if (error)
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3">
-        <p className="muted">课件加载失败: {error}</p>
-        <Link to="/" className="accent text-sm underline">
-          ← 返回课表
-        </Link>
-      </div>
+      <PageError
+        message={`课件加载失败: ${error}`}
+        back={
+          <Button asChild variant="secondary" size="sm">
+            <Link to="/">← 返回学习台</Link>
+          </Button>
+        }
+      />
     );
-  if (!course)
-    return <div className="muted flex h-full items-center justify-center">课件加载中…</div>;
+  if (!course) return <PageLoading label="课件加载中…" />;
 
   return (
     <Classroom
@@ -73,36 +78,58 @@ function Classroom({
       .catch(() => {});
   }, [course.id]);
   const playback = usePlayback(course, getDeck, onCourseComplete);
+  const [deckReady, setDeckReady] = useState(false);
+
+  // 深链定位(?page=N,1 起算):学习台「今日复习」跳到指定检查点页。
+  // 必须等 reveal initialize 完成再 slide,否则 controlsLeft 未初始化直接崩
+  const [searchParams] = useSearchParams();
+  const deepPage = searchParams.get("page");
+  const jumpedRef = useRef(false);
+  useEffect(() => {
+    if (!deckReady || jumpedRef.current) return;
+    const n = Number(deepPage);
+    if (!Number.isInteger(n) || n < 1 || n > course.pages.length) return;
+    jumpedRef.current = true;
+    playback.jumpToPage(n - 1);
+    // 仅进入课堂时跳一次;jumpToPage 引用稳定,不必进依赖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deckReady]);
+
   // 边栏折叠/拖宽改变 deck 宽度后,让 reveal 重新排版
   const relayout = useCallback(() => getDeck()?.layout(), [getDeck]);
   return (
     <div className="flex h-full">
       <PageSidebar course={course} playback={playback} onLayoutChange={relayout} />
       <div className="relative min-w-0 flex-1">
-        <Link
-          to="/"
-          className="muted absolute top-4 left-4 z-50 rounded-full border border-(--line) bg-(--surface) px-3 py-1 text-xs hover:text-(--text)"
+        <Button
+          asChild
+          variant="secondary"
+          size="sm"
+          className="absolute top-4 left-4 z-50 rounded-full bg-card/90 shadow-sm backdrop-blur"
         >
-          ← 课表
-        </Link>
+          <Link to="/">← 课表</Link>
+        </Button>
         {invite && (
-          <div className="absolute top-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-(--accent)/50 bg-(--surface) px-4 py-2 shadow-lg">
-            <span className="text-sm">🎉 这节课学完了,沉淀为笔记?</span>
-            <Link
-              to={`/courses/${course.id}?sink=1`}
-              className="rounded-full bg-(--accent) px-3 py-1 text-xs font-medium text-(--bg)"
-            >
-              生成笔记草稿
-            </Link>
-            <button onClick={() => setInvite(false)} className="muted text-xs">
+          <div className="absolute top-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-primary/50 bg-card/95 px-4 py-2 shadow-lg backdrop-blur">
+            <Sparkles size={14} className="shrink-0 text-primary" />
+            <span className="text-sm">这节课学完了,沉淀为笔记?</span>
+            <Button size="sm" asChild>
+              <Link to={`/courses/${course.id}?sink=1`}>生成笔记草稿</Link>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setInvite(false)}>
               稍后
-            </button>
+            </Button>
           </div>
         )}
-        <SlideDeck course={course} playback={playback} onDeck={onDeck} />
+        <SlideDeck
+          course={course}
+          playback={playback}
+          onDeck={onDeck}
+          onReady={() => setDeckReady(true)}
+        />
       </div>
       <div className="flex w-80 shrink-0 flex-col">
-        <div className="flex justify-end border-b border-l border-(--line) bg-(--surface2) px-3 py-2">
+        <div className="flex justify-end border-b border-l border-border bg-secondary/50 px-3 py-2">
           <ThemeSwitcher />
         </div>
         <ChatPanel course={course} playback={playback} />
