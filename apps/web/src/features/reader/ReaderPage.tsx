@@ -27,9 +27,8 @@ export function ReaderPage() {
       })
       .then((d) => {
         const c = parseCourse(d);
-        // 过渡期:v1 课件仍归幻灯片课堂(P6 完成后删除该分支)
         if (!isV2(c)) {
-          window.location.replace(`/c/${courseId}`);
+          setError("课件不是 v2 书页格式(幻灯片版已退役,请重跑迁移脚本)");
           return;
         }
         setCourse(c);
@@ -162,14 +161,14 @@ function Reader({ course }: { course: CourseV2 }) {
           </div>
         )}
         <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto">
-          <article className="mx-auto max-w-2xl px-6 py-16">
+          <article className="mx-auto max-w-2xl px-6 py-16 font-reading [text-autospace:normal]">
             <header className="mb-10">
               <p className="font-mono text-xs tracking-widest text-primary">{course.scenario} · 书页版</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight">{course.title}</h1>
             </header>
             {course.sections.map((s, i) => (
               <section key={s.id} id={`sec-${i}`} data-sec className="mb-12 scroll-mt-6">
-                <h2 className="mb-4 flex items-baseline gap-2.5 border-b border-border pb-2 text-xl font-semibold">
+                <h2 className="mb-4 flex items-baseline gap-2.5 border-b border-border pb-2 text-xl font-medium tracking-tight">
                   <span className="font-mono text-sm text-primary">{String(i + 1).padStart(2, "0")}</span>
                   {s.heading}
                 </h2>

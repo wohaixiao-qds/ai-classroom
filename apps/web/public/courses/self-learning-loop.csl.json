@@ -2,13 +2,13 @@
   "id": "self-learning-loop",
   "title": "自我学习闭环",
   "scenario": "自学",
+  "version": 2,
   "meta": {
     "source_notes": [
       "Agent/01-harness/01-核心概念/自我学习闭环.md"
     ],
     "sources": [],
     "duration_min": null,
-    "version": 1,
     "depends_on": [
       {
         "id": "harness-engineering-practice",
@@ -16,615 +16,280 @@
       }
     ]
   },
-  "pages": [
+  "sections": [
     {
       "id": "p1-cover",
-      "eyebrow": "三层架构 · 第5讲",
-      "title": "自我学习闭环",
-      "content": {
-        "kind": "cover",
-        "equation": "Eval 发现问题 → Scaffolding 固化教训",
-        "meta": [
-          [
-            "讲师",
-            "AI 老师"
+      "heading": "自我学习闭环",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "欢迎来到三层架构系列的第五讲。今天我们聊一个很多人都会踩的坑,自我学习闭环。你可能会问,自我学习是单独一层吗?不是的,它是从 Eval 评测层流回 Scaffolding 脚手架层的那条反馈回路。记住这个公式,评测发现问题,脚手架固化教训。"
+        },
+        {
+          "type": "callout",
+          "kind": "note",
+          "text": "核心式:Eval 发现问题 → Scaffolding 固化教训"
+        },
+        {
+          "type": "table",
+          "header": [
+            "项目",
+            "内容"
           ],
-          [
-            "来源",
-            "学员笔记"
-          ],
-          [
-            "时长",
-            "约10分钟"
+          "rows": [
+            [
+              "讲师",
+              "AI 老师"
+            ],
+            [
+              "来源",
+              "学员笔记"
+            ],
+            [
+              "时长",
+              "约10分钟"
+            ]
           ]
-        ]
-      },
-      "script": [
-        {
-          "text": "欢迎来到三层架构系列的第五讲。",
-          "audio": "audio/self-learning-loop/p1-cover-s0.mp3"
-        },
-        {
-          "text": "今天我们聊一个很多人都会踩的坑,自我学习闭环。",
-          "audio": "audio/self-learning-loop/p1-cover-s1.mp3"
-        },
-        {
-          "text": "你可能会问,自我学习是单独一层吗?不是的,它是从 Eval 评测层流回 Scaffolding 脚手架层的那条反馈回路。",
-          "audio": "audio/self-learning-loop/p1-cover-s2.mp3"
-        },
-        {
-          "text": "记住这个公式,评测发现问题,脚手架固化教训。",
-          "audio": "audio/self-learning-loop/p1-cover-s3.mp3"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": "equation",
-          "with_sentence": 2
-        },
-        {
-          "effect": "fade",
-          "target": "meta",
-          "with_sentence": 0
-        },
-        {
-          "effect": "rise",
-          "target": "title",
-          "with_sentence": 0
-        }
-      ],
-      "checkpoint": null
+      "audio": null
     },
     {
       "id": "p2-formula-position",
-      "eyebrow": "误区1",
-      "title": "自我学习在哪一层?",
-      "content": {
-        "kind": "formula",
-        "items": [
-          "🔄 跨层的反馈回路",
-          "🔍 Eval 层 - 照出问题",
-          "发现规律(你是谁)",
-          "💾 Scaffolding 层 - 固化教训",
-          "更新 skill / 改 prompt / 写 memory"
-        ],
-        "conclusion": "它不是单独一层,而是连接 Eval 和 Scaffolding 的回路"
-      },
-      "script": [
+      "heading": "自我学习在哪一层?",
+      "blocks": [
         {
-          "text": "很多人一开始会想,自我学习是不是单独一层?",
-          "audio": "audio/self-learning-loop/p2-formula-position-s0.mp3"
+          "type": "p",
+          "text": "很多人一开始会想,自我学习是不是单独一层?答案可能会让你意外,它不在任何单独一层。它是从 Eval 层流回 Scaffolding 层的反馈回路。在 Eval 层,评测会照出问题。"
         },
         {
-          "text": "答案可能会让你意外,它不在任何单独一层。",
-          "audio": "audio/self-learning-loop/p2-formula-position-s1.mp3"
+          "type": "p",
+          "text": "你发现规律,然后在 Scaffolding 层固化教训。更新的内容可以是新 skill、改 prompt、或者写 memory。记住,自我学习是跨层的,不是独立的。"
         },
         {
-          "text": "它是从 Eval 层流回 Scaffolding 层的反馈回路。",
-          "audio": "audio/self-learning-loop/p2-formula-position-s2.mp3"
+          "type": "p",
+          "text": "公式要素:`🔄 跨层的反馈回路 🔍 Eval 层 - 照出问题 发现规律(你是谁) 💾 Scaffolding 层 - 固化教训 更新 skill / 改 prompt / 写 memory`"
         },
         {
-          "text": "在 Eval 层,评测会照出问题。",
-          "audio": "audio/self-learning-loop/p2-formula-position-s3.mp3"
+          "type": "callout",
+          "kind": "tip",
+          "text": "它不是单独一层,而是连接 Eval 和 Scaffolding 的回路"
         },
         {
-          "text": "你发现规律,然后在 Scaffolding 层固化教训。",
-          "audio": "audio/self-learning-loop/p2-formula-position-s4.mp3"
-        },
-        {
-          "text": "更新的内容可以是新 skill、改 prompt、或者写 memory。",
-          "audio": "audio/self-learning-loop/p2-formula-position-s5.mp3"
-        },
-        {
-          "text": "记住,自我学习是跨层的,不是独立的。",
-          "audio": "audio/self-learning-loop/p2-formula-position-s6.mp3"
+          "type": "quiz",
+          "id": "p2-formula-position-cp",
+          "question": "自我学习闭环是在哪两层之间建立的?",
+          "hint": "想想评测发现问题后,教训会被存到哪里",
+          "pass_rule": "答出\"Eval 和 Scaffolding\"或\"评测层和脚手架层\"即通过"
         }
       ],
-      "fragments": [
-        {
-          "effect": "pop",
-          "target": "items[0]",
-          "with_sentence": 2
-        },
-        {
-          "effect": "rise",
-          "target": "items[1]",
-          "with_sentence": 3
-        },
-        {
-          "effect": "fade",
-          "target": "items[2]",
-          "with_sentence": 4
-        },
-        {
-          "effect": "rise",
-          "target": "items[3]",
-          "with_sentence": 4
-        },
-        {
-          "effect": "fade",
-          "target": "items[4]",
-          "with_sentence": 5
-        },
-        {
-          "effect": "pop",
-          "target": "conclusion",
-          "with_sentence": 6
-        }
-      ],
-      "checkpoint": {
-        "question": "自我学习闭环是在哪两层之间建立的?",
-        "hint": "想想评测发现问题后,教训会被存到哪里",
-        "pass_rule": "答出\"Eval 和 Scaffolding\"或\"评测层和脚手架层\"即通过"
-      }
+      "audio": null
     },
     {
       "id": "p3-duo-misconceptions",
-      "eyebrow": "误区2",
-      "title": "学到的内容放哪?",
-      "content": {
-        "kind": "duo",
-        "left": {
-          "title": "❌ 误区",
-          "tag": "以为只有一种抽屉",
-          "body": "学到的教训**统统写进 system prompt**"
-        },
-        "right": {
-          "title": "✓ 正解",
-          "tag": "按类型选抽屉",
-          "body": "system prompt 是最常用的,但不是唯一的。\n\n教训类型不同,存放位置不同:\n\n- **策略级** → system prompt\n- **流程级** → 新 skill\n- **经验级** → memory\n- **规则级** → tool"
-        }
-      },
-      "script": [
+      "heading": "学到的内容放哪?",
+      "blocks": [
         {
-          "text": "第二个坑,很多人以为学到的内容就是要写进 system prompt。",
-          "audio": "audio/self-learning-loop/p3-duo-misconceptions-s0.mp3"
+          "type": "p",
+          "text": "第二个坑,很多人以为学到的内容就是要写进 system prompt。system prompt 确实是最常用的抽屉,但不是唯一的。你得看教训的类型来选抽屉。策略级的教训,像角色定位、输出格式,这些放 system prompt。"
         },
         {
-          "text": "system prompt 确实是最常用的抽屉,但不是唯一的。",
-          "audio": "audio/self-learning-loop/p3-duo-misconceptions-s1.mp3"
+          "type": "p",
+          "text": "流程级的,比如完成某个任务的步骤,这些可以封装成新 skill。经验级的,像之前遇到什么特殊情况,存到 memory 里就行。规则级的,比如必须遵守的约束,写成 tool 更可靠。别把所有东西都塞进 system prompt,它会变臃肿的。"
         },
         {
-          "text": "你得看教训的类型来选抽屉。",
-          "audio": "audio/self-learning-loop/p3-duo-misconceptions-s2.mp3"
-        },
-        {
-          "text": "策略级的教训,像角色定位、输出格式,这些放 system prompt。",
-          "audio": "audio/self-learning-loop/p3-duo-misconceptions-s3.mp3"
-        },
-        {
-          "text": "流程级的,比如完成某个任务的步骤,这些可以封装成新 skill。",
-          "audio": "audio/self-learning-loop/p3-duo-misconceptions-s4.mp3"
-        },
-        {
-          "text": "经验级的,像之前遇到什么特殊情况,存到 memory 里就行。",
-          "audio": "audio/self-learning-loop/p3-duo-misconceptions-s5.mp3"
-        },
-        {
-          "text": "规则级的,比如必须遵守的约束,写成 tool 更可靠。",
-          "audio": "audio/self-learning-loop/p3-duo-misconceptions-s6.mp3"
-        },
-        {
-          "text": "别把所有东西都塞进 system prompt,它会变臃肿的。",
-          "audio": "audio/self-learning-loop/p3-duo-misconceptions-s7.mp3"
+          "type": "table",
+          "header": [
+            "❌ 误区",
+            "✓ 正解"
+          ],
+          "rows": [
+            [
+              "学到的教训**统统写进 system prompt**",
+              "system prompt 是最常用的,但不是唯一的。\n\n教训类型不同,存放位置不同:\n\n- **策略级** → system prompt\n- **流程级** → 新 skill\n- **经验级** → memory\n- **规则级** → tool"
+            ]
+          ],
+          "caption": "以为只有一种抽屉 / 按类型选抽屉"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": "left",
-          "with_sentence": 0
-        },
-        {
-          "effect": "rise",
-          "target": "right",
-          "with_sentence": 2
-        },
-        {
-          "effect": "pop",
-          "target": "right.body",
-          "with_sentence": 3
-        },
-        {
-          "effect": "fade",
-          "target": "right.body",
-          "with_sentence": 4
-        },
-        {
-          "effect": "fade",
-          "target": "right.body",
-          "with_sentence": 5
-        },
-        {
-          "effect": "fade",
-          "target": "right.body",
-          "with_sentence": 6
-        },
-        {
-          "effect": "fade",
-          "target": "right.body",
-          "with_sentence": 7
-        }
-      ],
-      "checkpoint": null
+      "audio": null
     },
     {
       "id": "p4-table-drawer",
-      "eyebrow": "落地决策",
-      "title": "选对抽屉:教训存放到哪里?",
-      "content": {
-        "kind": "table",
-        "headers": [
-          "教训类型",
-          "存放位置",
-          "示例"
-        ],
-        "rows": [
-          [
-            "策略级",
-            "system prompt",
-            "角色定位、输出格式"
+      "heading": "选对抽屉:教训存放到哪里?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "咱们总结一下,不同类型的教训应该放到哪个抽屉。策略级的教训,比如 agent 的角色定位、输出格式要求,这些放 system prompt。流程级的,像完成写作任务的具体步骤、数据清洗的操作顺序,这些封装成 skill 更合适。经验级的,比如上次任务失败的原因、用户的特定偏好,存到 memory 里就行。"
+        },
+        {
+          "type": "p",
+          "text": "规则级的,像必须遵守的数据校验规则、格式转换标准,写成 tool 最可靠。选对抽屉,你的 agent 才能高效学习。"
+        },
+        {
+          "type": "table",
+          "header": [
+            "教训类型",
+            "存放位置",
+            "示例"
           ],
-          [
-            "流程级",
-            "skill",
-            "分步写作、数据清洗"
+          "rows": [
+            [
+              "策略级",
+              "system prompt",
+              "角色定位、输出格式"
+            ],
+            [
+              "流程级",
+              "skill",
+              "分步写作、数据清洗"
+            ],
+            [
+              "经验级",
+              "memory",
+              "上次失败原因、用户偏好"
+            ],
+            [
+              "规则级",
+              "tool",
+              "数据校验、格式转换"
+            ]
           ],
-          [
-            "经验级",
-            "memory",
-            "上次失败原因、用户偏好"
-          ],
-          [
-            "规则级",
-            "tool",
-            "数据校验、格式转换"
-          ]
-        ],
-        "note": "按教训的类型选抽屉,而不是全部塞进 system prompt"
-      },
-      "script": [
-        {
-          "text": "咱们总结一下,不同类型的教训应该放到哪个抽屉。",
-          "audio": "audio/self-learning-loop/p4-table-drawer-s0.mp3"
+          "caption": "按教训的类型选抽屉,而不是全部塞进 system prompt"
         },
         {
-          "text": "策略级的教训,比如 agent 的角色定位、输出格式要求,这些放 system prompt。",
-          "audio": "audio/self-learning-loop/p4-table-drawer-s1.mp3"
-        },
-        {
-          "text": "流程级的,像完成写作任务的具体步骤、数据清洗的操作顺序,这些封装成 skill 更合适。",
-          "audio": "audio/self-learning-loop/p4-table-drawer-s2.mp3"
-        },
-        {
-          "text": "经验级的,比如上次任务失败的原因、用户的特定偏好,存到 memory 里就行。",
-          "audio": "audio/self-learning-loop/p4-table-drawer-s3.mp3"
-        },
-        {
-          "text": "规则级的,像必须遵守的数据校验规则、格式转换标准,写成 tool 最可靠。",
-          "audio": "audio/self-learning-loop/p4-table-drawer-s4.mp3"
-        },
-        {
-          "text": "选对抽屉,你的 agent 才能高效学习。",
-          "audio": "audio/self-learning-loop/p4-table-drawer-s5.mp3"
+          "type": "quiz",
+          "id": "p4-table-drawer-cp",
+          "question": "如果学到的是\"上次失败的原因\",应该存到哪个抽屉?",
+          "hint": "想想这是哪种类型的教训",
+          "pass_rule": "答出\"memory\"或\"经验级\"即通过"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": "headers",
-          "with_sentence": 0
-        },
-        {
-          "effect": "rise",
-          "target": "rows[0]",
-          "with_sentence": 1
-        },
-        {
-          "effect": "rise",
-          "target": "rows[1]",
-          "with_sentence": 2
-        },
-        {
-          "effect": "rise",
-          "target": "rows[2]",
-          "with_sentence": 3
-        },
-        {
-          "effect": "rise",
-          "target": "rows[3]",
-          "with_sentence": 4
-        },
-        {
-          "effect": "pop",
-          "target": "note",
-          "with_sentence": 5
-        }
-      ],
-      "checkpoint": {
-        "question": "如果学到的是\"上次失败的原因\",应该存到哪个抽屉?",
-        "hint": "想想这是哪种类型的教训",
-        "pass_rule": "答出\"memory\"或\"经验级\"即通过"
-      }
+      "audio": null
     },
     {
       "id": "p5-formula-who",
-      "eyebrow": "核心纠偏",
-      "title": "\"自我学习\"到底是谁在学?",
-      "content": {
-        "kind": "formula",
-        "items": [
-          "agent 跑完任务 → 清零(无状态)",
-          "你查看 Eval → 发现规律",
-          "你固化教训 → 更新 Scaffolding",
-          "下次 agent 开局 → 带着更新过的配置",
-          "看起来\"更强\"了"
-        ],
-        "conclusion": "真正在学习的是你(开发者),agent 只是带着你的更新在跑"
-      },
-      "script": [
+      "heading": "\"自我学习\"到底是谁在学?",
+      "blocks": [
         {
-          "text": "第三个坑,也是最重要的一个。",
-          "audio": "audio/self-learning-loop/p5-formula-who-s0.mp3"
+          "type": "p",
+          "text": "第三个坑,也是最重要的一个。很多人以为 agent 会在运行中自己学习、自己进化。但真相是,agent 跑完一个任务就啥也没记住了,它的状态会清零。真正在学习的是你,是开发者。"
         },
         {
-          "text": "很多人以为 agent 会在运行中自己学习、自己进化。",
-          "audio": "audio/self-learning-loop/p5-formula-who-s1.mp3"
+          "type": "p",
+          "text": "你会查看 Eval 的评测结果,发现规律。然后你把规律固化进 Scaffolding,更新 skill、prompt 或者 memory。下次 agent 开局的时候,带着的就是你更新过的配置。所以它看起来\"更强\"了,但真正在学习的是你。"
         },
         {
-          "text": "但真相是,agent 跑完一个任务就啥也没记住了,它的状态会清零。",
-          "audio": "audio/self-learning-loop/p5-formula-who-s2.mp3"
+          "type": "p",
+          "text": "公式要素:`agent 跑完任务 → 清零(无状态) 你查看 Eval → 发现规律 你固化教训 → 更新 Scaffolding 下次 agent 开局 → 带着更新过的配置 看起来\"更强\"了`"
         },
         {
-          "text": "真正在学习的是你,是开发者。",
-          "audio": "audio/self-learning-loop/p5-formula-who-s3.mp3"
+          "type": "callout",
+          "kind": "tip",
+          "text": "真正在学习的是你(开发者),agent 只是带着你的更新在跑"
         },
         {
-          "text": "你会查看 Eval 的评测结果,发现规律。",
-          "audio": "audio/self-learning-loop/p5-formula-who-s4.mp3"
-        },
-        {
-          "text": "然后你把规律固化进 Scaffolding,更新 skill、prompt 或者 memory。",
-          "audio": "audio/self-learning-loop/p5-formula-who-s5.mp3"
-        },
-        {
-          "text": "下次 agent 开局的时候,带着的就是你更新过的配置。",
-          "audio": "audio/self-learning-loop/p5-formula-who-s6.mp3"
-        },
-        {
-          "text": "所以它看起来\"更强\"了,但真正在学习的是你。",
-          "audio": "audio/self-learning-loop/p5-formula-who-s7.mp3"
+          "type": "quiz",
+          "id": "p5-formula-who-cp",
+          "question": "在自我学习闭环中,真正在学习的是谁?",
+          "hint": "想想 agent 跑完任务后会发生什么",
+          "pass_rule": "答出\"开发者\"或\"你\"即通过"
         }
       ],
-      "fragments": [
-        {
-          "effect": "rise",
-          "target": "items[0]",
-          "with_sentence": 2
-        },
-        {
-          "effect": "rise",
-          "target": "items[1]",
-          "with_sentence": 4
-        },
-        {
-          "effect": "rise",
-          "target": "items[2]",
-          "with_sentence": 5
-        },
-        {
-          "effect": "rise",
-          "target": "items[3]",
-          "with_sentence": 6
-        },
-        {
-          "effect": "rise",
-          "target": "items[4]",
-          "with_sentence": 7
-        },
-        {
-          "effect": "pop",
-          "target": "conclusion",
-          "with_sentence": 7
-        }
-      ],
-      "checkpoint": {
-        "question": "在自我学习闭环中,真正在学习的是谁?",
-        "hint": "想想 agent 跑完任务后会发生什么",
-        "pass_rule": "答出\"开发者\"或\"你\"即通过"
-      }
+      "audio": null
     },
     {
       "id": "p6-table-practice",
-      "eyebrow": "开发落地",
-      "title": "怎么把自我学习闭环做进系统?",
-      "content": {
-        "kind": "table",
-        "headers": [
-          "步骤",
-          "做什么",
-          "关键点"
-        ],
-        "rows": [
-          [
-            "① 造什么时碰到",
-            "需要持续优化的 agent",
-            "复杂任务、反复迭代"
+      "heading": "怎么把自我学习闭环做进系统?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "那在实际开发中,怎么把这个闭环做进系统呢?咱们分三步来看。第一步,知道什么时候会用到自我学习闭环。就是那些需要持续优化的 agent,比如处理复杂任务、需要反复迭代的场景。第二步,设计时要做什么决策?"
+        },
+        {
+          "type": "p",
+          "text": "关键是给 Eval 层预留反馈入口,评测结果要能被人读懂、要有结构化的输出。第三步,实现上具体怎么做?就是人工定期查看 Eval 的评测结果,发现规律,然后更新 Scaffolding。记住,不要指望 agent 自己学,你才是学习的主体。"
+        },
+        {
+          "type": "p",
+          "text": "让评测结果能被你读懂,这是最关键的。"
+        },
+        {
+          "type": "table",
+          "header": [
+            "步骤",
+            "做什么",
+            "关键点"
           ],
-          [
-            "② 设计时决策",
-            "预留 Eval 层的反馈入口",
-            "评测结果要可读、可结构化"
+          "rows": [
+            [
+              "① 造什么时碰到",
+              "需要持续优化的 agent",
+              "复杂任务、反复迭代"
+            ],
+            [
+              "② 设计时决策",
+              "预留 Eval 层的反馈入口",
+              "评测结果要可读、可结构化"
+            ],
+            [
+              "③ 实现上做法",
+              "人工定期看 Eval → 更新 Scaffolding",
+              "不要指望 agent 自己学"
+            ]
           ],
-          [
-            "③ 实现上做法",
-            "人工定期看 Eval → 更新 Scaffolding",
-            "不要指望 agent 自己学"
-          ]
-        ],
-        "note": "核心是让 Eval 层的评测结果能被\"人\"读懂,这样你才能发现规律"
-      },
-      "script": [
-        {
-          "text": "那在实际开发中,怎么把这个闭环做进系统呢?咱们分三步来看。",
-          "audio": "audio/self-learning-loop/p6-table-practice-s0.mp3"
+          "caption": "核心是让 Eval 层的评测结果能被\"人\"读懂,这样你才能发现规律"
         },
         {
-          "text": "第一步,知道什么时候会用到自我学习闭环。",
-          "audio": "audio/self-learning-loop/p6-table-practice-s1.mp3"
-        },
-        {
-          "text": "就是那些需要持续优化的 agent,比如处理复杂任务、需要反复迭代的场景。",
-          "audio": "audio/self-learning-loop/p6-table-practice-s2.mp3"
-        },
-        {
-          "text": "第二步,设计时要做什么决策?",
-          "audio": "audio/self-learning-loop/p6-table-practice-s3.mp3"
-        },
-        {
-          "text": "关键是给 Eval 层预留反馈入口,评测结果要能被人读懂、要有结构化的输出。",
-          "audio": "audio/self-learning-loop/p6-table-practice-s4.mp3"
-        },
-        {
-          "text": "第三步,实现上具体怎么做?",
-          "audio": "audio/self-learning-loop/p6-table-practice-s5.mp3"
-        },
-        {
-          "text": "就是人工定期查看 Eval 的评测结果,发现规律,然后更新 Scaffolding。",
-          "audio": "audio/self-learning-loop/p6-table-practice-s6.mp3"
-        },
-        {
-          "text": "记住,不要指望 agent 自己学,你才是学习的主体。",
-          "audio": "audio/self-learning-loop/p6-table-practice-s7.mp3"
-        },
-        {
-          "text": "让评测结果能被你读懂,这是最关键的。",
-          "audio": "audio/self-learning-loop/p6-table-practice-s8.mp3"
+          "type": "quiz",
+          "id": "p6-table-practice-cp",
+          "question": "设计自我学习闭环时,最关键的一点是什么?",
+          "hint": "想想谁来查看评测结果",
+          "pass_rule": "答出\"评测结果要能被读懂\"或\"可读\"或\"结构化\"即通过"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": "headers",
-          "with_sentence": 0
-        },
-        {
-          "effect": "rise",
-          "target": "rows[0]",
-          "with_sentence": 1
-        },
-        {
-          "effect": "rise",
-          "target": "rows[1]",
-          "with_sentence": 3
-        },
-        {
-          "effect": "rise",
-          "target": "rows[2]",
-          "with_sentence": 5
-        },
-        {
-          "effect": "pop",
-          "target": "note",
-          "with_sentence": 8
-        }
-      ],
-      "checkpoint": {
-        "question": "设计自我学习闭环时,最关键的一点是什么?",
-        "hint": "想想谁来查看评测结果",
-        "pass_rule": "答出\"评测结果要能被读懂\"或\"可读\"或\"结构化\"即通过"
-      }
+      "audio": null
     },
     {
       "id": "p7-table-map",
-      "eyebrow": "知识地图",
-      "title": "自我学习闭环的关联知识",
-      "content": {
-        "kind": "table",
-        "headers": [
-          "关联主题",
-          "为什么关联"
-        ],
-        "rows": [
-          [
-            "[[三层架构]]",
-            "这条回路连接其中的 Eval 和 Scaffolding 层"
+      "heading": "自我学习闭环的关联知识",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "最后咱们看看自我学习闭环和哪些知识有关联。首先是三层架构本身,这条回路就连接其中的 Eval 和 Scaffolding 层。然后是 harness 的概念,harness 就是帮你\"照出问题\"的工具,是 Eval 层的好帮手。还有防假性完成,这其实就是 Eval 怎么\"照出问题\"的核心技巧。"
+        },
+        {
+          "type": "p",
+          "text": "最后是一些术语,比如 reward hacking、eval-driven development,都和这个闭环密切相关。记住,自我学习闭环是三层架构中承上启下的关键回路。"
+        },
+        {
+          "type": "table",
+          "header": [
+            "关联主题",
+            "为什么关联"
           ],
-          [
-            "[[harness是什么]]",
-            "harness 就是帮你\"照出问题\"的工具"
+          "rows": [
+            [
+              "[[三层架构]]",
+              "这条回路连接其中的 Eval 和 Scaffolding 层"
+            ],
+            [
+              "[[harness是什么]]",
+              "harness 就是帮你\"照出问题\"的工具"
+            ],
+            [
+              "[[04-待探]]",
+              "防假性完成,就是 Eval 怎么\"照出问题\""
+            ],
+            [
+              "[[术语表]]",
+              "reward hacking / eval-driven development"
+            ]
           ],
-          [
-            "[[04-待探]]",
-            "防假性完成,就是 Eval 怎么\"照出问题\""
-          ],
-          [
-            "[[术语表]]",
-            "reward hacking / eval-driven development"
-          ]
-        ],
-        "note": "自我学习闭环是三层架构中承上启下的关键回路"
-      },
-      "script": [
-        {
-          "text": "最后咱们看看自我学习闭环和哪些知识有关联。",
-          "audio": "audio/self-learning-loop/p7-table-map-s0.mp3"
-        },
-        {
-          "text": "首先是三层架构本身,这条回路就连接其中的 Eval 和 Scaffolding 层。",
-          "audio": "audio/self-learning-loop/p7-table-map-s1.mp3"
-        },
-        {
-          "text": "然后是 harness 的概念,harness 就是帮你\"照出问题\"的工具,是 Eval 层的好帮手。",
-          "audio": "audio/self-learning-loop/p7-table-map-s2.mp3"
-        },
-        {
-          "text": "还有防假性完成,这其实就是 Eval 怎么\"照出问题\"的核心技巧。",
-          "audio": "audio/self-learning-loop/p7-table-map-s3.mp3"
-        },
-        {
-          "text": "最后是一些术语,比如 reward hacking、eval-driven development,都和这个闭环密切相关。",
-          "audio": "audio/self-learning-loop/p7-table-map-s4.mp3"
-        },
-        {
-          "text": "记住,自我学习闭环是三层架构中承上启下的关键回路。",
-          "audio": "audio/self-learning-loop/p7-table-map-s5.mp3"
+          "caption": "自我学习闭环是三层架构中承上启下的关键回路"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": "headers",
-          "with_sentence": 0
-        },
-        {
-          "effect": "rise",
-          "target": "rows[0]",
-          "with_sentence": 1
-        },
-        {
-          "effect": "rise",
-          "target": "rows[1]",
-          "with_sentence": 2
-        },
-        {
-          "effect": "rise",
-          "target": "rows[2]",
-          "with_sentence": 3
-        },
-        {
-          "effect": "rise",
-          "target": "rows[3]",
-          "with_sentence": 4
-        },
-        {
-          "effect": "pop",
-          "target": "note",
-          "with_sentence": 5
-        }
-      ],
-      "checkpoint": null
+      "audio": null
     }
   ]
 }

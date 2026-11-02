@@ -6,7 +6,7 @@ import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import type { Block } from "../../types/csl";
 import { normalizeBold } from "../../utils/md";
-import { CheckpointOverlay } from "../player/CheckpointOverlay";
+import { CheckpointOverlay } from "./CheckpointOverlay";
 
 /** v2 块渲染:节内块按序即版式(P6 书页形态)。quiz 内嵌复述卡,闪卡点按翻面。 */
 export function Blocks({ blocks, courseId }: { blocks: Block[]; courseId: string }) {

@@ -2,6 +2,7 @@
   "id": "mcp-model-context-protocol",
   "title": "MCP (Model Context Protocol)",
   "scenario": "自学",
+  "version": 2,
   "meta": {
     "source_notes": [
       "/Users/zhangyu/CodeDevelopment/ai-classroom/apps/api/data/research/MCP-Model-Context-Protocol.MCP-Model-Context-Protocol.material.json"
@@ -50,7 +51,6 @@
     ],
     "topic": "MCP(Model Context Protocol)",
     "duration_min": null,
-    "version": 1,
     "depends_on": [
       {
         "id": "harness-01",
@@ -58,733 +58,319 @@
       }
     ]
   },
-  "pages": [
+  "sections": [
     {
       "id": "p1-cover",
-      "eyebrow": "协议概述",
-      "title": "MCP 是什么？",
-      "content": {
-        "kind": "cover",
-        "equation": "MCP = AI 应用的 USB 接口",
-        "meta": [
-          [
-            "讲师",
-            "AI 老师"
+      "heading": "MCP 是什么？",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "今天我们来学 MCP，Model Context Protocol，模型上下文协议。一句话，MCP 就是 AI 应用的 USB 接口。它统一了 LLM 应用和外部工具、数据的连接方式，让集成变得标准化。这节课，你会看到 MCP 解决了什么痛点，它的核心能力是什么，版本怎么演进，生产实践有什么收益，以及安全上要注意什么。"
+        },
+        {
+          "type": "p",
+          "text": "准备好，开始吧。"
+        },
+        {
+          "type": "callout",
+          "kind": "note",
+          "text": "核心式:MCP = AI 应用的 USB 接口"
+        },
+        {
+          "type": "table",
+          "header": [
+            "项目",
+            "内容"
           ],
-          [
-            "来源",
-            "官方规范 + 企业实践"
-          ],
-          [
-            "时长",
-            "约10分钟"
+          "rows": [
+            [
+              "讲师",
+              "AI 老师"
+            ],
+            [
+              "来源",
+              "官方规范 + 企业实践"
+            ],
+            [
+              "时长",
+              "约10分钟"
+            ]
           ]
-        ]
-      },
-      "script": [
-        {
-          "text": "今天我们来学 MCP，Model Context Protocol，模型上下文协议。",
-          "audio": "audio/mcp-model-context-protocol/p1-cover-s0.mp3"
-        },
-        {
-          "text": "一句话，MCP 就是 AI 应用的 USB 接口。",
-          "audio": "audio/mcp-model-context-protocol/p1-cover-s1.mp3"
-        },
-        {
-          "text": "它统一了 LLM 应用和外部工具、数据的连接方式，让集成变得标准化。",
-          "audio": "audio/mcp-model-context-protocol/p1-cover-s2.mp3"
-        },
-        {
-          "text": "这节课，你会看到 MCP 解决了什么痛点，它的核心能力是什么，版本怎么演进，生产实践有什么收益，以及安全上要注意什么。",
-          "audio": "audio/mcp-model-context-protocol/p1-cover-s3.mp3"
-        },
-        {
-          "text": "准备好，开始吧。",
-          "audio": "audio/mcp-model-context-protocol/p1-cover-s4.mp3"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 0
-        },
-        {
-          "effect": "pop",
-          "target": "equation",
-          "with_sentence": 1
-        },
-        {
-          "effect": "fade",
-          "target": "meta",
-          "with_sentence": 2
-        },
-        {
-          "effect": "rise",
-          "target": null,
-          "with_sentence": 3
-        },
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 4
-        }
-      ],
-      "checkpoint": null
+      "audio": null
     },
     {
       "id": "p2-nxm-problem",
-      "eyebrow": "核心价值",
-      "title": "MCP 解决 N×M 集成难题",
-      "content": {
-        "kind": "formula",
-        "items": [
-          "N 个 LLM 应用",
-          "M 个数据/工具服务",
-          "传统：N×M 个集成点",
-          "MCP：N+M 个连接"
-        ],
-        "conclusion": "标准化协议 → 降低复杂度"
-      },
-      "script": [
+      "heading": "MCP 解决 N×M 集成难题",
+      "blocks": [
         {
-          "text": "先看 MCP 解决的核心问题。",
-          "audio": "audio/mcp-model-context-protocol/p2-nxm-problem-s0.mp3"
+          "type": "p",
+          "text": "先看 MCP 解决的核心问题。假设你有 N 个 LLM 应用，比如不同的 AI 助手。还有 M 个数据源或工具服务，比如数据库、API、文件系统。传统做法，每个应用要对接每个服务，就是 N 乘以 M 个集成点。"
         },
         {
-          "text": "假设你有 N 个 LLM 应用，比如不同的 AI 助手。",
-          "audio": "audio/mcp-model-context-protocol/p2-nxm-problem-s1.mp3"
+          "type": "p",
+          "text": "MCP 的做法是，统一协议，让应用连 MCP 客户端，服务连 MCP 服务器，只需 N 加 M 个连接。这就是标准化的威力。"
         },
         {
-          "text": "还有 M 个数据源或工具服务，比如数据库、API、文件系统。",
-          "audio": "audio/mcp-model-context-protocol/p2-nxm-problem-s2.mp3"
+          "type": "p",
+          "text": "公式要素:`N 个 LLM 应用 M 个数据/工具服务 传统：N×M 个集成点 MCP：N+M 个连接`"
         },
         {
-          "text": "传统做法，每个应用要对接每个服务，就是 N 乘以 M 个集成点。",
-          "audio": "audio/mcp-model-context-protocol/p2-nxm-problem-s3.mp3"
+          "type": "callout",
+          "kind": "tip",
+          "text": "标准化协议 → 降低复杂度"
         },
         {
-          "text": "MCP 的做法是，统一协议，让应用连 MCP 客户端，服务连 MCP 服务器，只需 N 加 M 个连接。",
-          "audio": "audio/mcp-model-context-protocol/p2-nxm-problem-s4.mp3"
-        },
-        {
-          "text": "这就是标准化的威力。",
-          "audio": "audio/mcp-model-context-protocol/p2-nxm-problem-s5.mp3"
+          "type": "quiz",
+          "id": "p2-nxm-problem-cp",
+          "question": "MCP 如何解决 N×M 集成难题？请用自己的话复述。",
+          "hint": "想想传统集成和 MCP 架构在连接数量上的差异。",
+          "pass_rule": "能说出传统需要 N×M 个点，MCP 只需 N+M 个连接即可。"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 0
-        },
-        {
-          "effect": "pop",
-          "target": "item-0",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": "item-1",
-          "with_sentence": 2
-        },
-        {
-          "effect": "pop",
-          "target": "item-2",
-          "with_sentence": 3
-        },
-        {
-          "effect": "pop",
-          "target": "item-3",
-          "with_sentence": 4
-        },
-        {
-          "effect": "rise",
-          "target": "conclusion",
-          "with_sentence": 5
-        }
-      ],
-      "checkpoint": {
-        "question": "MCP 如何解决 N×M 集成难题？请用自己的话复述。",
-        "hint": "想想传统集成和 MCP 架构在连接数量上的差异。",
-        "pass_rule": "能说出传统需要 N×M 个点，MCP 只需 N+M 个连接即可。"
-      }
+      "audio": null
     },
     {
       "id": "p3-architecture-duo",
-      "eyebrow": "架构设计",
-      "title": "MCP 三角色分层架构",
-      "content": {
-        "kind": "duo",
-        "left": {
-          "title": "传统紧耦合集成",
-          "tag": "高维护成本",
-          "body": "每个 AI 应用直接调用\n各类工具和数据源\n\n**重复造轮子**\n协议不统一\n安全策略分散"
-        },
-        "right": {
-          "title": "MCP 分层架构",
-          "tag": "标准化解耦",
-          "body": "**Hosts** - LLM 应用\n\n**Clients** - 连接器\n\n**Servers** - 数据/能力服务\n\n基于 JSON-RPC 2.0\n类似 LSP 的统一接口"
-        }
-      },
-      "script": [
+      "heading": "MCP 三角色分层架构",
+      "blocks": [
         {
-          "text": "再看架构上的对比。",
-          "audio": "audio/mcp-model-context-protocol/p3-architecture-duo-s0.mp3"
+          "type": "p",
+          "text": "再看架构上的对比。左边是传统方式，每个 AI 应用都要自己对接各种工具，重复造轮子，协议不统一，安全策略也分散在各处。右边是 MCP 的分层架构，引入三个角色。Hosts 是 LLM 应用本身，不直接连服务。"
         },
         {
-          "text": "左边是传统方式，每个 AI 应用都要自己对接各种工具，重复造轮子，协议不统一，安全策略也分散在各处。",
-          "audio": "audio/mcp-model-context-protocol/p3-architecture-duo-s1.mp3"
+          "type": "p",
+          "text": "Clients 是连接器，负责协议通信。Servers 是提供数据和能力的各种服务。它们之间通过 JSON-RPC 2.0 通信，就像语言服务器协议 LSP 那样，统一接口。"
         },
         {
-          "text": "右边是 MCP 的分层架构，引入三个角色。",
-          "audio": "audio/mcp-model-context-protocol/p3-architecture-duo-s2.mp3"
+          "type": "table",
+          "header": [
+            "传统紧耦合集成",
+            "MCP 分层架构"
+          ],
+          "rows": [
+            [
+              "每个 AI 应用直接调用\n各类工具和数据源\n\n**重复造轮子**\n协议不统一\n安全策略分散",
+              "**Hosts** - LLM 应用\n\n**Clients** - 连接器\n\n**Servers** - 数据/能力服务\n\n基于 JSON-RPC 2.0\n类似 LSP 的统一接口"
+            ]
+          ],
+          "caption": "高维护成本 / 标准化解耦"
         },
         {
-          "text": "Hosts 是 LLM 应用本身，不直接连服务。",
-          "audio": "audio/mcp-model-context-protocol/p3-architecture-duo-s3.mp3"
-        },
-        {
-          "text": "Clients 是连接器，负责协议通信。",
-          "audio": "audio/mcp-model-context-protocol/p3-architecture-duo-s4.mp3"
-        },
-        {
-          "text": "Servers 是提供数据和能力的各种服务。",
-          "audio": "audio/mcp-model-context-protocol/p3-architecture-duo-s5.mp3"
-        },
-        {
-          "text": "它们之间通过 JSON-RPC 2.0 通信，就像语言服务器协议 LSP 那样，统一接口。",
-          "audio": "audio/mcp-model-context-protocol/p3-architecture-duo-s6.mp3"
+          "type": "quiz",
+          "id": "p3-architecture-duo-cp",
+          "question": "MCP 的三个核心角色分别是什么？它们如何协同工作？",
+          "hint": "回忆架构图中 Hosts、Clients 和 Servers 的分工。",
+          "pass_rule": "能说出 Hosts 是 LLM 应用、Clients 是连接器、Servers 是数据服务，并通过 JSON-RPC 通信即可。"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 0
-        },
-        {
-          "effect": "fade",
-          "target": "left",
-          "with_sentence": 1
-        },
-        {
-          "effect": "fade",
-          "target": "right",
-          "with_sentence": 2
-        },
-        {
-          "effect": "pop",
-          "target": "right-hosts",
-          "with_sentence": 3
-        },
-        {
-          "effect": "pop",
-          "target": "right-clients",
-          "with_sentence": 4
-        },
-        {
-          "effect": "pop",
-          "target": "right-servers",
-          "with_sentence": 5
-        },
-        {
-          "effect": "rise",
-          "target": "right-rpc",
-          "with_sentence": 6
-        }
-      ],
-      "checkpoint": {
-        "question": "MCP 的三个核心角色分别是什么？它们如何协同工作？",
-        "hint": "回忆架构图中 Hosts、Clients 和 Servers 的分工。",
-        "pass_rule": "能说出 Hosts 是 LLM 应用、Clients 是连接器、Servers 是数据服务，并通过 JSON-RPC 通信即可。"
-      }
+      "audio": null
     },
     {
       "id": "p4-four-capabilities",
-      "eyebrow": "核心能力",
-      "title": "MCP 四大核心能力",
-      "content": {
-        "kind": "formula",
-        "items": [
-          "Resources - 上下文数据（文件、数据库记录）",
-          "Prompts - 模板化消息（可复用的提示）",
-          "Tools - 可执行函数（API 调用、计算）",
-          "Elicitation - 服务器主动请求（需用户确认）"
-        ],
-        "conclusion": "统一 AI 与工具/数据的交互模式"
-      },
-      "script": [
+      "heading": "MCP 四大核心能力",
+      "blocks": [
         {
-          "text": "MCP 提供四大核心能力。",
-          "audio": "audio/mcp-model-context-protocol/p4-four-capabilities-s0.mp3"
+          "type": "p",
+          "text": "MCP 提供四大核心能力。第一是 Resources，提供上下文数据，比如文件内容、数据库记录。第二是 Prompts，模板化的消息，可以复用常见的提示模式。第三是 Tools，可执行的函数，让 AI 能调用 API、执行计算。"
         },
         {
-          "text": "第一是 Resources，提供上下文数据，比如文件内容、数据库记录。",
-          "audio": "audio/mcp-model-context-protocol/p4-four-capabilities-s1.mp3"
+          "type": "p",
+          "text": "第四是 Elicitation，服务器可以主动向用户发起请求，比如需要权限确认时。这四种能力，统一了 AI 与工具、数据的交互方式。"
         },
         {
-          "text": "第二是 Prompts，模板化的消息，可以复用常见的提示模式。",
-          "audio": "audio/mcp-model-context-protocol/p4-four-capabilities-s2.mp3"
+          "type": "p",
+          "text": "公式要素:`Resources - 上下文数据（文件、数据库记录） Prompts - 模板化消息（可复用的提示） Tools - 可执行函数（API 调用、计算） Elicitation - 服务器主动请求（需用户确认）`"
         },
         {
-          "text": "第三是 Tools，可执行的函数，让 AI 能调用 API、执行计算。",
-          "audio": "audio/mcp-model-context-protocol/p4-four-capabilities-s3.mp3"
+          "type": "callout",
+          "kind": "tip",
+          "text": "统一 AI 与工具/数据的交互模式"
         },
         {
-          "text": "第四是 Elicitation，服务器可以主动向用户发起请求，比如需要权限确认时。",
-          "audio": "audio/mcp-model-context-protocol/p4-four-capabilities-s4.mp3"
-        },
-        {
-          "text": "这四种能力，统一了 AI 与工具、数据的交互方式。",
-          "audio": "audio/mcp-model-context-protocol/p4-four-capabilities-s5.mp3"
+          "type": "quiz",
+          "id": "p4-four-capabilities-cp",
+          "question": "MCP 的四大核心能力分别是什么？",
+          "hint": "回忆以 R、P、T、E 开头的四个能力。",
+          "pass_rule": "能说出 Resources（数据）、Prompts（模板）、Tools（工具）、Elicitation（服务器主动请求）即可。"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 0
-        },
-        {
-          "effect": "pop",
-          "target": "item-0",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": "item-1",
-          "with_sentence": 2
-        },
-        {
-          "effect": "pop",
-          "target": "item-2",
-          "with_sentence": 3
-        },
-        {
-          "effect": "pop",
-          "target": "item-3",
-          "with_sentence": 4
-        },
-        {
-          "effect": "rise",
-          "target": "conclusion",
-          "with_sentence": 5
-        }
-      ],
-      "checkpoint": {
-        "question": "MCP 的四大核心能力分别是什么？",
-        "hint": "回忆以 R、P、T、E 开头的四个能力。",
-        "pass_rule": "能说出 Resources（数据）、Prompts（模板）、Tools（工具）、Elicitation（服务器主动请求）即可。"
-      }
+      "audio": null
     },
     {
       "id": "p5-version-timeline",
-      "eyebrow": "版本演进",
-      "title": "MCP 近一年版本动向",
-      "content": {
-        "kind": "table",
-        "headers": [
-          "版本",
-          "发布时间",
-          "主要变化"
-        ],
-        "rows": [
-          [
-            "2026-07-28",
-            "RC/正式版",
-            "HTTP 无状态化、Multi-Round-Trip 请求、Mcp-Method 头部"
+      "heading": "MCP 近一年版本动向",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "来看 MCP 近一年的版本演进。2026 年 7 月版本进入 RC 和正式阶段，重点是在 HTTP 上实现无状态化，支持 Multi-Round-Trip 请求，每请求携带版本和能力。2025 年 11 月稳定版，加入了 OpenID Connect 发现、增量授权同意、URL 模式的 Elicitation。2025 年 6 月版本，删除了 JSON-RPC 批处理，引入结构化工具输出和资源指标。"
+        },
+        {
+          "type": "p",
+          "text": "未来的规划重点是异步操作、SDK 分层体系和服务器身份标识。整体趋势是更无状态、更可扩展、更安全。"
+        },
+        {
+          "type": "table",
+          "header": [
+            "版本",
+            "发布时间",
+            "主要变化"
           ],
-          [
-            "2025-11-25",
-            "稳定版",
-            "OpenID Connect 发现、增量授权、URL 模式 Elicitation"
+          "rows": [
+            [
+              "2026-07-28",
+              "RC/正式版",
+              "HTTP 无状态化、Multi-Round-Trip 请求、Mcp-Method 头部"
+            ],
+            [
+              "2025-11-25",
+              "稳定版",
+              "OpenID Connect 发现、增量授权、URL 模式 Elicitation"
+            ],
+            [
+              "2025-06-18",
+              "重要更新",
+              "删除 JSON-RPC 批处理、结构化工具输出、资源指标 RFC 8707"
+            ],
+            [
+              "规划中",
+              "2025 版后",
+              "异步任务、SDK 分层体系、服务器身份标识"
+            ]
           ],
-          [
-            "2025-06-18",
-            "重要更新",
-            "删除 JSON-RPC 批处理、结构化工具输出、资源指标 RFC 8707"
-          ],
-          [
-            "规划中",
-            "2025 版后",
-            "异步任务、SDK 分层体系、服务器身份标识"
-          ]
-        ],
-        "note": "演进方向：无状态、可扩展、安全增强"
-      },
-      "script": [
-        {
-          "text": "来看 MCP 近一年的版本演进。",
-          "audio": "audio/mcp-model-context-protocol/p5-version-timeline-s0.mp3"
+          "caption": "演进方向：无状态、可扩展、安全增强"
         },
         {
-          "text": "2026 年 7 月版本进入 RC 和正式阶段，重点是在 HTTP 上实现无状态化，支持 Multi-Round-Trip 请求，每请求携带版本和能力。",
-          "audio": "audio/mcp-model-context-protocol/p5-version-timeline-s1.mp3"
-        },
-        {
-          "text": "2025 年 11 月稳定版，加入了 OpenID Connect 发现、增量授权同意、URL 模式的 Elicitation。",
-          "audio": "audio/mcp-model-context-protocol/p5-version-timeline-s2.mp3"
-        },
-        {
-          "text": "2025 年 6 月版本，删除了 JSON-RPC 批处理，引入结构化工具输出和资源指标。",
-          "audio": "audio/mcp-model-context-protocol/p5-version-timeline-s3.mp3"
-        },
-        {
-          "text": "未来的规划重点是异步操作、SDK 分层体系和服务器身份标识。",
-          "audio": "audio/mcp-model-context-protocol/p5-version-timeline-s4.mp3"
-        },
-        {
-          "text": "整体趋势是更无状态、更可扩展、更安全。",
-          "audio": "audio/mcp-model-context-protocol/p5-version-timeline-s5.mp3"
+          "type": "quiz",
+          "id": "p5-version-timeline-cp",
+          "question": "MCP 2026-07-28 版本的重要改进是什么？",
+          "hint": "关注 HTTP 无状态化和新的请求模式。",
+          "pass_rule": "能说出 HTTP 无状态化、取消会话握手、每请求携带版本和能力即可。"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 0
-        },
-        {
-          "effect": "pop",
-          "target": "row-0",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": "row-1",
-          "with_sentence": 2
-        },
-        {
-          "effect": "pop",
-          "target": "row-2",
-          "with_sentence": 3
-        },
-        {
-          "effect": "pop",
-          "target": "row-3",
-          "with_sentence": 4
-        },
-        {
-          "effect": "rise",
-          "target": "note",
-          "with_sentence": 5
-        }
-      ],
-      "checkpoint": {
-        "question": "MCP 2026-07-28 版本的重要改进是什么？",
-        "hint": "关注 HTTP 无状态化和新的请求模式。",
-        "pass_rule": "能说出 HTTP 无状态化、取消会话握手、每请求携带版本和能力即可。"
-      }
+      "audio": null
     },
     {
       "id": "p6-production-benefits",
-      "eyebrow": "生产实践",
-      "title": "MCP 带来的生产收益",
-      "content": {
-        "kind": "code",
-        "language": "text",
-        "lines": [
-          {
-            "code": "Token 使用量削减 98.7%",
-            "comment": "Square/Anthropic 实践：150K → 2K",
-            "highlight": null
-          },
-          {
-            "code": "AI 运营成本降低 ~70%",
-            "comment": "企业部署常见收益",
-            "highlight": null
-          },
-          {
-            "code": "开发时间节省 50-75%",
-            "comment": "统一接口减少重复工作",
-            "highlight": null
-          },
-          {
-            "code": "Agent 部署速度提升 40-60%",
-            "comment": "标准化加速集成",
-            "highlight": null
-          },
-          {
-            "code": "连接器维护开销降低 60-80%",
-            "comment": "从 N×M 降至 N+M",
-            "highlight": null
-          }
-        ],
-        "note": "关键：代码执行模式 → 按需加载工具 → 在执行环境过滤数据"
-      },
-      "script": [
+      "heading": "MCP 带来的生产收益",
+      "blocks": [
         {
-          "text": "MCP 在生产实践中带来了显著的收益。",
-          "audio": "audio/mcp-model-context-protocol/p6-production-benefits-s0.mp3"
+          "type": "p",
+          "text": "MCP 在生产实践中带来了显著的收益。Square 和 Anthropic 的实践表明，Token 使用量可以削减 98.7%，从 150K 降到 2K。AI 运营成本能降低约 70%。开发时间节省 50 到 75%，因为统一接口减少了重复工作。"
         },
         {
-          "text": "Square 和 Anthropic 的实践表明，Token 使用量可以削减 98.7%，从 150K 降到 2K。",
-          "audio": "audio/mcp-model-context-protocol/p6-production-benefits-s1.mp3"
+          "type": "p",
+          "text": "Agent 部署速度提升 40 到 60%。连接器维护开销降低 60 到 80%。关键秘诀是什么？是代码执行模式，按需加载工具，在执行环境过滤和变换数据，再回传给模型。"
         },
         {
-          "text": "AI 运营成本能降低约 70%。",
-          "audio": "audio/mcp-model-context-protocol/p6-production-benefits-s2.mp3"
+          "type": "code",
+          "language": "text",
+          "code": "Token 使用量削减 98.7%  # Square/Anthropic 实践：150K → 2K\nAI 运营成本降低 ~70%  # 企业部署常见收益\n开发时间节省 50-75%  # 统一接口减少重复工作\nAgent 部署速度提升 40-60%  # 标准化加速集成\n连接器维护开销降低 60-80%  # 从 N×M 降至 N+M",
+          "caption": "关键：代码执行模式 → 按需加载工具 → 在执行环境过滤数据"
         },
         {
-          "text": "开发时间节省 50 到 75%，因为统一接口减少了重复工作。",
-          "audio": "audio/mcp-model-context-protocol/p6-production-benefits-s3.mp3"
-        },
-        {
-          "text": "Agent 部署速度提升 40 到 60%。",
-          "audio": "audio/mcp-model-context-protocol/p6-production-benefits-s4.mp3"
-        },
-        {
-          "text": "连接器维护开销降低 60 到 80%。",
-          "audio": "audio/mcp-model-context-protocol/p6-production-benefits-s5.mp3"
-        },
-        {
-          "text": "关键秘诀是什么？是代码执行模式，按需加载工具，在执行环境过滤和变换数据，再回传给模型。",
-          "audio": "audio/mcp-model-context-protocol/p6-production-benefits-s6.mp3"
+          "type": "quiz",
+          "id": "p6-production-benefits-cp",
+          "question": "MCP 如何实现 Token 使用量削减 98.7%？",
+          "hint": "回忆代码执行模式和按需加载的思路。",
+          "pass_rule": "能说出通过代码执行、按需加载工具、在执行环境过滤数据再回传模型即可。"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 0
-        },
-        {
-          "effect": "pop",
-          "target": "line-0",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": "line-1",
-          "with_sentence": 2
-        },
-        {
-          "effect": "pop",
-          "target": "line-2",
-          "with_sentence": 3
-        },
-        {
-          "effect": "pop",
-          "target": "line-3",
-          "with_sentence": 4
-        },
-        {
-          "effect": "pop",
-          "target": "line-4",
-          "with_sentence": 5
-        },
-        {
-          "effect": "rise",
-          "target": "note",
-          "with_sentence": 6
-        }
-      ],
-      "checkpoint": {
-        "question": "MCP 如何实现 Token 使用量削减 98.7%？",
-        "hint": "回忆代码执行模式和按需加载的思路。",
-        "pass_rule": "能说出通过代码执行、按需加载工具、在执行环境过滤数据再回传模型即可。"
-      }
+      "audio": null
     },
     {
       "id": "p7-security-practices",
-      "eyebrow": "安全与风险",
-      "title": "MCP 安全风险与缓解措施",
-      "content": {
-        "kind": "table",
-        "headers": [
-          "风险类型",
-          "实际案例",
-          "缓解措施"
-        ],
-        "rows": [
-          [
-            "命令注入",
-            "CVE-2025-53967 - figma-developer-mcp get_figma_data 未清理输入",
-            "输入验证与清理、使用安全 API 替代 exec"
+      "heading": "MCP 安全风险与缓解措施",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "MCP 也带来新的安全风险，需要特别注意。第一种是命令注入，CVE-2025-53967 就是典型，figma-developer-mcp 在 get_figma_data 工具中未清理输入，导致远程代码执行。缓解方式是严格验证输入，使用安全的 API 替代 exec。第二种是过度授权，Supabase MCP 使用 service_role 权限，导致攻击者通过提示注入泄露敏感表。"
+        },
+        {
+          "type": "p",
+          "text": "必须遵循最小权限原则，避免使用高权限账户，配置只读服务器。第三种是提示注入，攻击者在用户输入中注入恶意指令。需要输入过滤、输出沙箱和完善的审计日志。研究显示 43% 的 MCP 服务器存在命令注入风险，生产部署必须谨慎。"
+        },
+        {
+          "type": "table",
+          "header": [
+            "风险类型",
+            "实际案例",
+            "缓解措施"
           ],
-          [
-            "过度授权",
-            "Supabase MCP 使用 service_role 泄露 integration_tokens",
-            "最小权限原则、避免 service_role、只读服务器"
+          "rows": [
+            [
+              "命令注入",
+              "CVE-2025-53967 - figma-developer-mcp get_figma_data 未清理输入",
+              "输入验证与清理、使用安全 API 替代 exec"
+            ],
+            [
+              "过度授权",
+              "Supabase MCP 使用 service_role 泄露 integration_tokens",
+              "最小权限原则、避免 service_role、只读服务器"
+            ],
+            [
+              "提示注入",
+              "工单文本注入指令使 agent 泄露数据",
+              "输入过滤、输出沙箱、审计日志"
+            ],
+            [
+              "认证缺失",
+              "协议不内置认证，生产需额外措施",
+              "OAuth 2.1、MCP 网关、集中审计、持续监控"
+            ]
           ],
-          [
-            "提示注入",
-            "工单文本注入指令使 agent 泄露数据",
-            "输入过滤、输出沙箱、审计日志"
-          ],
-          [
-            "认证缺失",
-            "协议不内置认证，生产需额外措施",
-            "OAuth 2.1、MCP 网关、集中审计、持续监控"
-          ]
-        ],
-        "note": "43% 的 MCP 服务器存在命令注入风险（Synvestable 研究）"
-      },
-      "script": [
-        {
-          "text": "MCP 也带来新的安全风险，需要特别注意。",
-          "audio": "audio/mcp-model-context-protocol/p7-security-practices-s0.mp3"
+          "caption": "43% 的 MCP 服务器存在命令注入风险（Synvestable 研究）"
         },
         {
-          "text": "第一种是命令注入，CVE-2025-53967 就是典型，figma-developer-mcp 在 get_figma_data 工具中未清理输入，导致远程代码执行。",
-          "audio": "audio/mcp-model-context-protocol/p7-security-practices-s1.mp3"
-        },
-        {
-          "text": "缓解方式是严格验证输入，使用安全的 API 替代 exec。",
-          "audio": "audio/mcp-model-context-protocol/p7-security-practices-s2.mp3"
-        },
-        {
-          "text": "第二种是过度授权，Supabase MCP 使用 service_role 权限，导致攻击者通过提示注入泄露敏感表。",
-          "audio": "audio/mcp-model-context-protocol/p7-security-practices-s3.mp3"
-        },
-        {
-          "text": "必须遵循最小权限原则，避免使用高权限账户，配置只读服务器。",
-          "audio": "audio/mcp-model-context-protocol/p7-security-practices-s4.mp3"
-        },
-        {
-          "text": "第三种是提示注入，攻击者在用户输入中注入恶意指令。",
-          "audio": "audio/mcp-model-context-protocol/p7-security-practices-s5.mp3"
-        },
-        {
-          "text": "需要输入过滤、输出沙箱和完善的审计日志。",
-          "audio": "audio/mcp-model-context-protocol/p7-security-practices-s6.mp3"
-        },
-        {
-          "text": "研究显示 43% 的 MCP 服务器存在命令注入风险，生产部署必须谨慎。",
-          "audio": "audio/mcp-model-context-protocol/p7-security-practices-s7.mp3"
+          "type": "quiz",
+          "id": "p7-security-practices-cp",
+          "question": "MCP 生产环境面临的三大安全风险是什么？如何缓解？",
+          "hint": "回顾命令注入、过度授权和提示注入的案例。",
+          "pass_rule": "能说出三大风险并对应至少一项缓解措施即可。"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 0
-        },
-        {
-          "effect": "pop",
-          "target": "row-0",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": "row-1",
-          "with_sentence": 2
-        },
-        {
-          "effect": "pop",
-          "target": "row-2",
-          "with_sentence": 3
-        },
-        {
-          "effect": "pop",
-          "target": "row-3",
-          "with_sentence": 4
-        },
-        {
-          "effect": "pop",
-          "target": "row-4",
-          "with_sentence": 5
-        },
-        {
-          "effect": "pop",
-          "target": "row-5",
-          "with_sentence": 6
-        },
-        {
-          "effect": "rise",
-          "target": "note",
-          "with_sentence": 7
-        }
-      ],
-      "checkpoint": {
-        "question": "MCP 生产环境面临的三大安全风险是什么？如何缓解？",
-        "hint": "回顾命令注入、过度授权和提示注入的案例。",
-        "pass_rule": "能说出三大风险并对应至少一项缓解措施即可。"
-      }
+      "audio": null
     },
     {
       "id": "p8-quiz",
-      "eyebrow": "课程自测",
-      "title": "MCP 核心知识点检查",
-      "content": {
-        "kind": "quiz",
-        "questions": [
-          "1. MCP 将 N×M 集成点降至 N+M，这是通过什么架构实现的？",
-          "2. MCP 的四大核心能力是哪些？（提示：R、P、T、E）",
-          "3. 2026-07-28 版本在 HTTP 上做了什么重要改进？",
-          "4. Square/Anthropic 如何实现 Token 使用量削减 98.7%？",
-          "5. CVE-2025-53967 漏洞属于哪种安全风险？如何避免？"
-        ]
-      },
-      "script": [
+      "heading": "MCP 核心知识点检查",
+      "blocks": [
         {
-          "text": "来做个小测验，巩固今天学的核心内容。",
-          "audio": "audio/mcp-model-context-protocol/p8-quiz-s0.mp3"
+          "type": "p",
+          "text": "来做个小测验，巩固今天学的核心内容。第一题，MCP 将 N×M 集成点降至 N+M，这是通过什么架构实现的？第二题，MCP 的四大核心能力是哪些？提示是 R、P、T、E 开头。第三题，2026-07-28 版本在 HTTP 上做了什么重要改进？"
         },
         {
-          "text": "第一题，MCP 将 N×M 集成点降至 N+M，这是通过什么架构实现的？",
-          "audio": "audio/mcp-model-context-protocol/p8-quiz-s1.mp3"
+          "type": "p",
+          "text": "第四题，Square 和 Anthropic 如何实现 Token 使用量削减 98.7%？第五题，CVE-2025-53967 漏洞属于哪种安全风险？如何避免？这些问题都对应了前面讲过的关键点，好好回忆一下。"
         },
         {
-          "text": "第二题，MCP 的四大核心能力是哪些？提示是 R、P、T、E 开头。",
-          "audio": "audio/mcp-model-context-protocol/p8-quiz-s2.mp3"
+          "type": "quiz",
+          "id": "p8-quiz-q1",
+          "question": "1. MCP 将 N×M 集成点降至 N+M，这是通过什么架构实现的？"
         },
         {
-          "text": "第三题，2026-07-28 版本在 HTTP 上做了什么重要改进？",
-          "audio": "audio/mcp-model-context-protocol/p8-quiz-s3.mp3"
+          "type": "quiz",
+          "id": "p8-quiz-q2",
+          "question": "2. MCP 的四大核心能力是哪些？（提示：R、P、T、E）"
         },
         {
-          "text": "第四题，Square 和 Anthropic 如何实现 Token 使用量削减 98.7%？",
-          "audio": "audio/mcp-model-context-protocol/p8-quiz-s4.mp3"
+          "type": "quiz",
+          "id": "p8-quiz-q3",
+          "question": "3. 2026-07-28 版本在 HTTP 上做了什么重要改进？"
         },
         {
-          "text": "第五题，CVE-2025-53967 漏洞属于哪种安全风险？如何避免？",
-          "audio": "audio/mcp-model-context-protocol/p8-quiz-s5.mp3"
+          "type": "quiz",
+          "id": "p8-quiz-q4",
+          "question": "4. Square/Anthropic 如何实现 Token 使用量削减 98.7%？"
         },
         {
-          "text": "这些问题都对应了前面讲过的关键点，好好回忆一下。",
-          "audio": "audio/mcp-model-context-protocol/p8-quiz-s6.mp3"
+          "type": "quiz",
+          "id": "p8-quiz-q5",
+          "question": "5. CVE-2025-53967 漏洞属于哪种安全风险？如何避免？"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 0
-        },
-        {
-          "effect": "pop",
-          "target": "q-0",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": "q-1",
-          "with_sentence": 2
-        },
-        {
-          "effect": "pop",
-          "target": "q-2",
-          "with_sentence": 3
-        },
-        {
-          "effect": "pop",
-          "target": "q-3",
-          "with_sentence": 4
-        },
-        {
-          "effect": "pop",
-          "target": "q-4",
-          "with_sentence": 5
-        },
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 6
-        }
-      ],
-      "checkpoint": null
+      "audio": null
     }
   ]
 }

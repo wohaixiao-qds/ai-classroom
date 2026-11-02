@@ -2,6 +2,7 @@
   "id": "harness-engineering-practice",
   "title": "harness 最新工程实践",
   "scenario": "自学",
+  "version": 2,
   "meta": {
     "source_notes": [
       "data/research/Agent-harness-工程.harness-最新工程实践-OpenAI-Codex-CLI-开源实现-Dee.material.json"
@@ -110,7 +111,6 @@
     ],
     "topic": "Agent harness 工程",
     "duration_min": null,
-    "version": 1,
     "depends_on": [
       {
         "id": "tool-granularity",
@@ -118,907 +118,421 @@
       }
     ]
   },
-  "pages": [
+  "sections": [
     {
       "id": "cover",
-      "eyebrow": "Agent Harness 工程",
-      "title": "Harness 工程实践三家谈",
-      "content": {
-        "kind": "cover",
-        "equation": "Harness = 环境·会话·安全·可恢复",
-        "meta": [
-          [
-            "讲师",
-            "AI 老师"
+      "heading": "Harness 工程实践三家谈",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "上节课我们知道了,harness 就是让智能体稳定跑起来的那层安全跑道。今天讲三家大厂的最新实践。OpenAI 把 Codex 完全开源了,DeepSeek 搞了个一切皆插件的 Cordis 内核,Anthropic 则从简单模式演进到托管智能体。核心公式你记一下,harness 等于环境加会话,加安全,加可恢复。这四个字,后面我会逐个拆开,给你看它们是怎么在真实项目里落地的。"
+        },
+        {
+          "type": "callout",
+          "kind": "note",
+          "text": "核心式:Harness = 环境·会话·安全·可恢复"
+        },
+        {
+          "type": "table",
+          "header": [
+            "项目",
+            "内容"
           ],
-          [
-            "来源",
-            "OpenAI/DeepSeek/Anthropic 官方"
-          ],
-          [
-            "时长",
-            "约12分钟"
+          "rows": [
+            [
+              "讲师",
+              "AI 老师"
+            ],
+            [
+              "来源",
+              "OpenAI/DeepSeek/Anthropic 官方"
+            ],
+            [
+              "时长",
+              "约12分钟"
+            ]
           ]
-        ]
-      },
-      "script": [
-        {
-          "text": "上节课我们知道了,harness 就是让智能体稳定跑起来的那层安全跑道。",
-          "audio": "audio/harness-engineering-practice/cover-s0.mp3"
-        },
-        {
-          "text": "今天讲三家大厂的最新实践。OpenAI 把 Codex 完全开源了,DeepSeek 搞了个一切皆插件的 Cordis 内核,Anthropic 则从简单模式演进到托管智能体。",
-          "audio": "audio/harness-engineering-practice/cover-s1.mp3"
-        },
-        {
-          "text": "核心公式你记一下,harness 等于环境加会话,加安全,加可恢复。",
-          "audio": "audio/harness-engineering-practice/cover-s2.mp3"
-        },
-        {
-          "text": "这四个字,后面我会逐个拆开,给你看它们是怎么在真实项目里落地的。",
-          "audio": "audio/harness-engineering-practice/cover-s3.mp3"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 0
-        },
-        {
-          "effect": "pop",
-          "target": null,
-          "with_sentence": 1
-        },
-        {
-          "effect": "rise",
-          "target": null,
-          "with_sentence": 2
-        },
-        {
-          "effect": "rise",
-          "target": null,
-          "with_sentence": 3
-        }
-      ],
-      "checkpoint": null
+      "audio": null
     },
     {
       "id": "p2-overview-table",
-      "eyebrow": "全景概览",
-      "title": "三大 Harness 实现",
-      "content": {
-        "kind": "table",
-        "headers": [
-          "实现",
-          "开源许可",
-          "核心特性",
-          "适用场景"
-        ],
-        "rows": [
-          [
-            "OpenAI Codex CLI",
-            "Apache-2.0",
-            "三档安全审批·JSON-RPC 协议",
-            "本地 IDE 集成/CI 流水线"
+      "heading": "三大 Harness 实现",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "先看总览表。OpenAI Codex CLI 完全开源,Apache-2.0,主打三档安全审批和自定义协议。DeepSeek 的 dsh 是 MIT 许可,它的 Cordis 内核把所有东西都做成插件,能热插拔,还能完整回放每一步。Anthropic 走托管服务路线,把会话、沙箱、大脑全解耦,重点在生产级安全隔离。共同点是,三家都把安全隔离和会话追溯当成核心问题。"
+        },
+        {
+          "type": "table",
+          "header": [
+            "实现",
+            "开源许可",
+            "核心特性",
+            "适用场景"
           ],
-          [
-            "DeepSeek Harness",
-            "MIT",
-            "Cordis 一切皆插件·可追溯日志",
-            "多模式运行/插件实验"
+          "rows": [
+            [
+              "OpenAI Codex CLI",
+              "Apache-2.0",
+              "三档安全审批·JSON-RPC 协议",
+              "本地 IDE 集成/CI 流水线"
+            ],
+            [
+              "DeepSeek Harness",
+              "MIT",
+              "Cordis 一切皆插件·可追溯日志",
+              "多模式运行/插件实验"
+            ],
+            [
+              "Anthropic Managed Agents",
+              "托管服务",
+              "解耦会话·环境隔离·三层防护",
+              "长周期任务/企业生产"
+            ]
           ],
-          [
-            "Anthropic Managed Agents",
-            "托管服务",
-            "解耦会话·环境隔离·三层防护",
-            "长周期任务/企业生产"
-          ]
-        ],
-        "note": "三家都重视安全隔离与会话可追溯"
-      },
-      "script": [
-        {
-          "text": "先看总览表。OpenAI Codex CLI 完全开源,Apache-2.0,主打三档安全审批和自定义协议。",
-          "audio": "audio/harness-engineering-practice/p2-overview-table-s0.mp3"
+          "caption": "三家都重视安全隔离与会话可追溯"
         },
         {
-          "text": "DeepSeek 的 dsh 是 MIT 许可,它的 Cordis 内核把所有东西都做成插件,能热插拔,还能完整回放每一步。",
-          "audio": "audio/harness-engineering-practice/p2-overview-table-s1.mp3"
-        },
-        {
-          "text": "Anthropic 走托管服务路线,把会话、沙箱、大脑全解耦,重点在生产级安全隔离。",
-          "audio": "audio/harness-engineering-practice/p2-overview-table-s2.mp3"
-        },
-        {
-          "text": "共同点是,三家都把安全隔离和会话追溯当成核心问题。",
-          "audio": "audio/harness-engineering-practice/p2-overview-table-s3.mp3"
+          "type": "quiz",
+          "id": "p2-overview-table-cp",
+          "question": "三家 Harness 实现各自的开源许可和核心特性是什么?",
+          "hint": "看表格的许可和核心特性两列",
+          "pass_rule": "能说出至少两家的许可类型和一项核心特性"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": "row-0",
-          "with_sentence": 0
-        },
-        {
-          "effect": "fade",
-          "target": "row-1",
-          "with_sentence": 1
-        },
-        {
-          "effect": "fade",
-          "target": "row-2",
-          "with_sentence": 2
-        },
-        {
-          "effect": "rise",
-          "target": "note",
-          "with_sentence": 3
-        }
-      ],
-      "checkpoint": {
-        "question": "三家 Harness 实现各自的开源许可和核心特性是什么?",
-        "hint": "看表格的许可和核心特性两列",
-        "pass_rule": "能说出至少两家的许可类型和一项核心特性"
-      }
+      "audio": null
     },
     {
       "id": "p3-codex-duo",
-      "eyebrow": "OpenAI 开源实践",
-      "title": "Codex 三大组件",
-      "content": {
-        "kind": "duo",
-        "left": {
-          "title": "codex exec",
-          "tag": "非交互式执行",
-          "body": "脚本化/CI 风格运行\n支持 --json 输出用于自动化\n无状态请求处理\nZero Data Retention 合规"
-        },
-        "right": {
-          "title": "Codex SDK + app-server",
-          "tag": "核心执行服务",
-          "body": "JSON-RPC 2.0 协议通信\n三大原语:Item·Turn·Thread\n服务器可发起审批请求\n拒绝 MCP,自定义协议"
-        }
-      },
-      "script": [
+      "heading": "Codex 三大组件",
+      "blocks": [
         {
-          "text": "拆开 Codex 看架构。左边是 exec 模式,专门给脚本和 CI 流水线用的,不需要人交互,输出 JSON,适合自动化。",
-          "audio": "audio/harness-engineering-practice/p3-codex-duo-s0.mp3"
+          "type": "p",
+          "text": "拆开 Codex 看架构。左边是 exec 模式,专门给脚本和 CI 流水线用的,不需要人交互,输出 JSON,适合自动化。它无状态处理请求,符合零数据保留合规,令牌压缩性能是线性而非二次方。右边是 SDK 加 app-server,这是核心执行服务。它们用 JSON-RPC 2.0 通信,但省了标准字段。协议里定义了三个原语,Item 是带生命周期的最小单位,Turn 是一次 Agent 工作单元,Thread 是持久化会话容器。"
         },
         {
-          "text": "它无状态处理请求,符合零数据保留合规,令牌压缩性能是线性而非二次方。",
-          "audio": "audio/harness-engineering-practice/p3-codex-duo-s1.mp3"
+          "type": "p",
+          "text": "关键是服务器能主动发起请求,比如 Agent 执行命令前要审批,服务器发请求给客户端,暂停 Turn,等你回允许或拒绝。OpenAI 尝试过 MCP 但拒绝了,因为 MCP 的工具模型映射不了 IDE 那种丰富会话,所以自己搞了一套。"
         },
         {
-          "text": "右边是 SDK 加 app-server,这是核心执行服务。它们用 JSON-RPC 2.0 通信,但省了标准字段。",
-          "audio": "audio/harness-engineering-practice/p3-codex-duo-s2.mp3"
+          "type": "table",
+          "header": [
+            "codex exec",
+            "Codex SDK + app-server"
+          ],
+          "rows": [
+            [
+              "脚本化/CI 风格运行\n支持 --json 输出用于自动化\n无状态请求处理\nZero Data Retention 合规",
+              "JSON-RPC 2.0 协议通信\n三大原语:Item·Turn·Thread\n服务器可发起审批请求\n拒绝 MCP,自定义协议"
+            ]
+          ],
+          "caption": "非交互式执行 / 核心执行服务"
         },
         {
-          "text": "协议里定义了三个原语,Item 是带生命周期的最小单位,Turn 是一次 Agent 工作单元,Thread 是持久化会话容器。",
-          "audio": "audio/harness-engineering-practice/p3-codex-duo-s3.mp3"
-        },
-        {
-          "text": "关键是服务器能主动发起请求,比如 Agent 执行命令前要审批,服务器发请求给客户端,暂停 Turn,等你回允许或拒绝。",
-          "audio": "audio/harness-engineering-practice/p3-codex-duo-s4.mp3"
-        },
-        {
-          "text": "OpenAI 尝试过 MCP 但拒绝了,因为 MCP 的工具模型映射不了 IDE 那种丰富会话,所以自己搞了一套。",
-          "audio": "audio/harness-engineering-practice/p3-codex-duo-s5.mp3"
+          "type": "quiz",
+          "id": "p3-codex-duo-cp",
+          "question": "Codex exec 模式和 app-server 各自解决什么问题?",
+          "hint": "exec 面向自动化,app-server 面向交互式会话",
+          "pass_rule": "能说出 exec 的 CI/自动化用途和 app-server 的会话原语/审批机制"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": "left",
-          "with_sentence": 0
-        },
-        {
-          "effect": "pop",
-          "target": "left-body-2",
-          "with_sentence": 1
-        },
-        {
-          "effect": "fade",
-          "target": "right",
-          "with_sentence": 2
-        },
-        {
-          "effect": "pop",
-          "target": "right-body-1",
-          "with_sentence": 3
-        },
-        {
-          "effect": "rise",
-          "target": "right-body-2",
-          "with_sentence": 4
-        },
-        {
-          "effect": "rise",
-          "target": "right-body-3",
-          "with_sentence": 5
-        }
-      ],
-      "checkpoint": {
-        "question": "Codex exec 模式和 app-server 各自解决什么问题?",
-        "hint": "exec 面向自动化,app-server 面向交互式会话",
-        "pass_rule": "能说出 exec 的 CI/自动化用途和 app-server 的会话原语/审批机制"
-      }
+      "audio": null
     },
     {
       "id": "p4-cordis-formula",
-      "eyebrow": "DeepSeek Harness",
-      "title": "Cordis 一切皆插件",
-      "content": {
-        "kind": "formula",
-        "items": [
-          "模型(插件)",
-          "工具(插件)",
-          "技能(插件)",
-          "会话(插件)",
-          "沙箱(插件)",
-          "存储(插件)",
-          "循环(插件)",
-          "调度(插件)",
-          "UI(插件)",
-          "Cordis 内核(热插挂/依赖管理)"
-        ],
-        "conclusion": "所有组件可热插拔,每次运行可追溯回放"
-      },
-      "script": [
+      "heading": "Cordis 一切皆插件",
+      "blocks": [
         {
-          "text": "DeepSeek 的设计哲学很极端,一切皆插件。",
-          "audio": "audio/harness-engineering-practice/p4-cordis-formula-s0.mp3"
+          "type": "p",
+          "text": "DeepSeek 的设计哲学很极端,一切皆插件。模型是插件,工具是插件,连技能、会话、沙箱、存储、循环、调度,甚至 UI 都是插件。Cordis 内核只负责一件事,挂载和卸载这些插件,管理它们的依赖关系。你换模型、换工具、换沙箱,都不用改主程序,换个插件就行。"
         },
         {
-          "text": "模型是插件,工具是插件,连技能、会话、沙箱、存储、循环、调度,甚至 UI 都是插件。",
-          "audio": "audio/harness-engineering-practice/p4-cordis-formula-s1.mp3"
+          "type": "p",
+          "text": "更重要的是,每次运行的所有操作,系统提示、推理、工具调用结果,全写进只追加日志,支持 Resume、Fork、搜索和回放。"
         },
         {
-          "text": "Cordis 内核只负责一件事,挂载和卸载这些插件,管理它们的依赖关系。",
-          "audio": "audio/harness-engineering-practice/p4-cordis-formula-s2.mp3"
+          "type": "p",
+          "text": "公式要素:`模型(插件) 工具(插件) 技能(插件) 会话(插件) 沙箱(插件) 存储(插件) 循环(插件) 调度(插件) UI(插件) Cordis 内核(热插挂/依赖管理)`"
         },
         {
-          "text": "你换模型、换工具、换沙箱,都不用改主程序,换个插件就行。",
-          "audio": "audio/harness-engineering-practice/p4-cordis-formula-s3.mp3"
+          "type": "callout",
+          "kind": "tip",
+          "text": "所有组件可热插拔,每次运行可追溯回放"
         },
         {
-          "text": "更重要的是,每次运行的所有操作,系统提示、推理、工具调用结果,全写进只追加日志,支持 Resume、Fork、搜索和回放。",
-          "audio": "audio/harness-engineering-practice/p4-cordis-formula-s4.mp3"
+          "type": "quiz",
+          "id": "p4-cordis-formula-cp",
+          "question": "Cordis 内核的作用是什么?“一切皆插件”带来什么好处?",
+          "hint": "内核负责挂载卸载和依赖管理",
+          "pass_rule": "能说出内核的热插挂功能和运行可追溯回放特性"
         }
       ],
-      "fragments": [
-        {
-          "effect": "pop",
-          "target": "item-0",
-          "with_sentence": 0
-        },
-        {
-          "effect": "pop",
-          "target": "item-1",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": "item-2",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": "item-3",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": "item-4",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": "item-5",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": "item-6",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": "item-7",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": "item-8",
-          "with_sentence": 1
-        },
-        {
-          "effect": "rise",
-          "target": "item-9",
-          "with_sentence": 2
-        },
-        {
-          "effect": "rise",
-          "target": "conclusion",
-          "with_sentence": 4
-        }
-      ],
-      "checkpoint": {
-        "question": "Cordis 内核的作用是什么?“一切皆插件”带来什么好处?",
-        "hint": "内核负责挂载卸载和依赖管理",
-        "pass_rule": "能说出内核的热插挂功能和运行可追溯回放特性"
-      }
+      "audio": null
     },
     {
       "id": "p5-anthropic-code",
-      "eyebrow": "从简单模式到托管智能体",
-      "title": "Anthropic Harness 演进",
-      "content": {
-        "kind": "code",
-        "language": "text",
-        "lines": [
-          {
-            "code": "// 2024-12: 建议从简单模式开始",
-            "comment": "避免复杂框架",
-            "highlight": null
-          },
-          {
-            "code": "→ 提示链·路由·并行化",
-            "comment": "优先用可组合模式",
-            "highlight": null
-          },
-          {
-            "code": "// 2025-09: 工具是智能体契约",
-            "comment": "原型-评估-协同优化",
-            "highlight": null
-          },
-          {
-            "code": "→ 命名边界·高效返回·描述工程",
-            "comment": "工具设计原则",
-            "highlight": null
-          },
-          {
-            "code": "// 2025-10: Agent Skills 渐进披露",
-            "comment": "SKILL.md + 可执行代码",
-            "highlight": null
-          },
-          {
-            "code": "→ YAML 元数据 → 正文 → 按需引用",
-            "comment": "动态加载领域能力",
-            "highlight": null
-          },
-          {
-            "code": "// 2025-11: 两层解法跨上下文",
-            "comment": "长周期任务架构",
-            "highlight": null
-          },
-          {
-            "code": "→ Initializer 环境搭建 + Coding 增量进展",
-            "comment": "每次会话留制品",
-            "highlight": null
-          },
-          {
-            "code": "// 2026-04: Managed Agents 解耦",
-            "comment": "托管服务三层分离",
-            "highlight": null
-          },
-          {
-            "code": "→ 会话/大脑/沙箱 独立容错",
-            "comment": "会话日志即上下文对象",
-            "highlight": null
-          }
-        ],
-        "note": "从简单到复杂,逐步抽象"
-      },
-      "script": [
+      "heading": "Anthropic Harness 演进",
+      "blocks": [
         {
-          "text": "Anthropic 的演进路径很清晰。24年12月还建议,尽量别用复杂框架,从提示链、路由、并行化这些简单模式开始。",
-          "audio": "audio/harness-engineering-practice/p5-anthropic-code-s0.mp3"
+          "type": "p",
+          "text": "Anthropic 的演进路径很清晰。24年12月还建议,尽量别用复杂框架,从提示链、路由、并行化这些简单模式开始。25年9月强调,工具是智能体的契约,要原型、评估、跟 Claude 协同优化,命名边界要清晰,返回要高效。10月引入 Agent Skills,就是带 YAML 元数据的目录,渐进披露,先给元数据,再给正文,按需加载文件,还能绑定可执行代码。11月解决长周期任务,提出两层解法。Initializer Agent 先搭环境,列功能清单,建进度追踪。Coding Agent 每个会话做增量,每次留 git 提交和进度文件。"
         },
         {
-          "text": "25年9月强调,工具是智能体的契约,要原型、评估、跟 Claude 协同优化,命名边界要清晰,返回要高效。",
-          "audio": "audio/harness-engineering-practice/p5-anthropic-code-s1.mp3"
+          "type": "p",
+          "text": "到26年4月,Managed Agents 把会话、大脑、沙箱完全解耦,会话日志变成独立上下文对象,跟模型窗口脱钩,实现独立容错。"
         },
         {
-          "text": "10月引入 Agent Skills,就是带 YAML 元数据的目录,渐进披露,先给元数据,再给正文,按需加载文件,还能绑定可执行代码。",
-          "audio": "audio/harness-engineering-practice/p5-anthropic-code-s2.mp3"
+          "type": "code",
+          "language": "text",
+          "code": "// 2024-12: 建议从简单模式开始  # 避免复杂框架\n→ 提示链·路由·并行化  # 优先用可组合模式\n// 2025-09: 工具是智能体契约  # 原型-评估-协同优化\n→ 命名边界·高效返回·描述工程  # 工具设计原则\n// 2025-10: Agent Skills 渐进披露  # SKILL.md + 可执行代码\n→ YAML 元数据 → 正文 → 按需引用  # 动态加载领域能力\n// 2025-11: 两层解法跨上下文  # 长周期任务架构\n→ Initializer 环境搭建 + Coding 增量进展  # 每次会话留制品\n// 2026-04: Managed Agents 解耦  # 托管服务三层分离\n→ 会话/大脑/沙箱 独立容错  # 会话日志即上下文对象",
+          "caption": "从简单到复杂,逐步抽象"
         },
         {
-          "text": "11月解决长周期任务,提出两层解法。Initializer Agent 先搭环境,列功能清单,建进度追踪。Coding Agent 每个会话做增量,每次留 git 提交和进度文件。",
-          "audio": "audio/harness-engineering-practice/p5-anthropic-code-s3.mp3"
-        },
-        {
-          "text": "到26年4月,Managed Agents 把会话、大脑、沙箱完全解耦,会话日志变成独立上下文对象,跟模型窗口脱钩,实现独立容错。",
-          "audio": "audio/harness-engineering-practice/p5-anthropic-code-s4.mp3"
+          "type": "quiz",
+          "id": "p5-anthropic-code-cp",
+          "question": "Anthropic 对长周期任务提出的两层解法是什么?",
+          "hint": "Initializer 和 Coding 的分工",
+          "pass_rule": "能说出 Initializer 负责环境搭建和 Coding 负责增量进展并留制品"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": "line-0",
-          "with_sentence": 0
-        },
-        {
-          "effect": "fade",
-          "target": "line-1",
-          "with_sentence": 0
-        },
-        {
-          "effect": "fade",
-          "target": "line-2",
-          "with_sentence": 1
-        },
-        {
-          "effect": "fade",
-          "target": "line-3",
-          "with_sentence": 1
-        },
-        {
-          "effect": "fade",
-          "target": "line-4",
-          "with_sentence": 2
-        },
-        {
-          "effect": "fade",
-          "target": "line-5",
-          "with_sentence": 2
-        },
-        {
-          "effect": "fade",
-          "target": "line-6",
-          "with_sentence": 3
-        },
-        {
-          "effect": "fade",
-          "target": "line-7",
-          "with_sentence": 3
-        },
-        {
-          "effect": "fade",
-          "target": "line-8",
-          "with_sentence": 4
-        },
-        {
-          "effect": "fade",
-          "target": "line-9",
-          "with_sentence": 4
-        }
-      ],
-      "checkpoint": {
-        "question": "Anthropic 对长周期任务提出的两层解法是什么?",
-        "hint": "Initializer 和 Coding 的分工",
-        "pass_rule": "能说出 Initializer 负责环境搭建和 Coding 负责增量进展并留制品"
-      }
+      "audio": null
     },
     {
       "id": "p6-practice-table",
-      "eyebrow": "什么时候用什么",
-      "title": "工程选择与权衡",
-      "content": {
-        "kind": "table",
-        "headers": [
-          "场景",
-          "优先方案",
-          "harness 何时介入",
-          "注意事项"
-        ],
-        "rows": [
-          [
-            "单次 LLM 调用",
-            "检索/上下文示例",
-            "不需要",
-            "避免过度抽象"
-          ],
-          [
-            "确定性工作流",
-            "提示链/路由",
-            "不需要",
-            "框架可用但先试直接 API"
-          ],
-          [
-            "动态智能体",
-            "需要框架",
-            "必须",
-            "从简单模式起步"
-          ],
-          [
-            "长周期任务",
-            "Initializer/Coding 拆分",
-            "必须",
-            "进度追踪/增量提交/端到端测试"
-          ],
-          [
-            "MCP 规模化",
-            "代码执行模式",
-            "必须",
-            "按需加载工具,过滤数据省令牌"
-          ]
-        ],
-        "note": "优先级:优化单次调用 → 工作流 → 动态智能体"
-      },
-      "script": [
+      "heading": "工程选择与权衡",
+      "blocks": [
         {
-          "text": "总结一下工程选择的优先级。能优化单次 LLM 调用的,就用检索或上下文示例,别上框架。",
-          "audio": "audio/harness-engineering-practice/p6-practice-table-s0.mp3"
+          "type": "p",
+          "text": "总结一下工程选择的优先级。能优化单次 LLM 调用的,就用检索或上下文示例,别上框架。能用确定性工作流的,用提示链、路由、并行化就行,框架能用,但建议先直接调 API,避免抽象黑盒。真的需要动态智能体了,再用框架,从简单模式起步。长周期任务必须上 harness,用 Initializer 和 Coding 拆分,做进度追踪、增量提交、端到端测试和回滚。"
         },
         {
-          "text": "能用确定性工作流的,用提示链、路由、并行化就行,框架能用,但建议先直接调 API,避免抽象黑盒。",
-          "audio": "audio/harness-engineering-practice/p6-practice-table-s1.mp3"
+          "type": "p",
+          "text": "MCP 生态规模化时,直接工具调用会导致上下文膨胀,代码执行模式能按需加载工具,在执行环境里过滤数据,节省令牌,案例显示省了 98.7%。"
         },
         {
-          "text": "真的需要动态智能体了,再用框架,从简单模式起步。",
-          "audio": "audio/harness-engineering-practice/p6-practice-table-s2.mp3"
+          "type": "table",
+          "header": [
+            "场景",
+            "优先方案",
+            "harness 何时介入",
+            "注意事项"
+          ],
+          "rows": [
+            [
+              "单次 LLM 调用",
+              "检索/上下文示例",
+              "不需要",
+              "避免过度抽象"
+            ],
+            [
+              "确定性工作流",
+              "提示链/路由",
+              "不需要",
+              "框架可用但先试直接 API"
+            ],
+            [
+              "动态智能体",
+              "需要框架",
+              "必须",
+              "从简单模式起步"
+            ],
+            [
+              "长周期任务",
+              "Initializer/Coding 拆分",
+              "必须",
+              "进度追踪/增量提交/端到端测试"
+            ],
+            [
+              "MCP 规模化",
+              "代码执行模式",
+              "必须",
+              "按需加载工具,过滤数据省令牌"
+            ]
+          ],
+          "caption": "优先级:优化单次调用 → 工作流 → 动态智能体"
         },
         {
-          "text": "长周期任务必须上 harness,用 Initializer 和 Coding 拆分,做进度追踪、增量提交、端到端测试和回滚。",
-          "audio": "audio/harness-engineering-practice/p6-practice-table-s3.mp3"
-        },
-        {
-          "text": "MCP 生态规模化时,直接工具调用会导致上下文膨胀,代码执行模式能按需加载工具,在执行环境里过滤数据,节省令牌,案例显示省了 98.7%。",
-          "audio": "audio/harness-engineering-practice/p6-practice-table-s4.mp3"
+          "type": "quiz",
+          "id": "p6-practice-table-cp",
+          "question": "工程选择的优先级顺序是什么?长周期任务为什么必须用 harness?",
+          "hint": "从简单到复杂的三层优先级",
+          "pass_rule": "能说出优先级顺序和长周期任务的三个必须措施(进度追踪/增量提交/测试)"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": "row-0",
-          "with_sentence": 0
-        },
-        {
-          "effect": "fade",
-          "target": "row-1",
-          "with_sentence": 1
-        },
-        {
-          "effect": "fade",
-          "target": "row-2",
-          "with_sentence": 2
-        },
-        {
-          "effect": "fade",
-          "target": "row-3",
-          "with_sentence": 3
-        },
-        {
-          "effect": "fade",
-          "target": "row-4",
-          "with_sentence": 4
-        },
-        {
-          "effect": "rise",
-          "target": "note",
-          "with_sentence": 0
-        }
-      ],
-      "checkpoint": {
-        "question": "工程选择的优先级顺序是什么?长周期任务为什么必须用 harness?",
-        "hint": "从简单到复杂的三层优先级",
-        "pass_rule": "能说出优先级顺序和长周期任务的三个必须措施(进度追踪/增量提交/测试)"
-      }
+      "audio": null
     },
     {
       "id": "p7-cases-table",
-      "eyebrow": "真实世界的 Harness",
-      "title": "生产级实践案例",
-      "content": {
-        "kind": "table",
-        "headers": [
-          "案例",
-          "行业",
-          "harness 应用",
-          "成效"
-        ],
-        "rows": [
-          [
-            "Tax AI",
-            "税务会计",
-            "Codex 三段闭环:纠错捕获→评估集→改进验证",
-            "准确率25%→86%,时间省1/3"
+      "heading": "生产级实践案例",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "看真实案例。OpenAI 和 Thrive Holdings 做了 Tax AI,在克里特岛30多家事务所试点。处理了7000份税表,用三段闭环,从业者纠错转结构化反馈,重复失败转评估集,Codex 调查问题提修复并验证。六周后,75%字段正确率从25%升到86%,最高达97%,会计师时间省了三分之一,吞吐量提升50%。Cisco 用 Codex SDK 在云控制平台里做 App Builder,客户自然语言描述,自动完成认证、注册、托管、分发,从描述到运行中的企业应用,零额外配置。"
+        },
+        {
+          "type": "p",
+          "text": "Modal 给 Codex 代码执行提供 gVisor 容器隔离,支持5万并发会话,是大规模安全执行的生产方案。Harness 优化本身也有威力,令牌消耗降到原来的六分之一,ARC-AGI-3 基准分数从13.3% 提升到38.3%。"
+        },
+        {
+          "type": "table",
+          "header": [
+            "案例",
+            "行业",
+            "harness 应用",
+            "成效"
           ],
-          [
-            "Cisco App Builder",
-            "企业云平台",
-            "Codex SDK 集成多仓库工作流",
-            "从描述到运行应用,零额外配置"
+          "rows": [
+            [
+              "Tax AI",
+              "税务会计",
+              "Codex 三段闭环:纠错捕获→评估集→改进验证",
+              "准确率25%→86%,时间省1/3"
+            ],
+            [
+              "Cisco App Builder",
+              "企业云平台",
+              "Codex SDK 集成多仓库工作流",
+              "从描述到运行应用,零额外配置"
+            ],
+            [
+              "Modal 沙箱",
+              "大规模代码执行",
+              "gVisor 容器隔离·5万+并发会话",
+              "生产级安全执行环境"
+            ]
           ],
-          [
-            "Modal 沙箱",
-            "大规模代码执行",
-            "gVisor 容器隔离·5万+并发会话",
-            "生产级安全执行环境"
-          ]
-        ],
-        "note": "Harness 优化令牌消耗降6倍,ARC-AGI-3 分数从13.3%升至38.3%"
-      },
-      "script": [
-        {
-          "text": "看真实案例。OpenAI 和 Thrive Holdings 做了 Tax AI,在克里特岛30多家事务所试点。",
-          "audio": "audio/harness-engineering-practice/p7-cases-table-s0.mp3"
+          "caption": "Harness 优化令牌消耗降6倍,ARC-AGI-3 分数从13.3%升至38.3%"
         },
         {
-          "text": "处理了7000份税表,用三段闭环,从业者纠错转结构化反馈,重复失败转评估集,Codex 调查问题提修复并验证。",
-          "audio": "audio/harness-engineering-practice/p7-cases-table-s1.mp3"
-        },
-        {
-          "text": "六周后,75%字段正确率从25%升到86%,最高达97%,会计师时间省了三分之一,吞吐量提升50%。",
-          "audio": "audio/harness-engineering-practice/p7-cases-table-s2.mp3"
-        },
-        {
-          "text": "Cisco 用 Codex SDK 在云控制平台里做 App Builder,客户自然语言描述,自动完成认证、注册、托管、分发,从描述到运行中的企业应用,零额外配置。",
-          "audio": "audio/harness-engineering-practice/p7-cases-table-s3.mp3"
-        },
-        {
-          "text": "Modal 给 Codex 代码执行提供 gVisor 容器隔离,支持5万并发会话,是大规模安全执行的生产方案。",
-          "audio": "audio/harness-engineering-practice/p7-cases-table-s4.mp3"
-        },
-        {
-          "text": "Harness 优化本身也有威力,令牌消耗降到原来的六分之一,ARC-AGI-3 基准分数从13.3% 提升到38.3%。",
-          "audio": "audio/harness-engineering-practice/p7-cases-table-s5.mp3"
+          "type": "quiz",
+          "id": "p7-cases-table-cp",
+          "question": "Tax AI 的三段闭环是什么?Harness 优化带来了哪些具体提升?",
+          "hint": "纠错→评估→改进,以及令牌和基准分数的双重提升",
+          "pass_rule": "能说出三段闭环和至少一项量化提升(令牌降6倍或ARC分数提升)"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": "row-0",
-          "with_sentence": 0
-        },
-        {
-          "effect": "fade",
-          "target": "row-1",
-          "with_sentence": 2
-        },
-        {
-          "effect": "fade",
-          "target": "row-2",
-          "with_sentence": 3
-        },
-        {
-          "effect": "fade",
-          "target": "row-3",
-          "with_sentence": 4
-        },
-        {
-          "effect": "rise",
-          "target": "note",
-          "with_sentence": 5
-        }
-      ],
-      "checkpoint": {
-        "question": "Tax AI 的三段闭环是什么?Harness 优化带来了哪些具体提升?",
-        "hint": "纠错→评估→改进,以及令牌和基准分数的双重提升",
-        "pass_rule": "能说出三段闭环和至少一项量化提升(令牌降6倍或ARC分数提升)"
-      }
+      "audio": null
     },
     {
       "id": "p8-security-table",
-      "eyebrow": "harness 的安全边界",
-      "title": "多层安全防护",
-      "content": {
-        "kind": "table",
-        "headers": [
-          "防护层",
-          "措施",
-          "控制风险",
-          "实践案例"
-        ],
-        "rows": [
-          [
-            "环境隔离",
-            "沙箱/VM/出口控制",
-            "爆炸半径",
-            "Claude Code: bubblewrap/seatbel t,少84%权限提示"
+      "heading": "多层安全防护",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "最后讲安全。harness 的核心价值就是控制爆炸半径,分三层防护。第一层环境隔离,用沙箱、VM、出口控制。Claude Code 用 OS 原语 bubblewrap 和 seatbelt 做文件系统和网络隔离,内部数据显示沙箱能减少84%的权限提示,既提高自主性又提升安全性。第二层模型层防护,用系统提示、分类器、训练来防模型异常。凭据必须隔离于沙箱,或者用代理和金库。第三层外部内容边界,用粒度权限控制和人类确认来防用户误用和外部攻击。Computer Use 就是典型案例,用专用 VM、域名白名单,关键决策要人类确认,还要防提示注入。"
+        },
+        {
+          "type": "table",
+          "header": [
+            "防护层",
+            "措施",
+            "控制风险",
+            "实践案例"
           ],
-          [
-            "模型层防护",
-            "系统提示/分类器/训练",
-            "模型异常",
-            "凭据隔离/金库代理"
+          "rows": [
+            [
+              "环境隔离",
+              "沙箱/VM/出口控制",
+              "爆炸半径",
+              "Claude Code: bubblewrap/seatbel t,少84%权限提示"
+            ],
+            [
+              "模型层防护",
+              "系统提示/分类器/训练",
+              "模型异常",
+              "凭据隔离/金库代理"
+            ],
+            [
+              "外部内容边界",
+              "粒度权限/人类确认",
+              "用户误用/外部攻击",
+              "Computer Use: VM/域名白名单/关键决策确认"
+            ]
           ],
-          [
-            "外部内容边界",
-            "粒度权限/人类确认",
-            "用户误用/外部攻击",
-            "Computer Use: VM/域名白名单/关键决策确认"
-          ]
-        ],
-        "note": "凭据应隔离于沙箱或使用代理/金库"
-      },
-      "script": [
-        {
-          "text": "最后讲安全。harness 的核心价值就是控制爆炸半径,分三层防护。",
-          "audio": "audio/harness-engineering-practice/p8-security-table-s0.mp3"
+          "caption": "凭据应隔离于沙箱或使用代理/金库"
         },
         {
-          "text": "第一层环境隔离,用沙箱、VM、出口控制。Claude Code 用 OS 原语 bubblewrap 和 seatbelt 做文件系统和网络隔离,内部数据显示沙箱能减少84%的权限提示,既提高自主性又提升安全性。",
-          "audio": "audio/harness-engineering-practice/p8-security-table-s1.mp3"
-        },
-        {
-          "text": "第二层模型层防护,用系统提示、分类器、训练来防模型异常。凭据必须隔离于沙箱,或者用代理和金库。",
-          "audio": "audio/harness-engineering-practice/p8-security-table-s2.mp3"
-        },
-        {
-          "text": "第三层外部内容边界,用粒度权限控制和人类确认来防用户误用和外部攻击。Computer Use 就是典型案例,用专用 VM、域名白名单,关键决策要人类确认,还要防提示注入。",
-          "audio": "audio/harness-engineering-practice/p8-security-table-s3.mp3"
+          "type": "quiz",
+          "id": "p8-security-table-cp",
+          "question": "三层安全防护分别是什么?Claude Code 沙箱带来了什么具体改进?",
+          "hint": "环境/模型/外部内容三层",
+          "pass_rule": "能说出三层防护名称和沙箱减少84%权限提示的量化效果"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": "row-0",
-          "with_sentence": 1
-        },
-        {
-          "effect": "fade",
-          "target": "row-1",
-          "with_sentence": 2
-        },
-        {
-          "effect": "fade",
-          "target": "row-2",
-          "with_sentence": 3
-        },
-        {
-          "effect": "rise",
-          "target": "note",
-          "with_sentence": 2
-        }
-      ],
-      "checkpoint": {
-        "question": "三层安全防护分别是什么?Claude Code 沙箱带来了什么具体改进?",
-        "hint": "环境/模型/外部内容三层",
-        "pass_rule": "能说出三层防护名称和沙箱减少84%权限提示的量化效果"
-      }
+      "audio": null
     },
     {
       "id": "p9-final-quiz",
-      "eyebrow": "检验你的理解",
-      "title": "课后自测",
-      "content": {
-        "kind": "quiz",
-        "questions": [
-          "1. OpenAI Codex CLI 的三大组件分别是什么,它们各自解决什么问题?",
-          "2. DeepSeek Cordis 内核的“一切皆插件”架构带来什么核心优势?",
-          "3. Anthropic 对长周期任务提出的两层解法(Initializer/Coding)是如何分工的?",
-          "4. 工程选择的优先级顺序是什么,什么时候应该上 harness 框架?",
-          "5. 安全防护的三层模型分别是什么,环境隔离的核心目标是什么?"
-        ]
-      },
-      "script": [
+      "heading": "课后自测",
+      "blocks": [
         {
-          "text": "最后自测一下,确保你真的懂了。",
-          "audio": "audio/harness-engineering-practice/p9-final-quiz-s0.mp3"
+          "type": "p",
+          "text": "最后自测一下,确保你真的懂了。第一题,OpenAI Codex CLI 的三大组件,exec、SDK、app-server,它们各自解决什么问题?第二题,DeepSeek Cordis 内核的一切皆插件架构,核心优势是什么?第三题,Anthropic 的两层解法,Initializer 和 Coding 怎么分工?"
         },
         {
-          "text": "第一题,OpenAI Codex CLI 的三大组件,exec、SDK、app-server,它们各自解决什么问题?",
-          "audio": "audio/harness-engineering-practice/p9-final-quiz-s1.mp3"
+          "type": "p",
+          "text": "第四题,工程选择的优先级顺序,什么时候上 harness?第五题,安全防护的三层模型,环境隔离的核心目标是什么?能答出这些,说明你已经掌握 harness 最新工程实践的核心要点了。"
         },
         {
-          "text": "第二题,DeepSeek Cordis 内核的一切皆插件架构,核心优势是什么?",
-          "audio": "audio/harness-engineering-practice/p9-final-quiz-s2.mp3"
+          "type": "quiz",
+          "id": "p9-final-quiz-q1",
+          "question": "1. OpenAI Codex CLI 的三大组件分别是什么,它们各自解决什么问题?"
         },
         {
-          "text": "第三题,Anthropic 的两层解法,Initializer 和 Coding 怎么分工?",
-          "audio": "audio/harness-engineering-practice/p9-final-quiz-s3.mp3"
+          "type": "quiz",
+          "id": "p9-final-quiz-q2",
+          "question": "2. DeepSeek Cordis 内核的“一切皆插件”架构带来什么核心优势?"
         },
         {
-          "text": "第四题,工程选择的优先级顺序,什么时候上 harness?",
-          "audio": "audio/harness-engineering-practice/p9-final-quiz-s4.mp3"
+          "type": "quiz",
+          "id": "p9-final-quiz-q3",
+          "question": "3. Anthropic 对长周期任务提出的两层解法(Initializer/Coding)是如何分工的?"
         },
         {
-          "text": "第五题,安全防护的三层模型,环境隔离的核心目标是什么?",
-          "audio": "audio/harness-engineering-practice/p9-final-quiz-s5.mp3"
+          "type": "quiz",
+          "id": "p9-final-quiz-q4",
+          "question": "4. 工程选择的优先级顺序是什么,什么时候应该上 harness 框架?"
         },
         {
-          "text": "能答出这些,说明你已经掌握 harness 最新工程实践的核心要点了。",
-          "audio": "audio/harness-engineering-practice/p9-final-quiz-s6.mp3"
+          "type": "quiz",
+          "id": "p9-final-quiz-q5",
+          "question": "5. 安全防护的三层模型分别是什么,环境隔离的核心目标是什么?"
         }
       ],
-      "fragments": [
-        {
-          "effect": "pop",
-          "target": "q-0",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": "q-1",
-          "with_sentence": 2
-        },
-        {
-          "effect": "pop",
-          "target": "q-2",
-          "with_sentence": 3
-        },
-        {
-          "effect": "pop",
-          "target": "q-3",
-          "with_sentence": 4
-        },
-        {
-          "effect": "pop",
-          "target": "q-4",
-          "with_sentence": 5
-        },
-        {
-          "effect": "rise",
-          "target": null,
-          "with_sentence": 6
-        }
-      ],
-      "checkpoint": null
+      "audio": null
     },
     {
       "id": "p10-summary-formula",
-      "eyebrow": "Harness 工程实践要点",
-      "title": "核心公式总结",
-      "content": {
-        "kind": "formula",
-        "items": [
-          "环境 = 沙箱隔离·OS 原语·爆炸半径控制",
-          "会话 = 日志可追加·Resume/Fork·独立上下文对象",
-          "安全 = 三层防护·凭据隔离·人类确认关键决策",
-          "可恢复 = 增量提交·进度追踪·端到端测试回滚"
-        ],
-        "conclusion": "优化单次调用 → 工作流 → 动态智能体"
-      },
-      "script": [
+      "heading": "核心公式总结",
+      "blocks": [
         {
-          "text": "最后回归开场的核心公式,把今天讲的精华串起来。",
-          "audio": "audio/harness-engineering-practice/p10-summary-formula-s0.mp3"
+          "type": "p",
+          "text": "最后回归开场的核心公式,把今天讲的精华串起来。环境层,用沙箱隔离、OS 原语、控制爆炸半径,Claude Code 的实践是减少84%权限提示。会话层,日志只追加,支持 Resume、Fork,Managed Agents 把会话日志变成独立上下文对象,跟模型窗口脱钩。安全层,三层防护,凭据隔离,关键决策人类确认。"
         },
         {
-          "text": "环境层,用沙箱隔离、OS 原语、控制爆炸半径,Claude Code 的实践是减少84%权限提示。",
-          "audio": "audio/harness-engineering-practice/p10-summary-formula-s1.mp3"
+          "type": "p",
+          "text": "可恢复层,增量提交、进度追踪、端到端测试和回滚,这是长周期任务的必备。工程选择记住优先级,优化单次调用,到工作流,最后才上动态智能体和 harness 框架。"
         },
         {
-          "text": "会话层,日志只追加,支持 Resume、Fork,Managed Agents 把会话日志变成独立上下文对象,跟模型窗口脱钩。",
-          "audio": "audio/harness-engineering-practice/p10-summary-formula-s2.mp3"
+          "type": "p",
+          "text": "公式要素:`环境 = 沙箱隔离·OS 原语·爆炸半径控制 会话 = 日志可追加·Resume/Fork·独立上下文对象 安全 = 三层防护·凭据隔离·人类确认关键决策 可恢复 = 增量提交·进度追踪·端到端测试回滚`"
         },
         {
-          "text": "安全层,三层防护,凭据隔离,关键决策人类确认。",
-          "audio": "audio/harness-engineering-practice/p10-summary-formula-s3.mp3"
+          "type": "callout",
+          "kind": "tip",
+          "text": "优化单次调用 → 工作流 → 动态智能体"
         },
         {
-          "text": "可恢复层,增量提交、进度追踪、端到端测试和回滚,这是长周期任务的必备。",
-          "audio": "audio/harness-engineering-practice/p10-summary-formula-s4.mp3"
-        },
-        {
-          "text": "工程选择记住优先级,优化单次调用,到工作流,最后才上动态智能体和 harness 框架。",
-          "audio": "audio/harness-engineering-practice/p10-summary-formula-s5.mp3"
+          "type": "quiz",
+          "id": "p10-summary-formula-cp",
+          "question": "完整复述 Harness 工程实践的四个核心维度和工程选择优先级",
+          "hint": "环境/会话/安全/可恢复 + 三层优先级",
+          "pass_rule": "能说出四个维度的关键举措和优先级顺序"
         }
       ],
-      "fragments": [
-        {
-          "effect": "pop",
-          "target": "item-0",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": "item-1",
-          "with_sentence": 2
-        },
-        {
-          "effect": "pop",
-          "target": "item-2",
-          "with_sentence": 3
-        },
-        {
-          "effect": "pop",
-          "target": "item-3",
-          "with_sentence": 4
-        },
-        {
-          "effect": "rise",
-          "target": "conclusion",
-          "with_sentence": 5
-        }
-      ],
-      "checkpoint": {
-        "question": "完整复述 Harness 工程实践的四个核心维度和工程选择优先级",
-        "hint": "环境/会话/安全/可恢复 + 三层优先级",
-        "pass_rule": "能说出四个维度的关键举措和优先级顺序"
-      }
+      "audio": null
     }
   ]
 }

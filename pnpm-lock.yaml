@@ -59,9 +59,6 @@ importers:
       react-router-dom:
         specifier: ^7.18.2
         version: 7.18.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      reveal.js:
-        specifier: ^6.0.1
-        version: 6.0.1
       tailwind-merge:
         specifier: ^3.7.0
         version: 3.7.0
@@ -1791,9 +1788,6 @@ packages:
   require-from-string@2.0.2:
     resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
     engines: {node: '>=0.10.0'}
-
-  reveal.js@6.0.1:
-    resolution: {integrity: sha512-9eacArNIgqO2HGWOK+93gJNn+gvdGDVbSq+i2u3Ja9kjiHps0XNLpgYTZTYjKRH91uXy3clGimeGiw4umHG/tg==}
 
   robust-predicates@3.0.3:
     resolution: {integrity: sha512-NS3levdsRIUOmiJ8FZWCP7LG3QpJyrs/TE0Zpf1yvZu8cAJJ6QMW92H1c7kWpdIHo8RvmLxN/o2JXTKHp74lUA==}
@@ -3694,8 +3688,6 @@ snapshots:
       vfile: 6.0.3
 
   require-from-string@2.0.2: {}
-
-  reveal.js@6.0.1: {}
 
   robust-predicates@3.0.3: {}
 

@@ -93,7 +93,7 @@ export function HomePage() {
             {due.items.map((r) => (
               <li key={`${r.course_id}/${r.page_id}`}>
                 <Link
-                  to={`/c/${r.course_id}?page=${r.page_no}`}
+                  to={`/read/${r.course_id}?section=${r.page_no}`}
                   className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-2 transition-colors hover:border-primary/40"
                 >
                   <div className="min-w-0">
@@ -118,7 +118,7 @@ export function HomePage() {
         {continuing.length ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {continuing.map((c) => (
-              <Link key={c.id} to={`/c/${c.id}`} className="group">
+              <Link key={c.id} to={`/read/${c.id}`} className="group">
                 <Card className="h-full p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:shadow-lg">
                   <p className="mb-1 flex items-center gap-1 font-mono text-xs text-primary">
                     <Play size={11} /> 接着学 · 第 {c.prog!.p + 1} 页

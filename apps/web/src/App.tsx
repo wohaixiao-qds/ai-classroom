@@ -1,15 +1,14 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { Shell } from "./app/Shell";
 import { EvalPage } from "./features/eval/EvalPage";
-import { ClassroomPage } from "./features/player/ClassroomPage";
 import { HomePage } from "./features/home/HomePage";
 import { ReaderPage } from "./features/reader/ReaderPage";
 import { CourseDetailPage, LibraryPage } from "./features/library";
 import { StudioPage } from "./features/studio/StudioPage";
 
-/** 路由(甲方案·五区制):列表页有壳(Shell),课堂页沉浸(不套壳)
+/** 路由(甲方案·五区制):列表页有壳(Shell),阅读器沉浸(不套壳)
  *  / 学习台(继续学+推荐) /courses 课程库+详情 /studio 生成中心 /eval 观测
- *  /c/:id 幻灯片课堂(P6 过渡) /read/:id 书页阅读器(v2) */
+ *  /read/:id 书页阅读器(P6 起为唯一课堂形态,幻灯片已退役) */
 const router = createBrowserRouter([
   {
     path: "/",
@@ -22,7 +21,6 @@ const router = createBrowserRouter([
       { path: "eval", element: <EvalPage /> },
     ],
   },
-  { path: "/c/:courseId", element: <ClassroomPage /> },
   { path: "/read/:courseId", element: <ReaderPage /> },
 ]);
 

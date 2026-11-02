@@ -1,7 +1,7 @@
 /** 课程库(甲方案):左侧主题树(领域→主题→层)筛选 + 课程卡 → 详情页 → 课堂。
  *  树从 topic 串自动生长("Agent / harness / Runtime"),与 vault 目录心智一致,零手工维护。
  *  topic 真源是后端 catalog 的实时推导(老课件文件里没有);此处拉取时合并进课程数据。 */
-import { ChevronDown, ChevronRight, Folder, LibraryBig, Play, CircleCheck, SquarePen, Route } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight, Folder, LibraryBig, Play, CircleCheck, SquarePen, Route } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
@@ -21,7 +21,7 @@ import {
 import { fetchAllCourses, suggestOrder } from "../../lib/learningPath";
 import { cn } from "../../lib/utils";
 import type { components } from "../../types/api.gen";
-import type { Course } from "../../types/csl";
+import { courseUnits, isV2, type AnyCourse } from "../../types/csl";
 
 type CompletionState = components["schemas"]["CompletionState"];
 type NoteDraft = components["schemas"]["NoteDraft"];
@@ -33,7 +33,7 @@ interface TreeNode {
   name: string;
   path: string[]; // 从根到本节点的路径(筛选键)
   children: TreeNode[];
-  courses: Course[]; // 恰好挂在本节点的课(叶子层)
+  courses: AnyCourse[]; // 恰好挂在本节点的课(叶子层)
 }
 
 /** 主题串 → 树层级段。单段主题若以已知领域开头(「Agent 解析层」)提为两层。 */
@@ -49,7 +49,7 @@ function topicSegs(topic: string | null | undefined, domains: Set<string>): stri
   return segs;
 }
 
-function deriveDomains(courses: Course[]): Set<string> {
+function deriveDomains(courses: AnyCourse[]): Set<string> {
   const domains = new Set<string>();
   for (const c of courses) {
     const segs = (topicOf(c) ?? "").split(" / ");
@@ -59,11 +59,11 @@ function deriveDomains(courses: Course[]): Set<string> {
 }
 
 /** topic 真源:合并进 meta.topic 的 catalog 推导值(见拉取处) */
-function topicOf(c: Course): string | null {
+function topicOf(c: AnyCourse): string | null {
   return c.meta.topic ?? null;
 }
 
-function buildTree(courses: Course[], domains: Set<string>): TreeNode {
+function buildTree(courses: AnyCourse[], domains: Set<string>): TreeNode {
   const root: TreeNode = { name: "", path: [], children: [], courses: [] };
   for (const c of courses) {
     let node = root;
@@ -135,14 +135,14 @@ function TreeView({
 }
 
 /** sel 命中:课程层级段在选中路径之下(选中 Agent,则 Agent/harness/Runtime 的课都算) */
-function inSelection(c: Course, sel: string[] | null, domains: Set<string>): boolean {
+function inSelection(c: AnyCourse, sel: string[] | null, domains: Set<string>): boolean {
   if (!sel) return true;
   const segs = topicSegs(topicOf(c), domains);
   return sel.every((s, i) => segs[i] === s);
 }
 
 export function LibraryPage() {
-  const [courses, setCourses] = useState<Course[] | null>(null);
+  const [courses, setCourses] = useState<AnyCourse[] | null>(null);
   const [readyById, setReadyById] = useState<Map<string, boolean>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [sel, setSel] = useState<string[] | null>(null);
@@ -169,7 +169,7 @@ export function LibraryPage() {
   const stepOf = new Map(path.map((c, i) => [c.id, i + 1]));
 
   // 选中节点时右侧仍按主题分节;「全部」时同
-  const groups: { topic: string; courses: Course[] }[] = [];
+  const groups: { topic: string; courses: AnyCourse[] }[] = [];
   for (const c of shown) {
     const t = c.meta.topic ?? "未分组";
     const g = groups[groups.length - 1];
@@ -254,7 +254,8 @@ export function LibraryPage() {
             </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {g.courses.map((c) => {
-                const cp = c.pages.filter((p) => p.checkpoint).length;
+                const us = courseUnits(c);
+                const cp = us.filter((u) => u.hasCheckpoint).length;
                 return (
                   <Link key={c.id} to={`/courses/${c.id}`} className="group">
                     <Card className="h-full p-5 transition-all group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:shadow-lg">
@@ -264,7 +265,7 @@ export function LibraryPage() {
                       </div>
                       <h3 className="mb-2 text-lg font-medium">{c.title}</h3>
                       <p className="font-mono text-xs text-muted-foreground">
-                        {c.pages.length} 页 · {cp} 检查点 · {c.meta.duration_min ?? "—"} 分钟
+                        {us.length} 节 · {cp} 检查点 · {c.meta.duration_min ?? "—"} 分钟
                       </p>
                       {(c.meta.depends_on?.length ?? 0) > 0 && (
                         <p className="mt-1 font-mono text-xs text-muted-foreground">
@@ -272,7 +273,7 @@ export function LibraryPage() {
                           {c.meta.depends_on!.map((d) => titleById.get(d.id) ?? d.id).join("、")}
                         </p>
                       )}
-                      <p className="mt-2 truncate text-xs text-muted-foreground">{c.pages[0]?.eyebrow ?? ""}</p>
+                      <p className="mt-2 truncate text-xs text-muted-foreground">{us[0]?.title ?? ""}</p>
                     </Card>
                   </Link>
                 );
@@ -289,7 +290,7 @@ export function LibraryPage() {
 export function CourseDetailPage() {
   const { courseId = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [course, setCourse] = useState<Course | null>(null);
+  const [course, setCourse] = useState<AnyCourse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [prog, setProg] = useState<CompletionState | null>(null);
   const [draft, setDraft] = useState<NoteDraft | null>(null);
@@ -297,14 +298,14 @@ export function CourseDetailPage() {
   const [draftErr, setDraftErr] = useState<string | null>(null);
   const [written, setWritten] = useState<string | null>(null);
   const [depTitles, setDepTitles] = useState<Record<string, string>>({});
-  const [path, setPath] = useState<Course[] | null>(null);
+  const [path, setPath] = useState<AnyCourse[] | null>(null);
 
   // 先修课标题(详情页展示用;拉不到就用 id 兜底)
   useEffect(() => {
     if (!course) return;
     for (const d of course.meta.depends_on ?? []) {
       void fetch(`/courses/${d.id}.csl.json`)
-        .then((r) => r.json() as Promise<Course>)
+        .then((r) => r.json() as Promise<AnyCourse>)
         .then((c) => setDepTitles((prev) => ({ ...prev, [c.id]: c.title })))
         .catch(() => {});
     }
@@ -323,7 +324,7 @@ export function CourseDetailPage() {
     fetch(`/courses/${courseId}.csl.json`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<Course>;
+        return r.json() as Promise<AnyCourse>;
       })
       .then(setCourse)
       .catch((e: unknown) => setError(String(e)));
@@ -381,7 +382,8 @@ export function CourseDetailPage() {
   if (error) return <PageError message={`课件加载失败:${error}`} back={<Button asChild variant="secondary" size="sm"><Link to="/courses">← 课程库</Link></Button>} />;
   if (!course) return <PageLoading />;
 
-  const cps = course.pages.filter((p) => p.checkpoint);
+  const units = courseUnits(course);
+  const cps = units.filter((u) => u.hasCheckpoint);
   // 本课在路线中的位置(拉不到全量课时不显示)
   const stepIdx = path ? path.findIndex((c) => c.id === courseId) : -1;
   const prevCourse = path && stepIdx > 0 ? path[stepIdx - 1] : null;
@@ -413,13 +415,13 @@ export function CourseDetailPage() {
         <div className="min-w-0">
           <h1 className="text-2xl font-bold">{course.title}</h1>
           <p className="mt-1 font-mono text-xs text-muted-foreground">
-            {course.scenario} · {course.pages.length} 页 · {sumSentences(course)} 句 · {cps.length} 检查点
+            {course.scenario} · {isV2(course) ? `${units.length} 节` : `${units.length} 页 · ${sumSentences(course)} 句`} · {cps.length} 检查点
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <Button size="lg" asChild>
-            <Link to={`/c/${course.id}`}>
-              <Play size={15} /> 进课堂
+            <Link to={`/read/${course.id}`}>
+              <Play size={15} /> 进阅读器
             </Link>
           </Button>
           <Button
@@ -497,22 +499,24 @@ export function CourseDetailPage() {
       <section className="mt-8">
         <h2 className="mb-3 text-sm font-medium tracking-wide text-muted-foreground">本课大纲</h2>
         <ul className="space-y-1.5">
-          {course.pages.map((p, i) => (
+          {units.map((u, i) => (
             <li
-              key={p.id}
+              key={u.id}
               className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-2 text-sm transition-colors hover:border-primary/30"
             >
               <span className="font-mono text-xs text-muted-foreground">{i + 1}</span>
               <span className="text-muted-foreground">
-                <KindIcon kind={p.content.kind} />
+                {u.kind ? <KindIcon kind={u.kind} /> : <BookOpen size={13} />}
               </span>
-              <span className="flex-1 truncate">{p.title || p.eyebrow || p.id}</span>
-              {p.checkpoint && (
+              <span className="flex-1 truncate">{u.title}</span>
+              {u.hasCheckpoint && (
                 <span title="有复述检查点" className="flex text-primary">
                   <CircleCheck size={13} />
                 </span>
               )}
-              <span className="font-mono text-xs text-muted-foreground opacity-60">{p.script.length} 句</span>
+              {u.sentences > 0 && (
+                <span className="font-mono text-xs text-muted-foreground opacity-60">{u.sentences} 句</span>
+              )}
             </li>
           ))}
         </ul>
@@ -608,6 +612,6 @@ export function CourseDetailPage() {
   );
 }
 
-function sumSentences(c: Course): number {
-  return c.pages.reduce((n, p) => n + p.script.length, 0);
+function sumSentences(c: AnyCourse): number {
+  return isV2(c) ? 0 : c.pages.reduce((n, p) => n + p.script.length, 0);
 }

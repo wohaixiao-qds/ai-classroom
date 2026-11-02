@@ -2,13 +2,13 @@
   "id": "tool-granularity",
   "title": "工具粒度设计",
   "scenario": "自学",
+  "version": 2,
   "meta": {
     "source_notes": [
       "Agent/01-harness/02-Scaffolding/工具粒度.md"
     ],
     "sources": [],
     "duration_min": null,
-    "version": 1,
     "depends_on": [
       {
         "id": "function-calling-stability",
@@ -16,473 +16,229 @@
       }
     ]
   },
-  "pages": [
+  "sections": [
     {
       "id": "p1-cover",
-      "eyebrow": "工具设计系列",
-      "title": "工具粒度：切多碎才合适？",
-      "content": {
-        "kind": "cover",
-        "equation": "能进代码的确定性，别留给模型的随机性",
-        "meta": [
-          [
-            "讲师",
-            "AI 老师"
-          ],
-          [
-            "来源",
-            "学员笔记整合"
-          ],
-          [
-            "时长",
-            "约10分钟"
-          ]
-        ]
-      },
-      "script": [
+      "heading": "工具粒度：切多碎才合适？",
+      "blocks": [
         {
-          "text": "欢迎来到工具设计系列的第一课。今天我们聊一个老生常谈但又无比重要的话题——工具粒度。说人话，就是把 API 切成多碎的块，交给大模型用。切太碎，模型选错；切太粗，又不够灵活。到底怎么切？答案其实就在这八个字里：把确定性交给代码，把随机性留给模型。",
-          "audio": "audio/tool-granularity/p1-cover-s0.mp3"
-        }
-      ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": "equation",
-          "with_sentence": 0
+          "type": "p",
+          "text": "欢迎来到工具设计系列的第一课。今天我们聊一个老生常谈但又无比重要的话题——工具粒度。说人话，就是把 API 切成多碎的块，交给大模型用。切太碎，模型选错；切太粗，又不够灵活。到底怎么切？答案其实就在这八个字里：把确定性交给代码，把随机性留给模型。"
         },
         {
-          "effect": "rise",
-          "target": null,
-          "with_sentence": 0
+          "type": "callout",
+          "kind": "note",
+          "text": "核心式:能进代码的确定性，别留给模型的随机性"
+        },
+        {
+          "type": "table",
+          "header": [
+            "项目",
+            "内容"
+          ],
+          "rows": [
+            [
+              "讲师",
+              "AI 老师"
+            ],
+            [
+              "来源",
+              "学员笔记整合"
+            ],
+            [
+              "时长",
+              "约10分钟"
+            ]
+          ]
         }
       ],
-      "checkpoint": null
+      "audio": null
     },
     {
       "id": "p2-duo-mindset",
-      "eyebrow": "心智模型",
-      "title": "两种切法：客服查订单",
-      "content": {
-        "kind": "duo",
-        "left": {
-          "title": "A：按 API 抄",
-          "tag": "原子派",
-          "body": "拆成 4 个工具：\n- `list_orders()`\n- `get_order_detail()`\n- `query_logistics()`\n- `create_refund()`\n\n用户问\"上周买的到哪了\"：\n模型要自己串：调列表→翻页找→拿 id→调物流\n**步步可错**"
-        },
-        "right": {
-          "title": "B：按意图设计",
-          "tag": "意图派",
-          "body": "拆成 2 个工具：\n- `check_order(user_id, 时间范围)`\n  底层焊死：查列表→锁最近一单→连物流返回\n- `refund_order()`\n\n同一问题：\n模型挑一次 `check_order`，**一步到位**"
-        }
-      },
-      "script": [
+      "heading": "两种切法：客服查订单",
+      "blocks": [
         {
-          "text": "先看一个经典场景：客服查订单。有两种切法。A 方案是按 API 照搬，把列表、详情、物流、退款各切成一个工具。用户问上周买的货到哪了，模型得自己串起来：先调列表翻页找订单 id，再拿这个 id 去查物流。每一步都可能出错。",
-          "audio": "audio/tool-granularity/p2-duo-mindset-s0.mp3"
+          "type": "p",
+          "text": "先看一个经典场景：客服查订单。有两种切法。A 方案是按 API 照搬，把列表、详情、物流、退款各切成一个工具。用户问上周买的货到哪了，模型得自己串起来：先调列表翻页找订单 id，再拿这个 id 去查物流。每一步都可能出错。B 方案是按意图来切。把查订单和物流这两个动作焊死在一个工具里，就叫 check_order。底层代码帮你干完：查列表、找最近一单、连物流信息一起返回。模型只需要选一次工具，一步到位。你看，A 不是说有流程，恰恰是没流程，全靠模型临场串。B 才是有流程，流程焊死在代码里。"
         },
         {
-          "text": "B 方案是按意图来切。把查订单和物流这两个动作焊死在一个工具里，就叫 check_order。底层代码帮你干完：查列表、找最近一单、连物流信息一起返回。模型只需要选一次工具，一步到位。你看，A 不是说有流程，恰恰是没流程，全靠模型临场串。B 才是有流程，流程焊死在代码里。",
-          "audio": "audio/tool-granularity/p2-duo-mindset-s1.mp3"
+          "type": "table",
+          "header": [
+            "A：按 API 抄",
+            "B：按意图设计"
+          ],
+          "rows": [
+            [
+              "拆成 4 个工具：\n- `list_orders()`\n- `get_order_detail()`\n- `query_logistics()`\n- `create_refund()`\n\n用户问\"上周买的到哪了\"：\n模型要自己串：调列表→翻页找→拿 id→调物流\n**步步可错**",
+              "拆成 2 个工具：\n- `check_order(user_id, 时间范围)`\n  底层焊死：查列表→锁最近一单→连物流返回\n- `refund_order()`\n\n同一问题：\n模型挑一次 `check_order`，**一步到位**"
+            ]
+          ],
+          "caption": "原子派 / 意图派"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": "left",
-          "with_sentence": 0
-        },
-        {
-          "effect": "fade",
-          "target": "right",
-          "with_sentence": 1
-        },
-        {
-          "effect": "pop",
-          "target": null,
-          "with_sentence": 1
-        }
-      ],
-      "checkpoint": null
+      "audio": null
     },
     {
       "id": "p3-table-schools",
-      "eyebrow": "流派演变",
-      "title": "从 SWE-agent 到 Claude Code",
-      "content": {
-        "kind": "table",
-        "headers": [
-          "流派",
-          "工具数量",
-          "设计哲学"
-        ],
-        "rows": [
-          [
-            "SWE-agent (2024)",
-            "~8 个原子工具",
-            "工具越多选择越难；描述占上下文；ACI 正统年代"
-          ],
-          [
-            "Claude Code (2026)",
-            "1 个通用门 + ~20 专用工具",
-            "工具形状要贴模型能力长；保留通用逃生门；模型变强就精简工具集"
-          ],
-          [
-            "2025 Anthropic 官方",
-            "无固定数字",
-            "四问框架：意图清晰？高频吗？可组合？有边界？"
-          ]
-        ],
-        "note": "没有标准答案。关键：高频意图专用 + 长尾交门"
-      },
-      "script": [
+      "heading": "从 SWE-agent 到 Claude Code",
+      "blocks": [
         {
-          "text": "时间来到2024年，SWE-agent 走的是极简原子派，大概八个原子工具。当时的逻辑是：工具越多，模型选择越难；工具描述还要占上下文。这是 ACI 的正统年代。",
-          "audio": "audio/tool-granularity/p3-table-schools-s0.mp3"
+          "type": "p",
+          "text": "时间来到2024年，SWE-agent 走的是极简原子派，大概八个原子工具。当时的逻辑是：工具越多，模型选择越难；工具描述还要占上下文。这是 ACI 的正统年代。到了2026年，Claude Code 的论文《Seeing like an agent》提出了反问：是该保留一个万能 bash，还是做五十个专用工具？答案是没有标准答案。他们保留了 bash 作为通用逃生门，外加二十个常用专用工具。核心思想是：工具形状要贴模型能力长。模型变强了，还要回头精简工具集。比如 TodoWrite 变成 Task，弱模型的拐杖在强模型上反而碍事。2025年 Anthropic 的官方文档《Writing effective tools》给出了四问框架。问什么？问这个工具意图清晰吗？高频吗？能和其他工具组合吗？有明确边界吗？不纠结工具个数，回到问题本身。"
         },
         {
-          "text": "到了2026年，Claude Code 的论文《Seeing like an agent》提出了反问：是该保留一个万能 bash，还是做五十个专用工具？答案是没有标准答案。他们保留了 bash 作为通用逃生门，外加二十个常用专用工具。核心思想是：工具形状要贴模型能力长。模型变强了，还要回头精简工具集。比如 TodoWrite 变成 Task，弱模型的拐杖在强模型上反而碍事。",
-          "audio": "audio/tool-granularity/p3-table-schools-s1.mp3"
+          "type": "table",
+          "header": [
+            "流派",
+            "工具数量",
+            "设计哲学"
+          ],
+          "rows": [
+            [
+              "SWE-agent (2024)",
+              "~8 个原子工具",
+              "工具越多选择越难；描述占上下文；ACI 正统年代"
+            ],
+            [
+              "Claude Code (2026)",
+              "1 个通用门 + ~20 专用工具",
+              "工具形状要贴模型能力长；保留通用逃生门；模型变强就精简工具集"
+            ],
+            [
+              "2025 Anthropic 官方",
+              "无固定数字",
+              "四问框架：意图清晰？高频吗？可组合？有边界？"
+            ]
+          ],
+          "caption": "没有标准答案。关键：高频意图专用 + 长尾交门"
         },
         {
-          "text": "2025年 Anthropic 的官方文档《Writing effective tools》给出了四问框架。问什么？问这个工具意图清晰吗？高频吗？能和其他工具组合吗？有明确边界吗？不纠结工具个数，回到问题本身。",
-          "audio": "audio/tool-granularity/p3-table-schools-s2.mp3"
+          "type": "quiz",
+          "id": "p3-table-schools-cp",
+          "question": "两种流派的核心分歧是什么？",
+          "hint": "SWE-agent 强调什么？Claude Code 强调什么？",
+          "pass_rule": "能说出 SWE-agent 是极简原子派，Claude Code 是通用门+专用工具的混合策略"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 0
-        },
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 1
-        },
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 2
-        }
-      ],
-      "checkpoint": {
-        "question": "两种流派的核心分歧是什么？",
-        "hint": "SWE-agent 强调什么？Claude Code 强调什么？",
-        "pass_rule": "能说出 SWE-agent 是极简原子派，Claude Code 是通用门+专用工具的混合策略"
-      }
+      "audio": null
     },
     {
       "id": "p4-formula-framework",
-      "eyebrow": "判断框架",
-      "title": "四问：工具该不该独立？",
-      "content": {
-        "kind": "formula",
-        "items": [
-          "① 这个意图清晰吗？\n用户能一句话说清想干啥",
-          "② 高频吗？\n出现频率越高，越值得专用工具",
-          "③ 能和其他工具组合吗？\n读链可以焊死，写动作必须独立",
-          "④ 有明确边界吗？\n危险操作要单独挂护栏"
-        ],
-        "conclusion": "四问答上是，就独立"
-      },
-      "script": [
+      "heading": "四问：工具该不该独立？",
+      "blocks": [
         {
-          "text": "现在给你一套实战用的四问框架。当你纠结要不要把某个功能做成独立工具时，问四个问题。",
-          "audio": "audio/tool-granularity/p4-formula-framework-s0.mp3"
+          "type": "p",
+          "text": "现在给你一套实战用的四问框架。当你纠结要不要把某个功能做成独立工具时，问四个问题。第一，这个意图清晰吗？用户能一句话说清楚他想干什么？如果用户自己都说不清，说明切法有问题。第二，高频吗？客服天天查订单，这个就值得做专用工具。一年用一次的奇异功能，交给逃生门。第三，能和其他工具组合吗？这有个大前提：读链可以焊死，写动作必须独立。查订单、查物流、看详情，这些都是读操作，焊在一起很香。但创建退款单、改数据、发消息，这些写动作必须拆出来单独挂护栏。"
         },
         {
-          "text": "第一，这个意图清晰吗？用户能一句话说清楚他想干什么？如果用户自己都说不清，说明切法有问题。",
-          "audio": "audio/tool-granularity/p4-formula-framework-s1.mp3"
+          "type": "p",
+          "text": "第四，有明确边界吗？危险操作要有明确的责任边界。退款、转账、发邮件，这些不可逆的动作必须独立，还要挂上最高级的 ACI 三护栏，需要人工审核。四个问题，如果答都是肯定的，这个工具就值得独立出来。记住：复合是为了顺畅，危险要拦住。方向是相反的。"
         },
         {
-          "text": "第二，高频吗？客服天天查订单，这个就值得做专用工具。一年用一次的奇异功能，交给逃生门。",
-          "audio": "audio/tool-granularity/p4-formula-framework-s2.mp3"
+          "type": "p",
+          "text": "公式要素:`① 这个意图清晰吗？\n用户能一句话说清想干啥 ② 高频吗？\n出现频率越高，越值得专用工具 ③ 能和其他工具组合吗？\n读链可以焊死，写动作必须独立 ④ 有明确边界吗？\n危险操作要单独挂护栏`"
         },
         {
-          "text": "第三，能和其他工具组合吗？这有个大前提：读链可以焊死，写动作必须独立。查订单、查物流、看详情，这些都是读操作，焊在一起很香。但创建退款单、改数据、发消息，这些写动作必须拆出来单独挂护栏。",
-          "audio": "audio/tool-granularity/p4-formula-framework-s3.mp3"
-        },
-        {
-          "text": "第四，有明确边界吗？危险操作要有明确的责任边界。退款、转账、发邮件，这些不可逆的动作必须独立，还要挂上最高级的 ACI 三护栏，需要人工审核。",
-          "audio": "audio/tool-granularity/p4-formula-framework-s4.mp3"
-        },
-        {
-          "text": "四个问题，如果答都是肯定的，这个工具就值得独立出来。记住：复合是为了顺畅，危险要拦住。方向是相反的。",
-          "audio": "audio/tool-granularity/p4-formula-framework-s5.mp3"
+          "type": "callout",
+          "kind": "tip",
+          "text": "四问答上是，就独立"
         }
       ],
-      "fragments": [
-        {
-          "effect": "pop",
-          "target": null,
-          "with_sentence": 0
-        },
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 1
-        },
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 2
-        },
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 3
-        },
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 4
-        },
-        {
-          "effect": "pop",
-          "target": null,
-          "with_sentence": 5
-        }
-      ],
-      "checkpoint": null
+      "audio": null
     },
     {
       "id": "p5-code-boundary",
-      "eyebrow": "复合边界",
-      "title": "只复合读，不复合写",
-      "content": {
-        "kind": "code",
-        "language": "python",
-        "lines": [
-          {
-            "code": "# ✅ 读链：可以焊死",
-            "comment": "三次观测变一条，省上下文",
-            "highlight": null
-          },
-          {
-            "code": "def check_order(user_id, time_range):",
-            "comment": "查列表 → 锁最近一单 → 连物流",
-            "highlight": null
-          },
-          {
-            "code": "    orders = list_orders(user_id, time_range)",
-            "comment": "",
-            "highlight": null
-          },
-          {
-            "code": "    recent = orders[0]  # 取最近一单",
-            "comment": "",
-            "highlight": null
-          },
-          {
-            "code": "    logistics = query_logistics(recent.id)",
-            "comment": "",
-            "highlight": null
-          },
-          {
-            "code": "    return {\"order\": recent, \"logistics\": logistics}",
-            "comment": "",
-            "highlight": null
-          },
-          {
-            "code": "",
-            "comment": "",
-            "highlight": null
-          },
-          {
-            "code": "# ❌ 副作用：必须独立",
-            "comment": "不可逆操作不能藏在复合深处",
-            "highlight": null
-          },
-          {
-            "code": "def refund_order(order_id, reason):",
-            "comment": "独立工具 + ACI③ 护栏",
-            "highlight": null
-          },
-          {
-            "code": "    # 这里要人工审核、硬阻断",
-            "comment": "",
-            "highlight": null
-          },
-          {
-            "code": "    return create_refund(order_id, reason)",
-            "comment": "",
-            "highlight": null
-          }
-        ],
-        "note": "读操作错了重跑零风险；写操作错了真出事"
-      },
-      "script": [
+      "heading": "只复合读，不复合写",
+      "blocks": [
         {
-          "text": "现在说一个关键原则：只复合读，不复合写。看代码。",
-          "audio": "audio/tool-granularity/p5-code-boundary-s0.mp3"
+          "type": "p",
+          "text": "现在说一个关键原则：只复合读，不复合写。看代码。上面这个 check_order 工具，把查列表、取最近一单、查物流三个读操作焊死了。为什么可以这样？因为读操作没有副作用，错了重新跑一次，零风险。而且把三次观测变成一条消息返回，还能省上下文。但下面这个 refund_order 就不一样了。它是写操作，创建退款单是不可逆的。如果把它藏在某个复合工具的深处，模型可能只想查订单，结果工具顺手把退了。这就出大事了。所以写动作必须独立出来，还要挂上 ACI 三级护栏，硬阻断加人工审核。记住：复合是为了顺，危险要拦。方向是相反的。"
         },
         {
-          "text": "上面这个 check_order 工具，把查列表、取最近一单、查物流三个读操作焊死了。为什么可以这样？因为读操作没有副作用，错了重新跑一次，零风险。而且把三次观测变成一条消息返回，还能省上下文。",
-          "audio": "audio/tool-granularity/p5-code-boundary-s1.mp3"
+          "type": "code",
+          "language": "python",
+          "code": "# ✅ 读链：可以焊死  # 三次观测变一条，省上下文\ndef check_order(user_id, time_range):  # 查列表 → 锁最近一单 → 连物流\n    orders = list_orders(user_id, time_range)\n    recent = orders[0]  # 取最近一单\n    logistics = query_logistics(recent.id)\n    return {\"order\": recent, \"logistics\": logistics}\n\n# ❌ 副作用：必须独立  # 不可逆操作不能藏在复合深处\ndef refund_order(order_id, reason):  # 独立工具 + ACI③ 护栏\n    # 这里要人工审核、硬阻断\n    return create_refund(order_id, reason)",
+          "caption": "读操作错了重跑零风险；写操作错了真出事"
         },
         {
-          "text": "但下面这个 refund_order 就不一样了。它是写操作，创建退款单是不可逆的。如果把它藏在某个复合工具的深处，模型可能只想查订单，结果工具顺手把退了。这就出大事了。",
-          "audio": "audio/tool-granularity/p5-code-boundary-s2.mp3"
-        },
-        {
-          "text": "所以写动作必须独立出来，还要挂上 ACI 三级护栏，硬阻断加人工审核。记住：复合是为了顺，危险要拦。方向是相反的。",
-          "audio": "audio/tool-granularity/p5-code-boundary-s3.mp3"
+          "type": "quiz",
+          "id": "p5-code-boundary-cp",
+          "question": "为什么读操作可以复合，写操作必须独立？",
+          "hint": "想一想副作用和风险...",
+          "pass_rule": "能说出读操作无副作用可重试，写操作不可逆需要护栏"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 0
-        },
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 1
-        },
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 2
-        },
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 3
-        }
-      ],
-      "checkpoint": {
-        "question": "为什么读操作可以复合，写操作必须独立？",
-        "hint": "想一想副作用和风险...",
-        "pass_rule": "能说出读操作无副作用可重试，写操作不可逆需要护栏"
-      }
+      "audio": null
     },
     {
       "id": "p6-duo-escape",
-      "eyebrow": "逃生门",
-      "title": "兜的是覆盖，不是识别",
-      "content": {
-        "kind": "duo",
-        "left": {
-          "title": "专用工具多",
-          "tag": "选择难",
-          "body": "专用工具多 → 长尾任务小\n但工具列表越长\n模型越容易选错\n\nClaude Code 实例：\n~20 个常用专用工具"
-        },
-        "right": {
-          "title": "专用工具少",
-          "tag": "门用得多",
-          "body": "专用工具少 → 长尾任务大\n逃生门（bash / 写代码 / run_sql 只读）\n接住高频专用工具外的长尾\n\n平衡点：\n高频意图专用 + 长尾交门"
-        }
-      },
-      "script": [
+      "heading": "兜的是覆盖，不是识别",
+      "blocks": [
         {
-          "text": "最后说逃生门。逃生门是什么？就是 bash、写代码、run_sql 只读这些通用能力。很多人以为逃生门是用来兜意图识别的，觉得模型有时候识别不出来用户想干嘛。其实错了。模型现在的意图识别能力很强，它卡的是工具清单接不住这些长尾任务。",
-          "audio": "audio/tool-granularity/p6-duo-escape-s0.mp3"
+          "type": "p",
+          "text": "最后说逃生门。逃生门是什么？就是 bash、写代码、run_sql 只读这些通用能力。很多人以为逃生门是用来兜意图识别的，觉得模型有时候识别不出来用户想干嘛。其实错了。模型现在的意图识别能力很强，它卡的是工具清单接不住这些长尾任务。看左边，如果专用工具太多，长尾任务确实小，但工具列表一长，模型选择难度就上去了。看右边，如果专用工具太少，长尾任务都交给逃生门，逃生门用得就多。最佳平衡点在哪？Claude Code 的实践是：高频意图专用，长尾交给逃生门。保留大概二十个常用专用工具，再加一个常驻的通用逃生门。这样既覆盖了大部分场景，又不至于让模型选工具选到头晕。"
         },
         {
-          "text": "看左边，如果专用工具太多，长尾任务确实小，但工具列表一长，模型选择难度就上去了。看右边，如果专用工具太少，长尾任务都交给逃生门，逃生门用得就多。",
-          "audio": "audio/tool-granularity/p6-duo-escape-s1.mp3"
-        },
-        {
-          "text": "最佳平衡点在哪？Claude Code 的实践是：高频意图专用，长尾交给逃生门。保留大概二十个常用专用工具，再加一个常驻的通用逃生门。这样既覆盖了大部分场景，又不至于让模型选工具选到头晕。",
-          "audio": "audio/tool-granularity/p6-duo-escape-s2.mp3"
+          "type": "table",
+          "header": [
+            "专用工具多",
+            "专用工具少"
+          ],
+          "rows": [
+            [
+              "专用工具多 → 长尾任务小\n但工具列表越长\n模型越容易选错\n\nClaude Code 实例：\n~20 个常用专用工具",
+              "专用工具少 → 长尾任务大\n逃生门（bash / 写代码 / run_sql 只读）\n接住高频专用工具外的长尾\n\n平衡点：\n高频意图专用 + 长尾交门"
+            ]
+          ],
+          "caption": "选择难 / 门用得多"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": "left",
-          "with_sentence": 1
-        },
-        {
-          "effect": "fade",
-          "target": "right",
-          "with_sentence": 2
-        },
-        {
-          "effect": "pop",
-          "target": null,
-          "with_sentence": 0
-        }
-      ],
-      "checkpoint": null
+      "audio": null
     },
     {
       "id": "p7-table-implementation",
-      "eyebrow": "开发落地",
-      "title": "从问题出发设计工具",
-      "content": {
-        "kind": "table",
-        "headers": [
-          "阶段",
-          "关键动作"
-        ],
-        "rows": [
-          [
-            "① 触发场景",
-            "模型老选错工具 / 该一步的活分成五轮磨 / 工具列表越加越长"
-          ],
-          [
-            "② 决策框架",
-            "四问：意图清晰？高频吗？可组合？有边界？"
-          ],
-          [
-            "③ 实现",
-            "从贴工作流出发设计 5-10 个工具 + 一个通用逃生门"
-          ],
-          [
-            "④ 持续优化",
-            "eval 里专门盯\"选对工具率\"；模型变强就精简工具集"
-          ]
-        ],
-        "note": "先解决具体问题，再追求理论完美"
-      },
-      "script": [
+      "heading": "从问题出发设计工具",
+      "blocks": [
         {
-          "text": "最后说落地。怎么判断你的工具粒度有问题？看三个信号：模型老是选错工具；本来一步能做完的活，被分成了五轮；工具列表越加越长停不下来。出现这些情况，就得重构了。",
-          "audio": "audio/tool-granularity/p7-table-implementation-s0.mp3"
+          "type": "p",
+          "text": "最后说落地。怎么判断你的工具粒度有问题？看三个信号：模型老是选错工具；本来一步能做完的活，被分成了五轮；工具列表越加越长停不下来。出现这些情况，就得重构了。重构时用四问框架决策。意图清晰吗？高频吗？能组合吗？有边界吗？这四个问题帮你判断哪些该独立，哪些该复合。实现时，从贴工作流出发设计大概五到十个工具，再加一个通用逃生门。别追求理论上的完美，先解决具体问题。最后，评估模型表现时，专门盯着选对工具率这个指标。模型变强了，还要回头精简工具集。工具粒度不是一劳永逸的，要跟着模型能力一起进化。"
         },
         {
-          "text": "重构时用四问框架决策。意图清晰吗？高频吗？能组合吗？有边界吗？这四个问题帮你判断哪些该独立，哪些该复合。",
-          "audio": "audio/tool-granularity/p7-table-implementation-s1.mp3"
+          "type": "table",
+          "header": [
+            "阶段",
+            "关键动作"
+          ],
+          "rows": [
+            [
+              "① 触发场景",
+              "模型老选错工具 / 该一步的活分成五轮磨 / 工具列表越加越长"
+            ],
+            [
+              "② 决策框架",
+              "四问：意图清晰？高频吗？可组合？有边界？"
+            ],
+            [
+              "③ 实现",
+              "从贴工作流出发设计 5-10 个工具 + 一个通用逃生门"
+            ],
+            [
+              "④ 持续优化",
+              "eval 里专门盯\"选对工具率\"；模型变强就精简工具集"
+            ]
+          ],
+          "caption": "先解决具体问题，再追求理论完美"
         },
         {
-          "text": "实现时，从贴工作流出发设计大概五到十个工具，再加一个通用逃生门。别追求理论上的完美，先解决具体问题。",
-          "audio": "audio/tool-granularity/p7-table-implementation-s2.mp3"
-        },
-        {
-          "text": "最后，评估模型表现时，专门盯着选对工具率这个指标。模型变强了，还要回头精简工具集。工具粒度不是一劳永逸的，要跟着模型能力一起进化。",
-          "audio": "audio/tool-granularity/p7-table-implementation-s3.mp3"
+          "type": "quiz",
+          "id": "p7-table-implementation-cp",
+          "question": "开发落地分哪几步？如何判断工具粒度有问题？",
+          "hint": "想想三个触发信号和四问框架...",
+          "pass_rule": "能说出三个触发信号和四问框架的内容"
         }
       ],
-      "fragments": [
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 0
-        },
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 1
-        },
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 2
-        },
-        {
-          "effect": "fade",
-          "target": null,
-          "with_sentence": 3
-        }
-      ],
-      "checkpoint": {
-        "question": "开发落地分哪几步？如何判断工具粒度有问题？",
-        "hint": "想想三个触发信号和四问框架...",
-        "pass_rule": "能说出三个触发信号和四问框架的内容"
-      }
+      "audio": null
     }
   ]
 }

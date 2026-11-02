@@ -129,3 +129,32 @@ export function parseCourse(d: unknown): Course | CourseV2 {
 export function isV2(c: Course | CourseV2): c is CourseV2 {
   return (c as CourseV2).version === 2;
 }
+
+/** 节/页统一视图:课表卡片与详情页不关心课件版本(P6 过渡期双版本) */
+export interface UnitStat {
+  id: string;
+  title: string;
+  hasCheckpoint: boolean;
+  sentences: number;
+  /** v1 页型(cover/formula/...);v2 节无此概念 */
+  kind?: string;
+}
+
+export function courseUnits(c: Course | CourseV2): UnitStat[] {
+  if (isV2(c))
+    return c.sections.map((s) => ({
+      id: s.id,
+      title: s.heading,
+      hasCheckpoint: s.blocks.some((b) => b.type === "quiz"),
+      sentences: 0,
+    }));
+  return c.pages.map((p) => ({
+    id: p.id,
+    title: p.title || p.eyebrow || p.id,
+    hasCheckpoint: !!p.checkpoint,
+    sentences: p.script.length,
+    kind: p.content.kind,
+  }));
+}
+
+export type AnyCourse = Course | CourseV2;
