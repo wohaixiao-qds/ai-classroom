@@ -323,7 +323,7 @@ def _loop(
         last_turn = turn == MAX_TURNS - 1
         resp = client.messages.create(
             model=settings.llm_model,
-            max_tokens=8192,
+            max_tokens=16384,  # 5.3 思考常开共吃预算:8192 间歇被全烧光(实测同 prep)
             # 观测客户端返回 Any,dict messages 直传不再需要 ignore(历史上 SDK TypedDict 拒 dict)
             messages=messages,
             tools=[] if last_turn else RESEARCH_TOOLS,

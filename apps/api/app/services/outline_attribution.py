@@ -137,7 +137,7 @@ def attribute_all() -> dict[str, Any]:
     client = get_llm_client().with_options(timeout=300.0)
     resp = client.messages.create(
         model=settings.llm_model,
-        max_tokens=8192,  # 思考模型:思考块也吃预算,小值会零文本(实测)
+        max_tokens=16384,  # 思考模型:思考块也吃预算,小值会零文本(5.3 更肥,同 prep/grader)
         messages=[
             {
                 "role": "user",

@@ -654,7 +654,7 @@ def run_prep(
         last_turn = turn == MAX_TURNS - 1
         resp = client.messages.create(
             model=settings.llm_model,
-            max_tokens=8192,
+            max_tokens=16384,  # 5.3 实测:8192 被思考全烧光两连(零工具调用→重试,纯损耗)
             # 观测客户端返回 Any,dict messages 直传不再需要 ignore(历史上 SDK TypedDict 拒 dict)
             messages=messages,
             tools=[] if last_turn else tools,

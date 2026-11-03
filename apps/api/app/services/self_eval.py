@@ -48,10 +48,12 @@ def _judge(question: str, answer: str, materials: str) -> dict[str, str]:
     prompt = SELF_EVAL_PROMPT.format(question=question, materials=materials, answer=answer)
     resp = client.messages.create(
         model=settings.llm_model,
-        max_tokens=256,
+        max_tokens=8192,  # 5.3 思考常开共吃预算:256 会被瞬间烧空→零文本
         messages=[{"role": "user", "content": prompt}],
     )
     text = "".join(b.text for b in resp.content if b.type == "text").strip()
+    if not text:  # 零文本(多为思考吃尽预算)→ 不炸 json,按未评处理(同 grader 判别)
+        return {"verdict": "skipped", "reason": "裁判零文本输出(思考吃尽预算?)"}
     if text.startswith("```"):  # 模型偶尔裹 ```json```,剥掉(同 grader)
         text = text.strip("`").removeprefix("json").strip()
     result = json.loads(text)

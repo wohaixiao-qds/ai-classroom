@@ -133,7 +133,9 @@ def run_tutor(
             answer_parts = []
             with client.messages.stream(
                 model=settings.llm_model,
-                max_tokens=1024,
+                # 5.3 起思考常开且与答案共吃预算:1024 会被思考烧光→答案必残缺,
+                # 8192=单轮思考+完整作答的余量(交互护栏靠 MAX_TURNS,不靠这里)
+                max_tokens=8192,
                 system=build_system(course_text),
                 messages=messages,
                 tools=[] if last_turn else TOOLS,

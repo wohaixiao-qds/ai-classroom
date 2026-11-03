@@ -111,8 +111,8 @@ def grade_recitation(
             resp = client.messages.create(
                 model=settings.llm_model,
                 # 思考模型的思考块也吃 max_tokens 预算:小值被思考烧光→零文本
-                # (实测 1024 间歇性触发;与 prep/归位 8192 同档)
-                max_tokens=8192,
+                # (5.3 思考更肥:8192 档是按 4.6 校的,全站切 5.3 后同提 16384)
+                max_tokens=16384,
                 messages=[{"role": "user", "content": prompt}],
             )
             break
