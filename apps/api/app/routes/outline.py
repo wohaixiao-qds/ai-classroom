@@ -155,13 +155,13 @@ class OutlinePrepReq(BaseModel):
     title: str
 
 
-@router.post("/outlines/{topic}/attribute")
-def attribute_courses(topic: str) -> dict[str, Any]:
-    """旧课归位(P7·选2):LLM 匹配已出课件↔大纲课,写 course_ref。幂等可重跑。"""
-    from app.services.outline_attribution import attribute_existing_courses
+@router.post("/outlines/attribute-all")
+def attribute_all_courses() -> dict[str, Any]:
+    """课件归位(P7):全局把每门已出课件归入最贴合的大纲课。幂等可重跑。"""
+    from app.services.outline_attribution import attribute_all
 
     try:
-        return attribute_existing_courses(topic)
+        return attribute_all()
     except ValueError as e:
         raise HTTPException(422, str(e)) from None
 

@@ -108,12 +108,10 @@ export function OutlinePanel() {
   const attribute = async () => {
     if (!detail) return;
     setMsg("归位匹配中(一次 LLM 调用,只配实质相同的)…");
-    const r = await fetch(`/api/v1/outlines/${encodeURIComponent(detail.topic)}/attribute`, {
-      method: "POST",
-    });
+    const r = await fetch("/api/v1/outlines/attribute-all", { method: "POST" });
     const d = (await r.json().catch(() => ({}))) as {
-      matches?: { outline_id: string; course_id: string; reason: string }[];
-      unmatched?: string[];
+      placements?: { course_id: string; outline_topic: string; outline_course_id: string }[];
+      unplaceable?: { course_id: string; reason: string }[];
       detail?: string;
     };
     if (!r.ok) {
@@ -121,10 +119,10 @@ export function OutlinePanel() {
       return;
     }
     setMsg(
-      d.matches && d.matches.length
-        ? `归位 ${d.matches.length} 门:${d.matches.map((m) => `${m.outline_id}←${m.course_id}`).join("、")}` +
-            (d.unmatched?.length ? `;未匹配 ${d.unmatched.length} 门(需点单出课)` : "")
-        : "没有够格的配对——未出课的需点单生成",
+      d.placements && d.placements.length
+        ? `归位 ${d.placements.length} 门:${d.placements.map((m) => `${m.course_id} → ${m.outline_topic}/${m.outline_course_id}`).join(";")}` +
+            (d.unplaceable?.length ? `;出圈 ${d.unplaceable.length} 门` : "")
+        : "没有待归位的课件",
     );
     await loadDetail(detail.topic);
   };

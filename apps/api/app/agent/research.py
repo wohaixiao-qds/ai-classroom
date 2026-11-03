@@ -129,8 +129,11 @@ recency。拿不准的内容不要写。"""
 def validate_framework(d: dict[str, Any], fetched: set[str] | None = None) -> list[str]:
     """领域大纲校验(P7·M1):3~8 门、id 唯一、goal 可验证、prereqs 合法且成 DAG。"""
     courses = d.get("courses")
-    if not isinstance(courses, list) or not 3 <= len(courses) <= 8:
-        return ["courses 缺失或数量不在 3~8——大纲至少 3 门,至多 8 门"]
+    if not isinstance(courses, list) or not courses:
+        return ["courses 缺失或为空"]
+    # legacy 转换的大纲(旧 subtopics)免课数闸——历史形状如实保留,闸只管新设计
+    if not d.get("legacy") and not 3 <= len(courses) <= 8:
+        return ["courses 数量不在 3~8——大纲至少 3 门,至多 8 门"]
     errs: list[str] = []
     ids: set[str] = set()
     for i, c in enumerate(courses, 1):
@@ -453,11 +456,10 @@ def _legacy_to_outline(d: dict[str, Any]) -> dict[str, Any]:
                 "goal": why or f"学完能讲清「{title[:20]}」",
                 "why": why,
                 "prereqs": [],
-                "part": "",
                 "origin": str(s.get("origin", "map")),
             }
         )
-    return {**d, "courses": courses, "domain": str(d.get("domain", ""))}
+    return {**d, "courses": courses, "domain": str(d.get("domain", "")), "legacy": True}
 
 
 def cached_framework(topic: str) -> dict[str, Any] | None:

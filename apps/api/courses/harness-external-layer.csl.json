@@ -1,0 +1,299 @@
+{
+  "id": "harness-external-layer",
+  "title": "认识 Harness:模型之外的软件层",
+  "scenario": "自学",
+  "version": 2,
+  "meta": {
+    "source_notes": [
+      "/Users/zhangyu/CodeDevelopment/ai-classroom/apps/api/data/research/Agent-Harness.认识-Harness-模型之外的软件层.material.json"
+    ],
+    "topic": "Agent Harness",
+    "sources": [
+      {
+        "title": "Agent harness - Wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Agent_harness"
+      },
+      {
+        "title": "Releases · deepseek-ai/deepseek-harness (官方 changelog)",
+        "url": "https://github.com/deepseek-ai/deepseek-harness/releases"
+      },
+      {
+        "title": "Effective harnesses for long-running agents \\ Anthropic (官方工程博客)",
+        "url": "https://www.anthropic.com/research/effective-harnesses-for-long-running-agents"
+      },
+      {
+        "title": "google-research/harness2 (官方 README,Apache 2.0)",
+        "url": "https://github.com/google-research/harness2"
+      },
+      {
+        "title": "Are Harnesses Worth the Cost? - martinfowler.com (Naresh Jain 实验)",
+        "url": "https://martinfowler.com/articles/are-harnesses-worth-the-cost.html"
+      },
+      {
+        "title": "The Anatomy of an Agent Harness | LangChain Blog (Vivek Trivedy)",
+        "url": "https://www.langchain.com/blog/the-anatomy-of-an-agent-harness"
+      },
+      {
+        "title": "What is an AI harness? How agent harnesses work | Parallel",
+        "url": "https://parallel.ai/articles/what-is-an-agent-harness"
+      },
+      {
+        "title": "Scaling Managed Agents with stable interfaces \\ Anthropic (官方工程博客)",
+        "url": "https://www.anthropic.com/research/managed-agents"
+      }
+    ],
+    "depends_on": [],
+    "duration_min": null
+  },
+  "sections": [
+    {
+      "blocks": [
+        {
+          "text": "环绕在语言模型外围、把它变成可用系统的那层软件,就是 **agent harness**(又称 **agent scaffolding**,「脚手架」)。它的职责是工具调用、记忆与状态持久化、执行环境和反馈回路——这些功能与「模型内部的推理」相对:推理发生在模型参数里,不可直接修改;harness 则是模型之外、可以被阅读和改动的普通代码。语言模型要成为能干活的 **AI Agent**,缺的就是这一层(源[1])。",
+          "type": "p"
+        },
+        {
+          "text": "要理解这层软件为什么必要,得先看清模型本身是什么:一个**无状态的**概率函数,把输入 token 序列映射为输出 token 序列,仅此而已——它不记得上一轮说过什么,不能执行代码,也接触不到外部世界。是 harness 把这个函数变成 Agent:接上外部工具、处理非 token 形态的数据、让它在多轮任务环境里连贯运行。三者的关系可以压成一个公式:**agent = model + harness**。",
+          "type": "p"
+        },
+        {
+          "code": "graph TD\n  M[基础模型: 无状态的 token 映射函数] --> A[Agent]\n  H[harness: 工具调用、记忆、沙箱、反馈回路] --> A",
+          "caption": "agent = model + harness:harness 是模型外围的软件层",
+          "lang": "mermaid",
+          "type": "diagram"
+        },
+        {
+          "text": "并非所有场景都需要这层软件:单次提示-应答(问一句、答一句)用不着 harness。任务一旦变成**多步**、**工具导向**或**长时运行**,模型自身的能力就不够用了,需要有人替它管理状态、调度工具、维持环境——harness 从可选项变成必需品(源[1])。",
+          "type": "p"
+        },
+        {
+          "id": "s1-definition-cp",
+          "pass_rule": "能说出三点:模型是无状态的 token 映射概率函数;公式为 agent = model + harness;harness 至少补上工具调用、记忆/状态、执行环境中的两项,且任务多步化或长时运行才离不开它。",
+          "question": "模型本身是什么?为什么单次提示-应答用不着 harness,而多步长任务离不开它?请复述公式,并说明 harness 补上了模型的哪些缺口。",
+          "type": "quiz"
+        }
+      ],
+      "heading": "先给公式:agent = model + harness",
+      "id": "s1-definition"
+    },
+    {
+      "blocks": [
+        {
+          "text": "哪段代码算 harness?LangChain 给了一个最干脆的判定:**如果你不是模型,你就是 harness**。按这个口径,系统提示词、工具/技能/MCP 及其描述、捆绑的基础设施、编排逻辑、钩子与中间件,全都在 harness 的边界之内。其中 MCP(Model Context Protocol,把外部工具接进模型的标准协议)是工具接入的常见形态;编排逻辑指子代理派生、任务交接、模型路由这类「决定让谁干什么」的代码;钩子与中间件则用来做确定性执行,保证动作按既定规则发生(源[6])。",
+          "type": "p"
+        },
+        {
+          "header": [
+            "边界内的东西",
+            "具体形态"
+          ],
+          "caption": "「不是模型,就是 harness」的五类组成(源[6])",
+          "rows": [
+            [
+              "系统提示词",
+              "为任务定制的人设、规则与指令文本"
+            ],
+            [
+              "工具与技能",
+              "工具/技能/MCP,连同写给他们看的描述"
+            ],
+            [
+              "捆绑基础设施",
+              "文件系统、沙箱、浏览器等现成环境"
+            ],
+            [
+              "编排逻辑",
+              "子代理派生、任务交接、模型路由"
+            ],
+            [
+              "钩子与中间件",
+              "在关键节点做确定性拦截与执行"
+            ]
+          ],
+          "type": "table"
+        },
+        {
+          "text": "这个边界也能换个角度验证:凡是模型开箱做不到的事,都落在 harness 层——跨交互维持持久状态、执行代码、获取实时知识、搭建环境并安装依赖,没有一样是基础模型自带的。产品把这些能力补齐在哪里,harness 的功能边界就在哪里(源[6])。",
+          "type": "p"
+        },
+        {
+          "text": "边界划清之后,一个现象就有了坐标:同一个模型放进不同产品,表现可以大相径庭,原因不在模型换了,而在 harness 不同。外围系统对任务表现的影响,甚至可以超过模型能力本身的一次小幅提升——这意味着改 harness 往往比换模型更划算(源[7])。",
+          "type": "p"
+        },
+        {
+          "id": "s2-boundary-cp",
+          "pass_rule": "能复述判定口诀「如果你不是模型,你就是 harness」;至少列出五类组成中的四类(系统提示词、工具与技能/MCP、捆绑基础设施、编排逻辑、钩子/中间件);并答出同一模型表现差异源于 harness、外围影响可超过模型小幅提升。",
+          "question": "「如果你不是模型,你就是 harness」——按这个口径,harness 由哪几类东西组成?为什么同一个模型在不同产品里表现不同?",
+          "type": "quiz"
+        }
+      ],
+      "heading": "划边界:不是模型的,都是 harness",
+      "id": "s2-boundary"
+    },
+    {
+      "blocks": [
+        {
+          "text": "拆开一台 harness,常见组件包括工具分发、记忆与状态持久化、隔离的沙箱/工作区、上下文管理,以及范围权限、审批层级和监控这类护栏。值得一提的是,这套机制的底层思想早于这个术语出现:ReAct(让模型在推理与行动之间交替的循环)和 Toolformer(训练模型在文本中插入工具调用)都是先行者,harness 只是给它们起了统一的名字(源[1])。",
+          "type": "p"
+        },
+        {
+          "text": "Thoughtworks 的 Böckeler 给出一套实用的分类。先看层次:**内 harness**是模型厂商自带的,如各家 Agent SDK、Cursor 与 Codex;**外 harness**是用户在内层之上组装的,包括指令文件、MCP 服务器、自定义技能。再看部件的角色:**guides**在行动前引导模型(如提示词模板、检查清单),**sensors**在行动后观察结果并支撑自我纠错;这两类又各自分成计算型(如 linter、测试)与推断型(如 LLM as judge)——后者用另一次模型调用来评判前者(源[1])。",
+          "type": "p"
+        },
+        {
+          "code": "graph TD\n  U[外 harness: 指令文件、MCP 服务器、自定义技能] --> N[内 harness: Agent SDK、Cursor、Codex]\n  N --> M[基础模型]",
+          "caption": "内、外 harness 的分层:用户组装层叠在厂商自带层之上",
+          "lang": "mermaid",
+          "type": "diagram"
+        },
+        {
+          "text": "组件里最基础的一个原语是文件系统:给代理一块工作区,把放不进上下文窗口的信息卸载出去落盘,让工作跨会话持久化,它还天然充当多代理与人类协作的界面。Git 在文件系统之上叠加版本管理,使代理能把错误改动回滚掉,而不必从头重来(源[6])。",
+          "type": "p"
+        },
+        {
+          "text": "工具策略上,harness 的选择是自带 bash、代码执行这类**通用工具**,而不是为每种操作预建一个专用工具。有了通用工具,模型能现场写代码造出自己需要的工具、自主解决问题——相当于给模型一台计算机,而不是给它一柜子预制的单功能电器(源[6])。",
+          "type": "p"
+        },
+        {
+          "id": "s3-components-cp",
+          "pass_rule": "能答出内 harness 由厂商自带(Agent SDK、Cursor、Codex)、外 harness 由用户组装(指令文件、MCP、自定义技能);guides 在行动前引导、sensors 在行动后观察并支撑自我纠错,各分计算型与推断型;并说出文件系统至少一项基础作用(工作区、卸载信息、跨会话持久化、协作界面)。",
+          "question": "Böckeler 怎么区分内、外 harness?guides 与 sensors 各自何时起作用、又各分哪两类?文件系统为什么被称作最基础的 harness 原语?",
+          "type": "quiz"
+        }
+      ],
+      "heading": "拆开看:harness 的组件与分类",
+      "id": "s3-components"
+    },
+    {
+      "blocks": [
+        {
+          "text": "进入生产环境,长任务暴露的第一道坎是记忆断层:工作在离散会话中进行,新会话对之前发生的一切毫无记忆——像轮班工人接手一个没有交接文档的项目。同时上下文窗口有限,复杂项目根本无法在单个窗口内装下,harness 必须跨窗口、跨会话地搭桥(源[3])。",
+          "type": "p"
+        },
+        {
+          "text": "Anthropic 实测了这件事:即便 Opus 4.5 这类前沿模型,跑在 Claude Agent SDK(官方称之为通用 agent harness,带 compaction——压缩旧上下文以腾出窗口空间的机制)上,只给一句高层提示仍然造不出生产级应用。失败稳定地收敛为两类:一类是**一口气 one-shot 整个应用**,上下文中途耗尽;另一类是**看到已有进展就提前宣布完工**。实测结论是,compaction 并不足以解决这两类失败(源[3])。",
+          "type": "p"
+        },
+        {
+          "header": [
+            "失败模式",
+            "具体表现",
+            "compaction 为什么救不了"
+          ],
+          "caption": "长任务的两类稳定失败(源[3])",
+          "rows": [
+            [
+              "一口气 one-shot 整个应用",
+              "一条高层提示试图从头造完整个应用,上下文中途耗尽",
+              "压缩只能腾窗口,改变不了把整个任务塞进一个窗口的错法"
+            ],
+            [
+              "提前宣布完工",
+              "看到已有进展就宣称任务完成",
+              "压缩上下文并不提供完工的客观判定依据"
+            ]
+          ],
+          "type": "table"
+        },
+        {
+          "text": "Anthropic 的解法是把 harness 拆成两个角色:一个**初始化代理**负责搭台——写 init.sh、建 claude-progress.txt 进度文件、提交首个 git commit、生成两百多条全部标为 failing 的特性清单;再由**编码代理**逐特性增量推进。工程细节也在给假设加固:特性清单用 JSON 而非 Markdown,因为模型更不容易乱改 JSON;并用强措辞禁止删改测试,让每个特性都有可验证的完成标准(源[3])。",
+          "type": "p"
+        },
+        {
+          "id": "s4-long-running-cp",
+          "pass_rule": "能答出两类失败(one-shot 导致上下文中途耗尽、看到进展就提前宣布完工)且知道 compaction 不足以解决;能说出解法是初始化代理搭台(进度文件、failing 特性清单)加编码代理逐特性推进;能答出清单用 JSON 因为模型更不易乱改、禁改测试为保证可验证。",
+          "question": "Anthropic 的长任务实验暴露了哪两类失败?他们的 harness 解法拆成了哪两个角色?特性清单为什么用 JSON、又为什么禁止代理删改测试?",
+          "type": "quiz"
+        }
+      ],
+      "heading": "长任务难题:harness 怎么跨会话搭桥",
+      "id": "s4-long-running"
+    },
+    {
+      "blocks": [
+        {
+          "text": "上线的第一课是:harness 编码的是「模型自己做不到什么」的假设,而假设会随模型进步过时。Anthropic 曾为 Sonnet 4.5 的「上下文焦虑」专门加了上下文重置机制,等模型升级到 Opus 4.5,这套机制就沦为死重——它不再解决任何真实问题,只是白白占用复杂度。每换一次模型,harness 里的假设都要重新审一遍(源[8])。",
+          "type": "p"
+        },
+        {
+          "text": "架构上,把会话、harness、沙箱塞进同一个容器,等于在养「宠物」:容器一挂,会话就丢,故障也无从定位。Anthropic 的解法是解耦——把「大脑」(Claude 加 harness)、「手」(沙箱)、「会话日志」拆成稳定接口,容器从宠物变成「牛群」:任何一头挂了,凭 sessionId 就能重启恢复,而不是整群重建(源[8])。",
+          "type": "p"
+        },
+        {
+          "text": "安全边界的教训来自一次真实风险:早期 Claude 生成的不可信代码与凭证同处一个容器,一次提示注入就可能窃取令牌。结构性修法是让令牌**永不可从沙箱触达**——Git 用仓库令牌在初始化时完成克隆,MCP 走带保险库凭证的代理,harness 本身永远不接触凭证。防线不靠模型听话,靠的是架构上无路可走(源[8])。",
+          "type": "p"
+        },
+        {
+          "header": [
+            "模型",
+            "无 harness",
+            "加 harness",
+            "说明"
+          ],
+          "caption": "同一 API 服务、各 10 次运行的对照实验(源[5])",
+          "rows": [
+            [
+              "GPT-6 Sol(前沿型)",
+              "10/10 通过",
+              "10/10 通过,多烧约 10.5 倍 token、贵约 7 倍",
+              "裸跑已满分的模型上,harness 只剩下成本"
+            ],
+            [
+              "GPT-6 Luna(成本优化型)",
+              "3/10 通过",
+              "10/10 通过,单次 $0.273",
+              "行为 harness 换来了可靠性"
+            ]
+          ],
+          "type": "table"
+        },
+        {
+          "text": "Naresh Jain 的对照实验把这笔账算清了:对已经满分的强模型,harness 是纯开销;对廉价的小模型,加上 guides 与 sensors 组成的**行为 harness**,通过率从 3/10 拉到 10/10,单次成本 $0.273 还比裸跑强模型的 $0.406 低 33%。结论是:行为 harness 是让更便宜的小模型获得可靠产出的实用手段,但它不是免费的——值不值,取决于你给哪个档位的模型配它(源[5])。",
+          "type": "p"
+        },
+        {
+          "id": "tip-assumption-expiry",
+          "kind": "note",
+          "text": "harness 是会随模型升级而过期的软件:里面每一条规则都是对「模型做不到什么」的一次押注,模型进步后记得回头收账。",
+          "type": "callout"
+        }
+      ],
+      "heading": "上线取舍:过时的假设、解耦与成本账",
+      "id": "s5-tradeoffs"
+    },
+    {
+      "blocks": [
+        {
+          "text": "近一周的 release 能看到 harness 仍在快速演进。DeepSeek Harness 于 2026-10-28 发布 v0.2.2-alpha.2,新增实验性的 subagent_oar 工具插件,可把独立任务交给本机的 Codex 或 Claude CLI;同时新增实验性的「变更请求与工作树」,在独立 Git 工作树中运行会话,并查看关联 PR 的状态与代码差异(源[2])。",
+          "type": "p"
+        },
+        {
+          "text": "Google Research 则开源了 Harness²(github.com/google-research/harness2,Apache 2.0),官方把它定义为「让模型成为代理的外围系统:提示词、工具、记忆、技能、编排等」。它的卖点是**在不改模型权重的前提下做递归 harnessing**:单步优化就能在 WorkBuddy-Bench 上最多提升 11.5 分,支持 OpenCode 与 Codex 两种执行器(源[4])。",
+          "type": "p"
+        },
+        {
+          "text": "Harness² 的递归分两级:**任务级**递归用 Propose–Probe–Compose 循环——提出一处 harness 编辑、探测它对行为的影响、按行为差异合成精炼后的 harness,全程不需要真值反馈;**harnessing 级**递归则用一个持久的「改进 harness」沉淀经验,指导后续所有任务的 harness 优化。前者改的是当前任务的执行 harness,后者改的是改进机制本身(源[4])。",
+          "type": "p"
+        },
+        {
+          "code": "graph TD\n  S[session: 追加式事件日志] --> H[harness: 调用 Claude 并路由工具调用的循环]\n  H --> X[sandbox: 执行环境]",
+          "caption": "Managed Agents 把代理虚拟化为三个稳定接口",
+          "lang": "mermaid",
+          "type": "diagram"
+        },
+        {
+          "text": "把「harness 会持续演进」推到服务形态的是 Anthropic 的 Managed Agents:像操作系统虚拟化硬件那样,把代理组件虚拟化为三个稳定接口——session(追加式事件日志)、harness(调用 Claude 并路由工具调用的循环)、sandbox(执行环境)。接口稳定,意味着每层可以独立替换而历久不变,这正是 harness 作为「模型之外软件层」的工程化终点(源[8])。",
+          "type": "p"
+        },
+        {
+          "id": "s6-releases-cp",
+          "pass_rule": "能说出 DeepSeek v0.2.2-alpha.2 的任一新特性(subagent_oar 插件或 Git 工作树变更请求);Harness² 的两级递归分工(任务级 Propose–Probe–Compose 无需真值反馈,harnessing 级持久沉淀经验)且不改模型权重;Managed Agents 的三个接口 session/harness/sandbox 及其虚拟化、可独立替换的意图。",
+          "question": "DeepSeek 与 Google 这一周各自发布了什么?Harness² 的两级递归如何分工?Managed Agents 把代理虚拟化成了哪三个接口、为什么做成稳定接口?",
+          "type": "quiz"
+        }
+      ],
+      "heading": "官方动向:一周与一年的 release",
+      "id": "s6-releases"
+    }
+  ]
+}

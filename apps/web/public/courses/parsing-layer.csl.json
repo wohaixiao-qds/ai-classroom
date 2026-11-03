@@ -35,7 +35,8 @@
         "id": "harness-01",
         "reason": "先知道 harness 是什么,再拆它的第一个部件"
       }
-    ]
+    ],
+    "topic": "Agent / harness / Runtime"
   },
   "sections": [
     {

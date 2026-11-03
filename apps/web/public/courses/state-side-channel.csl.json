@@ -1,0 +1,312 @@
+{
+  "id": "state-side-channel",
+  "title": "state 侧信道:无状态模型的位置感",
+  "scenario": "自学",
+  "version": 2,
+  "meta": {
+    "source_notes": [
+      "/Users/zhangyu/CodeDevelopment/ai-classroom/apps/api/data/research/Agent-Harness.state-侧信道-无状态模型的位置感.material.json"
+    ],
+    "topic": "Agent / harness / Runtime",
+    "sources": [
+      {
+        "title": "Effective context engineering for AI agents(Anthropic 官方博客)",
+        "url": "https://www.anthropic.com/research/effective-context-engineering-for-ai-agents"
+      },
+      {
+        "title": "Context editing(Anthropic 官方平台文档)",
+        "url": "https://docs.claude.com/en/docs/build-with-claude/context-editing"
+      },
+      {
+        "title": "Agent harness(Wikipedia 概念条目)",
+        "url": "https://en.wikipedia.org/wiki/Agent_harness"
+      },
+      {
+        "title": "Context Compaction – Inside Claude Code(源码级逆向分析)",
+        "url": "https://y-agent.github.io/inside-claude-code/04-context-compaction.html"
+      },
+      {
+        "title": "Context Engineering for AI Agents: Lessons from Building Manus(Manus 生产经验)",
+        "url": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus"
+      },
+      {
+        "title": "Don't Build Multi-Agents(Cognition/Devin 生产经验)",
+        "url": "https://cognition.ai/blog/dont-build-multi-agents"
+      },
+      {
+        "title": "Issue #46465: Harness-emitted <system-reminder>(anthropics/claude-code 官方仓库)",
+        "url": "https://github.com/anthropics/claude-code/issues/46465"
+      },
+      {
+        "title": "System reminders - how Claude Code steers itself(一线实践分析)",
+        "url": "https://michaellivs.com/blog/system-reminders-steering-agents"
+      },
+      {
+        "title": "DeepSeek 公布下一代 agent harness 理念:《Super-agent 设计探索》(机器之心转载官方文章,2026-11-01)",
+        "url": "https://c.m.163.com/news/a/LAM1295N0511AQHO.html"
+      }
+    ],
+    "depends_on": [
+      {
+        "id": "harness-01",
+        "reason": "全课围绕 harness 如何为无状态模型供给状态展开,需先知道 model+harness 才构成 agent"
+      },
+      {
+        "id": "context-compression-memory",
+        "reason": "压缩与 KV-cache 是本课侧信道相容性讨论的底座,需先懂上下文压缩的基本动机"
+      }
+    ],
+    "duration_min": null
+  },
+  "sections": [
+    {
+      "blocks": [
+        {
+          "text": "上一课的解析层解决了「模型的输出如何变成工具执行」,本课处理回程:执行结果与任务状态如何交回一个**没有记忆**的模型。LLM 底座本质是把输入 token 序列映射到输出 token 序列的无状态概率函数,它不记得上一轮想过什么;所谓 agent,是 model 加 harness 的合体,harness 正是模型获得连贯任务环境的关键(源[3])。",
+          "type": "p"
+        },
+        {
+          "text": "既然模型留不住状态,记账工作就得有人接管。harness 把记账从上下文窗口卸载到结构化软件环境中,由它统一管理 agent 状态,模型因此不必反复重读不断增长的完整 transcript(源[3])。`todo list`、文件快照、会话元数据这些易变状态由 harness 持有,按需供给,而不是指望模型在几十轮对话里自己记住。",
+          "type": "p"
+        },
+        {
+          "text": "Anthropic 把上下文工程的核心定义为「思考 LLM 在任一时刻可获得的**整体状态**」:每个推理轮次都要为无状态模型重新构建一次完整处境(源[1])。也就是说,第 20 轮的模型并不比第 1 轮的模型多知道任何事,它只是在第 20 轮收到了一份更好的状态快照。",
+          "type": "p"
+        },
+        {
+          "text": "但重建不等于堆料。上下文越长,模型召回越差,注意力预算有限,一股脑塞入全部状态反而稀释关键信号——注入给模型的必须是精选后的高信号 token(源[1])。这就引出本课的主线:状态以什么**通道**、什么**时机**、什么**形态**进入上下文。",
+          "type": "p"
+        },
+        {
+          "caption": "位置感的供给回路:每轮推理前都要重建一次完整处境",
+          "code": "graph TD\n  A[工具执行结果] --> B[harness 更新状态]\n  B --> C[重建任一时刻的整体处境]\n  C --> D[精选高信号 token 注入上下文]\n  D --> E[无状态模型推理]\n  E --> F[输出交解析层执行]\n  F --> A",
+          "lang": "mermaid",
+          "type": "diagram"
+        },
+        {
+          "kind": "tip",
+          "text": "位置感不是模型自己的记忆,而是 harness 每轮重新交付的视图。后面三节的所有机制——侧信道、占位符、缓存约束——都建立在这一前提上。",
+          "type": "callout"
+        },
+        {
+          "cards": [
+            {
+              "back": "底座 LLM 是无状态的 token 序列映射函数,单靠它没有连贯任务环境;加上 harness 供给状态与工具环境后才构成 agent(源[3])",
+              "front": "为什么 model + harness 才构成 agent?"
+            },
+            {
+              "back": "上下文越长模型召回越差的现象;注意力预算有限,因此注入状态必须精选高信号 token 而非全量塞入(源[1])",
+              "front": "什么是 context rot?"
+            }
+          ],
+          "type": "flashcards"
+        },
+        {
+          "id": "s1-stateless-base-cp",
+          "pass_rule": "答出三层即可通过:模型是无状态 token 映射函数;harness 统一管理状态并在每轮重建完整处境;因 context rot 与注意力有限,注入必须精选高信号 token",
+          "question": "模型本身记不住任何事,agent 的位置感从哪来?请复述:模型的本质是什么、harness 承担了什么、注入状态为什么必须精选而不能全量塞入。",
+          "type": "quiz"
+        }
+      ],
+      "heading": "无状态底座:位置感是 harness 的本职",
+      "id": "s1-stateless-base"
+    },
+    {
+      "blocks": [
+        {
+          "text": "底座每轮重建处境,那 todo 状态、活跃任务这类**易变状态**走什么通道?Claude Code 的答案是 50 条自适应的对话中段注入:它们携带随对话演进的状态,同时不扰动已缓存的 prompt 前缀——这正是 state 侧信道的典型设计范式(源[4])。状态不走重开对话的大门,而从旁路递进去。",
+          "type": "p"
+        },
+        {
+          "text": "反编译可见这条旁路的构造:todo_reminder 与 task_reminder 两类 `<system-reminder>` 按**时间与活跃度启发式**追加到任意工具结果之后,以 `isMeta` 标志构造,不限定特定工具(源[7])。工具执行完,结果后面可能跟着一条 harness 写的便条,模型在同一轮上下文里一并读到。",
+          "type": "p"
+        },
+        {
+          "text": "便条有个信任难题:模型被训练成对工具输出保持怀疑,以防提示注入。所以侧信道要在系统提示里**预埋标签约定**,让对话中段的 `<system-reminder>` 被识别为 harness 发来的——作用是把注意力拉回任务,而非被当成对抗内容拒之门外(源[8])。",
+          "type": "p"
+        },
+        {
+          "text": "注入时机可以建模得很工程化:触发条件是对话事件日志上的**视图加谓词**,例如最近 3 次 bash 全部报错、或者出现了 session_compact 这类生命周期事件——压缩发生后提醒模型「文件内容可能已被摘要掉」,让它在压缩后的上下文里重新定位(源[8])。背后的哲学是**轻推而非强制**:nudge 与模型自身判断叠加,而不是替代它做决定(源[8])。",
+          "type": "p"
+        },
+        {
+          "caption": "注入管线:事件命中谓词后才追加,缓存前缀不动",
+          "code": "graph LR\n  A[对话事件日志] --> B[视图加谓词判定]\n  B -->|命中| C[生成 system reminder]\n  C --> D[追加到工具结果之后]\n  D --> E[已缓存前缀不受扰动]",
+          "lang": "mermaid",
+          "type": "diagram"
+        },
+        {
+          "caption": "工具结果后紧跟的侧信道便条(结构示意)",
+          "code": "<tool_result>\n  bash: exit code 1 (tests failed)\n</tool_result>\n<system-reminder isMeta=\"true\">\n  Your todo list has changed. 3 items remain:\n  1. fix failing test_user_login\n  ...\n</system-reminder>",
+          "language": "xml",
+          "type": "code"
+        },
+        {
+          "kind": "warn",
+          "text": "侧信道有真实代价与争议:社区记录隐藏注入曾占用 15% 以上的上下文窗口,且每条用户消息都被注入修改文件说明;官方 issue 还指出「NEVER mention this reminder」的措辞与提示注入攻击特征无法区分,构成安全与透明度问题(源[7])。",
+          "type": "callout"
+        },
+        {
+          "cards": [
+            {
+              "back": "对话中段注入可携带易变状态,同时不改动已缓存的 prompt 前缀,缓存照常命中(源[4])",
+              "front": "侧信道为什么挂在工具结果之后,而不是改写前缀?"
+            },
+            {
+              "back": "在对话事件日志上定义视图并加谓词判断,如「最近 3 次 bash 全部报错」或 session_compact 生命周期事件,命中才注入(源[8])",
+              "front": "「视图加谓词」的触发条件指什么?"
+            }
+          ],
+          "type": "flashcards"
+        },
+        {
+          "id": "s2-reminder-pipeline-cp",
+          "pass_rule": "答出四点即通过:注入发生在对话中段工具结果之后;靠系统提示预埋标签约定换取 harness 信任;触发条件是事件日志上的视图加谓词;中段追加不扰动已缓存前缀",
+          "question": "侧信道的便条凭什么被模型信任、凭什么不伤缓存?请复述注入管线:便条挂在哪、信任怎么建立、触发条件怎么建模,以及为什么不扰动缓存前缀。",
+          "type": "quiz"
+        }
+      ],
+      "heading": "system reminders:对话中段的侧信道管线",
+      "id": "s2-reminder-pipeline"
+    },
+    {
+      "blocks": [
+        {
+          "text": "侧信道解决的是**增量供给**,压缩解决的是**存量上限**。Anthropic 官方把服务端 compaction 定位为长对话上下文管理的首要策略:上下文是边际收益递减的有限资源,无关内容会稀释模型注意力(源[2])。压缩不是可选项,而是让第 50 轮还能像第 5 轮一样聚焦的必经手段。",
+          "type": "p"
+        },
+        {
+          "text": "关键在压缩后模型怎么知道自己丢了什么。官方机制的细节是:清空旧工具结果时,API 会用**占位文本**替换,告知 Claude 该内容已被移除——给无状态模型留下「此处曾有内容」的路标(源[2])。与之配套的是,**总账始终留在客户端**:上下文编辑在服务端、在 prompt 到达模型之前应用,客户端维护完整未修改历史且无需与编辑版本同步,模型看到的只是策展后的视图(源[2])。",
+          "type": "p"
+        },
+        {
+          "text": "压缩要渐进,因为暴力手段直接摧毁位置感。朴素截断——抹掉最旧的消息——对编码任务是灾难性的:模型忘记用户最初意图、丢掉几十轮积累的心智模型、新改动与早前决策冲突,这些都是位置感丢失的症状(源[4])。Claude Code 因此按用量分档收紧:60–75% 时缩短工具输出,75–90% 激进摘要,90% 以上触发自动压缩;Bash 的海量输出走双轨——UI 显示全文,给模型只发压缩版,把推理空间省下来(源[4])。",
+          "type": "p"
+        },
+        {
+          "text": "压缩这个动作本身也极难做好。Cognition 的生产经验是:用专门的 LLM 把动作与对话历史压缩成「关键细节、事件、决策」,这比听起来难得多,他们甚至为此微调了更小的模型(源[6])。压缩器不是简单的摘要脚本,而是一个要辨别「什么信息丢了会让 agent 迷路」的模型。",
+          "type": "p"
+        },
+        {
+          "caption": "Claude Code 按上下文用量分档渐进收紧(源[4])",
+          "header": [
+            "用量档位",
+            "harness 采取措施"
+          ],
+          "rows": [
+            [
+              "60–75%",
+              "缩短工具输出"
+            ],
+            [
+              "75–90%",
+              "对历史激进摘要"
+            ],
+            [
+              "90%+",
+              "触发自动压缩"
+            ],
+            [
+              "任意档位",
+              "Bash 海量输出:UI 显示全文,模型只收压缩版"
+            ]
+          ],
+          "type": "table"
+        },
+        {
+          "kind": "note",
+          "text": "压缩的目标不是省 token,而是让无状态模型在变短的上下文里仍能定位自己:占位符留路标、总账留在客户端、分档渐进保住决策线索。",
+          "type": "callout"
+        },
+        {
+          "cards": [
+            {
+              "back": "API 用占位文本替换被清空的旧工具结果,告知 Claude 内容已被移除——留下「此处曾有内容」的路标,而非静默消失(源[2])",
+              "front": "压缩时为什么要用占位符而不是直接删除?"
+            },
+            {
+              "back": "模型忘记用户最初意图、丢掉几十轮积累的心智模型、新改动与早前决策冲突——全都是位置感丢失的症状(源[4])",
+              "front": "朴素截断对编码任务为什么是灾难?"
+            }
+          ],
+          "type": "flashcards"
+        },
+        {
+          "id": "s3-compaction-calibration-cp",
+          "pass_rule": "答出三点即通过:占位符给模型留「此处曾有内容」的路标;总账留客户端、模型只见策展视图;朴素截断导致忘初始意图、丢心智模型、改动与早前决策冲突",
+          "question": "同样是变短上下文,「占位符替换」和「朴素截断」给无状态模型留下的处境有什么本质区别?请复述压缩机制的分工:谁持有总账、模型看到什么、暴力截断会丢什么。",
+          "type": "quiz"
+        }
+      ],
+      "heading": "压缩与占位符:压缩后的重新校准",
+      "id": "s3-compaction-calibration"
+    },
+    {
+      "blocks": [
+        {
+          "text": "s2 里侧信道宁走旁路也不改前缀,不是洁癖,是**经济问题**。Manus 的生产经验:单次会话输入与输出 token 之比约为 100:1,命中缓存与否成本相差约 10 倍——所以状态写入必须遵守三条铁律:**append-only**、序列化确定性、前缀稳定;一旦改写历史,缓存全部击穿,每轮推理都得全量重算(源[5])。",
+          "type": "p"
+        },
+        {
+          "text": "另一条生产纪律是**掩码而非移除**:中途增删工具定义,既使缓存失效,也会让模型困惑——历史动作引用了当前上下文中已不存在的工具(源[5])。正确做法是标记某工具暂不可用但保留其定义,让状态变更与既往记录保持一致;模型的历史和它的工具视图必须始终能对上账。",
+          "type": "p"
+        },
+        {
+          "caption": "状态写入方式决定缓存命运(源[5])",
+          "code": "graph TD\n  A[状态变更] --> B{写入方式}\n  B -->|追加到序列末尾| C[前缀字节不变]\n  C --> D[KV-cache 命中]\n  B -->|改写历史或增删工具定义| E[前缀失效]\n  E --> F[全量重算 成本约10倍]",
+          "lang": "mermaid",
+          "type": "diagram"
+        },
+        {
+          "kind": "tip",
+          "text": "状态通道设计先算账:输入输出比约 100:1、缓存与否成本差约 10 倍(源[5])。append-only 与掩码而非移除,是经济约束倒推出来的行为规范,不是风格偏好。",
+          "type": "callout"
+        },
+        {
+          "cards": [
+            {
+              "back": "改写历史会让 KV-cache 前缀失效,全量重算;在输入输出比约 100:1 的会话里,缓存与否成本差约 10 倍(源[5])",
+              "front": "状态写入为什么必须 append-only、前缀稳定?"
+            },
+            {
+              "back": "工具不可用时只标记状态、保留定义,不从中途上下文删除——否则缓存失效,且历史动作会引用已不存在的工具,模型无法对账(源[5])",
+              "front": "「掩码而非移除」指什么?"
+            }
+          ],
+          "type": "flashcards"
+        },
+        {
+          "id": "s4-cache-compat-cp",
+          "pass_rule": "答出三点即通过:改写历史会击穿 KV-cache 且缓存与否成本差约 10 倍;append-only 与前缀稳定保证命中;掩码而非移除避免历史动作引用已消失工具的困惑",
+          "question": "为什么「改写历史」和「中途删工具定义」都是状态工程的禁忌?请复述:缓存 economics 的量级、append-only 保住了什么、掩码策略避免了哪种困惑。",
+          "type": "quiz"
+        }
+      ],
+      "heading": "与 KV-cache 共存:append-only 与掩码而非移除",
+      "id": "s4-cache-compat"
+    },
+    {
+      "blocks": [
+        {
+          "text": "本课前面几节都在讲 harness 如何替无状态模型扛状态,而这条路的最新形态在 2026-10-31 出现:DeepSeek Harness 团队公开发布 Super-agent 架构,把**会话管理与上下文同步从人工上移到系统层**——Router 层充当全局序点、协调点和记忆,Session 则从用户的认知负担降级为实现细节(源[9])。用户不再需要自己记得开过哪些会话、每个会话进行到哪。",
+          "type": "p"
+        },
+        {
+          "text": "支撑这个架构的是对瓶颈的重新判断:单任务上限取决于模型能力,多任务上限取决于**人的注意力**——人只能同时跟进 3–5 个活跃 Session(源[9])。于是需要一种能跨会话持续保持上下文的连续实体,由 harness 承担记忆与状态,把「同时推进多个任务」的重担从人脑挪给系统。",
+          "type": "p"
+        },
+        {
+          "text": "回头串起来:从 Claude Code 在工具结果后夹带提醒便条,到占位符路标与 append-only 写入,再到 Super-agent 把整个会话层做成系统设施——方向始终一致:**无状态模型的位置感,越来越不依赖用户的记性,而依赖 harness 的状态工程**(源[4][8][9])。下一课展开工程实践时,这些通道、路标与缓存纪律就是全部原材料。",
+          "type": "p"
+        },
+        {
+          "kind": "note",
+          "text": "趋势一句话:状态责任沿「用户 → 模型 → harness/系统层」持续转移,谁最后接住状态,谁就是 agent 真正的记忆器官(源[9])。",
+          "type": "callout"
+        }
+      ],
+      "heading": "最新动向:DeepSeek 把状态上移到系统层",
+      "id": "s5-superagent"
+    }
+  ]
+}
