@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Markdown from "react-markdown";
 import { Sparkles } from "lucide-react";
+import { motion } from "motion/react";
 
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -10,7 +11,7 @@ import { normalizeBold } from "../../utils/md";
 /** 复述检查点弹层:复述文本 → POST /grade 批改(通过/存疑/未过 + 精准版)
  * pass 解锁继续;warn 看完精准版可继续或重述;fail 必须重述。
  * 批改文本按 markdown 渲染(grader 会用 **加粗** 等标记,纯文本会裸露星号)。
- * 遮罩走主题 token --overlay(与 Dialog/字幕统一,不再写死 bg-black/70)。 */
+ * 遮罩走主题 token --overlay;进出动画由父级 AnimatePresence 驱动(reduced-motion 自动跳过)。 */
 export function CheckpointOverlay({
   question,
   hint,
@@ -61,8 +62,20 @@ export function CheckpointOverlay({
   const passed = result?.verdict === "pass" || (result?.verdict === "warn" && acknowledged);
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center bg-overlay backdrop-blur-sm">
-      <div className="mx-8 max-h-[85vh] max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-8 shadow-2xl">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15, ease: [0.22, 0.9, 0.3, 1] }}
+      className="fixed inset-0 z-60 flex items-center justify-center bg-overlay backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.97, y: 6 }}
+        transition={{ duration: 0.25, ease: [0.22, 0.9, 0.3, 1] }}
+        className="mx-8 max-h-[85vh] max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-8 shadow-2xl"
+      >
         <p className="mb-3 font-mono text-xs tracking-widest text-primary">◆ 复述检查点</p>
         <h3 className="mb-2 text-lg leading-relaxed">{question}</h3>
         {hint && <p className="mb-6 text-sm text-muted-foreground">提示: {hint}</p>}
@@ -145,7 +158,7 @@ export function CheckpointOverlay({
             </div>
           </>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

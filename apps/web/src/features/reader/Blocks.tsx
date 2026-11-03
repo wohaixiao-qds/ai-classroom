@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { AlertTriangle, CheckCircle2, Info, Lightbulb, RotateCw } from "lucide-react";
+import { AnimatePresence } from "motion/react";
 
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
+import { cn } from "../../lib/utils";
 import type { Block } from "../../types/csl";
 import { normalizeBold } from "../../utils/md";
 import { CheckpointOverlay } from "./CheckpointOverlay";
@@ -162,7 +164,10 @@ function MermaidDiagram({ code, caption }: { code: string; caption: string | nul
           <code>{code}</code>
         </pre>
       ) : svg ? (
-        <div className="flex justify-center p-4 [&_svg]:max-w-full" dangerouslySetInnerHTML={{ __html: svg }} />
+        <div
+          className="anim-rise flex justify-center p-4 [&_svg]:max-w-full"
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
       ) : (
         <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">示意图渲染中…</div>
       )}
@@ -180,13 +185,15 @@ function QuizCard({ block, courseId }: { block: Extract<Block, { type: "quiz" }>
   const [open, setOpen] = useState(false);
   const [passed, setPassed] = useState(false);
   return (
-    <div className={`rounded-xl border px-4 py-3.5 ${passed ? "border-success/50 bg-success/5" : "border-primary/40 bg-primary/5"}`}>
+    <div
+      className={`rounded-xl border px-4 py-3.5 transition-colors duration-300 ease-out ${passed ? "border-success/50 bg-success/5" : "border-primary/40 bg-primary/5"}`}
+    >
       <p className="mb-2 font-mono text-[11px] tracking-widest text-primary">◆ 复述检查点</p>
       <p className="text-[15px] leading-7">{block.question}</p>
       {block.hint && <p className="mt-1 text-[13px] text-muted-foreground">提示: {block.hint}</p>}
       <div className="mt-3">
         {passed ? (
-          <span className="inline-flex items-center gap-1.5 text-sm text-success">
+          <span className="anim-pop inline-flex items-center gap-1.5 text-sm text-success">
             <CheckCircle2 size={15} /> 已通过
           </span>
         ) : (
@@ -195,19 +202,21 @@ function QuizCard({ block, courseId }: { block: Extract<Block, { type: "quiz" }>
           </Button>
         )}
       </div>
-      {open && (
-        <CheckpointOverlay
-          question={block.question}
-          hint={block.hint}
-          courseId={courseId}
-          pageId={block.id}
-          onPass={() => {
-            setPassed(true);
-            setOpen(false);
-          }}
-          onClose={() => setOpen(false)}
-        />
-      )}
+      <AnimatePresence>
+        {open && (
+          <CheckpointOverlay
+            question={block.question}
+            hint={block.hint}
+            courseId={courseId}
+            pageId={block.id}
+            onPass={() => {
+              setPassed(true);
+              setOpen(false);
+            }}
+            onClose={() => setOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -245,29 +254,38 @@ function FlashCards({
         const isFlipped = flipped.has(i);
         const verdict = reported.get(i);
         return (
-          <div
-            key={i}
-            className="rounded-xl border border-border bg-card px-4 py-3.5 transition-colors"
-          >
+          <div key={i} className="rounded-xl border border-border bg-card px-4 py-3.5">
             <button
               type="button"
               onClick={() => toggle(i)}
-              className="block w-full text-left"
+              className="block w-full text-left [perspective:900px]"
               title={isFlipped ? "点回正面" : "点看答案"}
             >
-              <p className="font-mono text-[11px] tracking-widest text-muted-foreground">
-                {isFlipped ? "答" : "问"}
-              </p>
-              <p className="mt-1 text-[14px] leading-7">{isFlipped ? c.back : c.front}</p>
-              {!isFlipped && !verdict && (
-                <span className="mt-2 inline-flex items-center gap-1 text-[12px] text-muted-foreground">
-                  <RotateCw size={11} /> 翻面
-                </span>
-              )}
+              {/* 正反两面网格同格堆叠(容器高度=较高面),内层 preserve-3d 旋转翻面 */}
+              <div
+                className={cn(
+                  "grid transition-transform duration-500 ease-spring transform-3d",
+                  isFlipped && "rotate-y-180",
+                )}
+              >
+                <div className="[grid-area:1/1] backface-hidden" aria-hidden={isFlipped}>
+                  <p className="font-mono text-[11px] tracking-widest text-muted-foreground">问</p>
+                  <p className="mt-1 text-[14px] leading-7">{c.front}</p>
+                  {!verdict && (
+                    <span className="mt-2 inline-flex items-center gap-1 text-[12px] text-muted-foreground">
+                      <RotateCw size={11} /> 翻面
+                    </span>
+                  )}
+                </div>
+                <div className="[grid-area:1/1] backface-hidden rotate-y-180" aria-hidden={!isFlipped}>
+                  <p className="font-mono text-[11px] tracking-widest text-primary">答</p>
+                  <p className="mt-1 text-[14px] leading-7">{c.back}</p>
+                </div>
+              </div>
             </button>
             {isFlipped &&
               (verdict === undefined ? (
-                <div className="mt-2.5 flex gap-2">
+                <div className="anim-rise mt-2.5 flex gap-2">
                   <Button size="sm" variant="secondary" onClick={() => report(i, true)}>
                     记得了
                   </Button>
@@ -276,7 +294,7 @@ function FlashCards({
                   </Button>
                 </div>
               ) : (
-                <p className="mt-2.5 text-[12px] text-muted-foreground">
+                <p className="anim-rise mt-2.5 text-[12px] text-muted-foreground">
                   {verdict ? "✓ 已记入,按间隔排下次复习" : "↺ 明天再来过这张"}
                 </p>
               ))}

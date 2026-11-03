@@ -1,4 +1,5 @@
 import { Sparkles } from "lucide-react";
+import { motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
@@ -138,12 +139,22 @@ function Reader({ course }: { course: CourseV2 }) {
             type="button"
             onClick={() => jumpToPage(i)}
             className={cn(
-              "truncate rounded-md px-2 py-1.5 text-left text-[13px] leading-6 text-muted-foreground hover:bg-secondary",
-              active === i && "bg-primary/10 font-medium text-primary",
+              "relative truncate rounded-md px-2 py-1.5 text-left text-[13px] leading-6 text-muted-foreground outline-none transition-colors hover:bg-secondary focus-visible:ring-[3px] focus-visible:ring-ring/40",
+              active === i && "font-medium text-primary",
             )}
             title={s.heading}
           >
-            {i + 1}. {s.heading}
+            {/* 滑动指示 pill:layoutId 让高亮底色在节间平滑迁移(motion FLIP) */}
+            {active === i && (
+              <motion.span
+                layoutId="toc-pill"
+                className="absolute inset-0 rounded-md bg-primary/10"
+                transition={{ duration: 0.25, ease: [0.22, 0.9, 0.3, 1] }}
+              />
+            )}
+            <span className="relative">
+              {i + 1}. {s.heading}
+            </span>
           </button>
         ))}
       </nav>
@@ -159,11 +170,13 @@ function Reader({ course }: { course: CourseV2 }) {
           <Link to="/">← 课表</Link>
         </Button>
         {invite && (
-          <div className="absolute top-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-primary/50 bg-card/95 px-4 py-2 shadow-lg backdrop-blur">
+          <div className="anim-drop absolute top-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-primary/50 bg-card/95 px-4 py-2 shadow-lg backdrop-blur">
             <Sparkles size={14} className="shrink-0 text-primary" />
             <span className="text-sm">这节课学完了,沉淀为笔记?</span>
             <Button size="sm" asChild>
-              <Link to={`/courses/${course.id}?sink=1`}>生成笔记草稿</Link>
+              <Link to={`/courses/${course.id}?sink=1`} viewTransition>
+                生成笔记草稿
+              </Link>
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setInvite(false)}>
               稍后

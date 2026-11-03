@@ -6,8 +6,10 @@ import type { ReactNode } from "react";
 
 import { EmptyState } from "../../components/PageState";
 import { SectionHeader } from "../../components/SectionHeader";
+import { Collapse } from "../../components/Collapse";
 import { Badge } from "../../components/ui/badge";
 import { Card } from "../../components/ui/card";
+import { useCountUp } from "../../hooks/useCountUp";
 import { cn } from "../../lib/utils";
 
 interface Summary {
@@ -189,7 +191,7 @@ export function EvalPage() {
                       className={cn("shrink-0 text-muted-foreground transition-transform", openRepeat === i && "rotate-180")}
                     />
                   </button>
-                  {openRepeat === i && (
+                  <Collapse open={openRepeat === i}>
                     <div className="space-y-3 border-t border-border px-4 py-3">
                       {r.history.map((h, j) => (
                         <div key={j} className="text-sm">
@@ -201,7 +203,7 @@ export function EvalPage() {
                         </div>
                       ))}
                     </div>
-                  )}
+                  </Collapse>
                 </Card>
               </li>
             ))}
@@ -263,7 +265,7 @@ export function EvalPage() {
                       className={cn("shrink-0 text-muted-foreground transition-transform", openTrace === i && "rotate-180")}
                     />
                   </button>
-                  {openTrace === i && (
+                  <Collapse open={openTrace === i}>
                     <div className="border-t border-border px-4 py-3 text-sm">
                       {t.tool_calls.length > 0 && (
                         <div className="mb-2 space-y-0.5 font-mono text-xs text-muted-foreground">
@@ -284,7 +286,7 @@ export function EvalPage() {
                         {t.truncated && " · 被截断"}
                       </p>
                     </div>
-                  )}
+                  </Collapse>
                 </Card>
               </li>
             ))}
@@ -308,13 +310,21 @@ function Metric({
   hint?: string;
   warn?: boolean;
 }) {
+  // 纯数字(可带 %)才参与滚动;Badge 组/「—」等原样渲染
+  const m =
+    typeof value === "number" || typeof value === "string"
+      ? String(value).match(/^(\d+(?:\.\d+)?)(%)?$/)
+      : null;
+  const shown = useCountUp(m ? Number(m[1]) : null);
   return (
     <Card
       className={cn("px-4 py-3", warn && "border-warning/40 bg-warning/5")}
       title={hint}
     >
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={cn("mt-1 font-mono text-lg font-bold", warn ? "text-warning" : undefined)}>{value}</p>
+      <p className={cn("mt-1 font-mono text-lg font-bold", warn ? "text-warning" : undefined)}>
+        {m ? `${Math.round((shown ?? 0) * 10) / 10}${m[2] ?? ""}` : value}
+      </p>
     </Card>
   );
 }
