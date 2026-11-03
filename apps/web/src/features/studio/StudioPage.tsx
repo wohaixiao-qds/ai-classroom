@@ -2,9 +2,10 @@
  *  我想学(新主题)/ 能学的(笔记→备课)/ 任务动态(备课中/完成/失败)。
  *  框架审阅流(双源框架→挑子题)为下一步,先把生成管理归位。 */
 import { Check, CircleX, History, LoaderCircle, SquarePen, Sprout } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { EmptyState, PageError, PageLoading } from "../../components/PageState";
+import { JobFeed } from "../../components/JobFeed";
 import { SectionHeader } from "../../components/SectionHeader";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -13,19 +14,43 @@ import { Input } from "../../components/ui/input";
 import { useCatalog } from "../../hooks/useCatalog";
 import { OutlinePanel } from "./OutlinePanel";
 
+interface OutlineJob {
+  target: string;
+  title: string;
+  status: string;
+}
+
 export function StudioPage() {
   const { cat, err, act } = useCatalog();
   const [topic, setTopic] = useState("");
+  const [outlineJobs, setOutlineJobs] = useState<OutlineJob[]>([]);
+  useEffect(() => {
+    void fetch("/api/v1/outline-jobs")
+      .then((r) => r.json())
+      .then(setOutlineJobs)
+      .catch(() => {});
+  }, []);
 
   if (err) return <PageError message={`加载失败:${err}`} />;
   if (!cat) return <PageLoading />;
 
-  // 任务动态:所有发起过生成的目标(notes + todo 含新主题),按状态分拣
+  // 任务动态:所有发起过生成的目标(notes + todo 含新主题 + 大纲点单),按状态分拣。
+  // apiKind/target 用于拉取该任务的处理消息(/api/v1/jobs/log)
   const jobs = [
-    ...cat.todo.map((t) => ({ title: t.title, area: t.area, status: t.status, kind: "调研+备课" })),
+    ...cat.todo.map((t) => ({
+      title: t.title, area: t.area, status: t.status, kind: "调研+备课",
+      apiKind: "request_research" as const, target: t.title,
+    })),
     ...cat.notes
       .filter((n) => n.requested)
-      .map((n) => ({ title: n.title, area: n.area, status: n.status, kind: "笔记备课" })),
+      .map((n) => ({
+        title: n.title, area: n.area, status: n.status, kind: "笔记备课",
+        apiKind: "request_prep" as const, target: n.path,
+      })),
+    ...outlineJobs.map((j) => ({
+      title: j.title, area: "大纲点单", status: j.status, kind: "大纲点单备课",
+      apiKind: "outline_prep" as const, target: j.target,
+    })),
   ];
   const running = jobs.filter((j) => j.status === "running");
   const finished = jobs.filter((j) => j.status !== "running");
@@ -62,16 +87,21 @@ export function StudioPage() {
 
       {running.length > 0 && (
         <section>
-          <SectionHeader icon={LoaderCircle} title="正在造" count={running.length} hint="分钟级后台任务,完成后自动进课程库" />
+          <SectionHeader icon={LoaderCircle} title="正在造" count={running.length} hint="分钟级后台任务,下方实时亮出它在干什么" />
           <ul className="space-y-2">
-            {running.map((j, i) => (
+            {running.map((j) => (
               <li
-                key={i}
-                className="flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-4 py-2 text-sm"
+                key={`${j.apiKind}-${j.target}`}
+                className="overflow-hidden rounded-lg border border-primary/40 bg-primary/5 text-sm"
               >
-                <LoaderCircle size={13} className="shrink-0 animate-spin text-primary" />
-                <span className="flex-1 truncate">{j.title}</span>
-                <span className="font-mono text-xs text-muted-foreground">{j.kind}</span>
+                <div className="flex items-center gap-3 px-4 py-2">
+                  <LoaderCircle size={13} className="shrink-0 animate-spin text-primary" />
+                  <span className="flex-1 truncate">{j.title}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{j.kind}</span>
+                </div>
+                {/* 不确定进度线:分钟级等待的「活着」信号 */}
+                <div className="anim-progress h-0.5" />
+                <JobFeed kind={j.apiKind} target={j.target} active className="mx-3 mb-2" />
               </li>
             ))}
           </ul>
@@ -117,22 +147,28 @@ export function StudioPage() {
         <section>
           <SectionHeader icon={History} title="任务记录" count={finished.length} hint="近期发起过的生成" />
           <ul className="space-y-1.5">
-            {finished.map((j, i) => (
+            {finished.map((j) => (
               <li
-                key={i}
-                className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-2 text-sm"
+                key={`${j.apiKind}-${j.target}`}
+                className="rounded-lg border border-border bg-card px-4 py-2 text-sm"
               >
-                {j.status === "done" ? (
-                  <Check size={13} className="shrink-0 text-success" />
-                ) : j.status === "failed" ? (
-                  <CircleX size={13} className="shrink-0 text-destructive" />
-                ) : (
-                  <span className="size-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
+                <div className="flex items-center gap-3">
+                  {j.status === "done" ? (
+                    <Check size={13} className="shrink-0 text-success" />
+                  ) : j.status === "failed" ? (
+                    <CircleX size={13} className="shrink-0 text-destructive" />
+                  ) : (
+                    <span className="size-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
+                  )}
+                  <span className="flex-1 truncate">{j.title}</span>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {j.status === "done" ? "已出课" : j.status === "failed" ? "失败" : "已请求"} · {j.kind}
+                  </span>
+                </div>
+                {/* 失败的任务直接亮出原因,不用去翻日志文件 */}
+                {j.status === "failed" && (
+                  <JobFeed kind={j.apiKind} target={j.target} active={false} className="mt-2" />
                 )}
-                <span className="flex-1 truncate">{j.title}</span>
-                <span className="font-mono text-xs text-muted-foreground">
-                  {j.status === "done" ? "已出课" : j.status === "failed" ? "失败" : "已请求"} · {j.kind}
-                </span>
               </li>
             ))}
           </ul>

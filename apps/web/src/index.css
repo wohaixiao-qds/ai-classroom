@@ -160,6 +160,33 @@
   }
 }
 
+/* 不确定进度线:备课等分钟级任务的「活着」信号(窄条内一段光来回扫) */
+@keyframes progress-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(520%);
+  }
+}
+.anim-progress {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+.anim-progress::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 22%;
+  border-radius: 9999px;
+  background: var(--accent);
+  opacity: 0.55;
+  animation: progress-sweep 1.4s var(--ease-out) infinite;
+}
+
 /* 入场(配合内联 animationDelay 做 stagger)/ 弹现(状态切换成功瞬间)/ 顶部下落 */
 .anim-rise {
   animation: fade-up var(--dur-med) var(--ease-out) both;

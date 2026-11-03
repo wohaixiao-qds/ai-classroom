@@ -6,6 +6,7 @@ import { motion } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
 
 import { SectionHeader } from "../../components/SectionHeader";
+import { JobFeed } from "../../components/JobFeed";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
@@ -234,9 +235,10 @@ export function OutlinePanel() {
                       layout
                       key={c.id}
                       transition={{ duration: 0.3, ease: [0.22, 0.9, 0.3, 1] }}
-                      className="flex items-start gap-3 rounded-lg border border-border bg-background/50 px-3 py-2"
+                      className="flex flex-col gap-1.5 rounded-lg border border-border bg-background/50 px-3 py-2"
                     >
-                      <span className="mt-0.5 font-mono text-xs text-muted-foreground">{i + 1}</span>
+                      <div className="flex items-start gap-3">
+                        <span className="mt-0.5 font-mono text-xs text-muted-foreground">{i + 1}</span>
                       <div className="min-w-0 flex-1">
                         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
                           {c.title}
@@ -309,6 +311,16 @@ export function OutlinePanel() {
                           <X size={13} />
                         </Button>
                       </div>
+                      </div>
+                      {/* 备课进行时:不确定进度线 + 实时输出;失败行直接亮出原因 */}
+                      {busy && <div className="anim-progress h-0.5 rounded-full" />}
+                      {(busy || c.prep_status === "failed") && (
+                        <JobFeed
+                          kind="outline_prep"
+                          target={`${openTopic ?? ""}::${c.title}`}
+                          active={Boolean(busy)}
+                        />
+                      )}
                     </motion.li>
                   );
                       })}

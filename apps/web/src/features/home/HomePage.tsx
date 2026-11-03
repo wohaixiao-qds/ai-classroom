@@ -166,16 +166,23 @@ export function HomePage() {
                     </div>
                     {b.cursor && (
                       <Button size="sm" variant="secondary" asChild className="shrink-0">
-                        <Link to={`/read/${b.cursor.course_file_id}`}>
+                        <Link to={`/read/${b.cursor.course_file_id}`} viewTransition>
                           <Play size={13} /> {b.done > 0 ? "继续读" : "开始读"}
                         </Link>
                       </Button>
                     )}
                     {allDone && (
-                      <Badge variant="success" className="shrink-0">
+                      <Badge variant="success" className="anim-pop shrink-0">
                         学完
                       </Badge>
                     )}
+                  </div>
+                  {/* 书内进度线:读完一门课推进一格(width 过渡,CSS 自动补间) */}
+                  <div className="mt-2 h-1 overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className="h-full rounded-full bg-primary/70 transition-all duration-500 ease-out"
+                      style={{ width: `${b.total ? Math.round((100 * b.done) / b.total) : 0}%` }}
+                    />
                   </div>
                 </Card>
               );
@@ -204,6 +211,7 @@ export function HomePage() {
               <li key={`${r.course_id}/${r.page_id}`}>
                 <Link
                   to={`/read/${r.course_id}?section=${r.page_no}`}
+                  viewTransition
                   className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-2 transition-colors hover:border-primary/40"
                 >
                   <div className="min-w-0">
@@ -228,7 +236,7 @@ export function HomePage() {
         {continuing.length ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {continuing.map((c) => (
-              <Link key={c.id} to={`/read/${c.id}?section=${c.prog!.sec + 1}`} className="group">
+              <Link key={c.id} to={`/read/${c.id}?section=${c.prog!.sec + 1}`} viewTransition className="group">
                 <Card className="h-full p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:shadow-lg">
                   <p className="mb-1 flex items-center gap-1 font-mono text-xs text-primary">
                     <Play size={11} /> 接着学 · 第 {c.prog!.sec + 1} 节
@@ -261,7 +269,7 @@ export function HomePage() {
             title="下一步学"
             hint="书序游标:前置课都已学完,学完它自动轮到下一门"
           />
-          <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <Card className="flex flex-col gap-4 p-5 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="mb-1 flex items-center gap-1.5 font-mono text-xs text-primary">
                 <Compass size={12} /> 《{nextBook.topic}》第 {nextBook.cursorNo} / {nextBook.total} 课 · 可以开课
@@ -274,7 +282,7 @@ export function HomePage() {
               </p>
             </div>
             <Button size="lg" asChild className="shrink-0">
-              <Link to={`/read/${nextBook.cursor.course_file_id}`}>
+              <Link to={`/read/${nextBook.cursor.course_file_id}`} viewTransition>
                 <Play size={15} /> 开始学
               </Link>
             </Button>
