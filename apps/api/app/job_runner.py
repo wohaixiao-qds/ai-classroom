@@ -58,14 +58,20 @@ def _run() -> str:
         prev = prereq_titles[-1] if prereq_titles else None
         result = run_prep(material, prev_subtopic=prev)
     elif kind == "request_research":
+        # 样课先行(P5 补):一句话开课 = 先出领域大纲(零基础完整路线),
+        # 再自动备大纲第一门样课;其余课在大纲里逐课点单(生成中心)
         from app.agent.prep import run_prep
-        from app.agent.research import research_material
+        from app.agent.research import research_framework, research_material
         from app.services.catalog import find_todo_area
 
-        material = research_material(target, target)  # 待探项本身就是子题
+        fw = research_framework(target)
+        entry = fw["courses"][0]  # 大纲第一门 = 入口课(无前置)
+        entry_title = str(entry.get("title", target))
+        print(f"样课先行:大纲 {len(fw['courses'])} 门,先备入口课「{entry_title}」")
+        material = research_material(target, entry_title)
         # 知识版图归位:待探项源自 vault 某层级,查到就把层级写进 topic
         # (否则「解析层」会被当独立主题挂在顶层,不进 harness/Runtime——实测踩过)
-        area = find_todo_area(target)
+        area = find_todo_area(entry_title) or find_todo_area(target)
         if area and area != material.get("topic"):
             material["topic"] = area
             import json as _json
@@ -74,7 +80,7 @@ def _run() -> str:
             mp = _Path(str(material["_material_path"]))
             mp.write_text(_json.dumps(material, ensure_ascii=False, indent=2), encoding="utf-8")
             print(f"topic 归位: {area}")
-        result = run_prep(material)
+        result = run_prep(material)  # 入口课无前置,无位置感可承接
     else:
         return f"未知任务类型: {kind}"
 

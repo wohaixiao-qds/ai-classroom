@@ -111,7 +111,7 @@
   - ✅ **追加(同日)·先修建议进备课管线(`b0730e0`)**:「内容→顺序」接通——备课 agent 自动产出 depends_on:①「学员已有课程速览」确定性注入 prompt(id|标题|大纲,≤40 门);②`init_course` 增 depends_on 参数,harness 即时校验(自依赖/悬空 id/缺 reason/超 2 门→整体打回重交,不建文件,与 write_page 同自纠风格);③`pipeline.py` 交互模式课件出炉后 `confirm_depends_on` 人审(回车照单/clear/覆盖 id),生成中心 auto 直接落盘,路线拓扑排序自动跟随。实测:错误回收笔记备课全链过,agent 主动给出 `harness-01` 先修+具体教学理由(「死代码搭梯子心智模型直接复用」)
   - ✅ **追加(同日)·离线 agent 循环超时 60→240s(`b0730e0`)**:prep/research 用 `client.with_options(timeout=240)` 放宽,chat 的 60s 交互护栏不动——实测备课首轮长规划输出 7.4k tokens 在中转 ~46 tok/s 下需 191s,60s 必掐死(三连超时定位:走代理/直连都超时,非网络问题而是输出量×速度)
   - ⏭ Phase 2 已对齐方向未做:未知领域「该学什么」路线规划——找资料 agent 权威地图升级出课程级拆分(3~6 门+先修链),沉淀 vault「领域路线」笔记+候选池,挑一门钻取成课并自动链回兄弟课(动 research.py,先对齐再写)
-- ✅ **P5 收口(2026-11-02,见 `docs/P5执行计划.md`)**:备课管线工程化——T0(在途 depends_on 由并行会话 `b0730e0` 提交,本轮单测复核)/T1(调研缓存复用 `5999590`)完成;同日用户拍板课件书页化,T2/T5/T6/T7 并入 P6,P5 剩余 T3(成本预估)/T4(log.md)模型无关可穿插
+- 🏁 **P5 全部收口(2026-11-02,`8380d03`+样课先行)**:T0/T1 完成;T3 成本预估(services/estimate.py:traces 最近 5 次 ok 均值,子题选定即打印「调研≈N分/轮·备课≈N分/轮·合计(红线30)」,无历史给默认档;注意 read_traces 最新在前,[:5] 才是最新)+T4 课件操作日志(prep._op_log → data/research/{id}.log.md,append-only 一行一操作 init/write/replace/validate/deliver);**样课先行**(claudemy 同款):生成中心一句话开课 = research_framework 出领域大纲 → 自动备大纲第一门样课 → 其余课在大纲逐课点单
 - ▶️ **P6 进行中:课件书页化迁移(2026-11-02 拍板,见 `docs/P6执行计划.md`)**:用户决定**放弃幻灯片形态**,CSL v1(页/句)→v2(节/块)真迁移为 DeepTutor 式滚动书页,文字+mermaid 插图,TTS 先砍留位(provider 保留不编译),检查点/复习/答疑保留(键语义页→节),reveal 路径退役:
   - 已拍板:真迁移(2~3 周)/TTS 砍留位/mermaid 并入 v2/不留双视图;v2 schema 草案在 P6 计划第二节
   - M0 拆两半:schema 对齐已过(用户审 P6 计划第二节后拍板「开始吧」);**prep 循环改造设计对齐保留至 M3 动刀前**(学习区闸)
