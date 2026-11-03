@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Card } from "../../components/ui/card";
+import { cn } from "../../lib/utils";
 
 interface OutlineCourse {
   id: string;
@@ -101,6 +102,8 @@ export function OutlineToc({ readyById }: { readyById: Map<string, boolean> }) {
         const doneCount = d.courses.filter((c) =>
           (c.course_file_ids ?? []).some((r) => readyById.get(r)),
         ).length;
+        // 已出课件数:与「已学」区分——出了课 ≠ 学了
+        const preparedCount = d.courses.filter((c) => (c.course_file_ids ?? []).length > 0).length;
         // 书内游标:第一门已出而未学完的课
         const bookCursorId = d.courses.find(
           (c) =>
@@ -119,6 +122,8 @@ export function OutlineToc({ readyById }: { readyById: Map<string, boolean> }) {
                 </span>
               </h3>
               <span className="font-mono text-xs text-muted-foreground">
+                已出<span className={cn("ml-0.5", preparedCount > 0 && "text-success")}>{preparedCount}</span>
+                <span className="mx-1.5 opacity-40">·</span>
                 已学 {doneCount} / {d.courses.length}
               </span>
             </div>

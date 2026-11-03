@@ -15,6 +15,7 @@ interface OutlineItem {
   topic: string;
   domain: string;
   count: number;
+  prepared?: number; // 已有课件的课数(列表端点出课判定)
 }
 
 interface OutlineCourse {
@@ -185,6 +186,10 @@ export function OutlinePanel() {
                 <span className="relative">
                   {o.domain ? `${o.domain} · ` : ""}
                   {o.topic}({o.count})
+                  {/* 已出课件标记:一眼看出这本大纲备到哪了 */}
+                  {o.prepared ? (
+                    <span className="ml-1 text-success">已出 {o.prepared}</span>
+                  ) : null}
                 </span>
               </button>
             ))}

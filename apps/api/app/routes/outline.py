@@ -58,6 +58,25 @@ def _outline_linked_ids() -> dict[str, str]:
     return out
 
 
+def _course_file_ids(
+    c: dict[str, Any],
+    by_title: dict[str, list[str]],
+    id_title: dict[str, str],
+    all_ids: set[str],
+    linked: dict[str, str],
+) -> list[str]:
+    """出课判定(取并集):course_refs 列表 + course_ref + meta.outline_course_id + 课名。
+    列表端点的 prepared 计数与详情端点的逐课判定共用,勿两处漂移。"""
+    title = str(c.get("title"))
+    ref = str(c.get("course_ref", "") or "")
+    fallback = next(iter(by_title.get(title) or []), None)
+    file_id = ref if ref in all_ids else linked.get(str(c.get("id"))) or fallback
+    refs = [r for r in [str(x) for x in (c.get("course_refs") or [])] if r in all_ids]
+    if file_id and file_id not in refs:
+        refs.insert(0, file_id)
+    return refs
+
+
 def _prep_status(topic: str, titles: list[str]) -> dict[str, str]:
     """点单备课的最新状态(catalog_actions,target = "主题::课名")。"""
     out: dict[str, str] = {}
@@ -81,6 +100,8 @@ def _prep_status(topic: str, titles: list[str]) -> dict[str, str]:
 
 @router.get("/outlines")
 def list_outlines() -> list[dict[str, Any]]:
+    by_title, id_title, all_ids = _existing_courses_index()
+    linked = _outline_linked_ids()
     out: list[dict[str, Any]] = []
     for p in sorted((settings.data_dir / "research").glob("*.framework.json")):
         try:
@@ -90,11 +111,16 @@ def list_outlines() -> list[dict[str, Any]]:
         if not isinstance(d, dict):
             continue
         courses = d.get("courses") or d.get("subtopics") or []
+        # 已有课件的课数:chips 上直接亮「已出 N」,不用点开逐个数
+        prepared = sum(
+            1 for c in courses if _course_file_ids(c, by_title, id_title, all_ids, linked)
+        )
         out.append(
             {
                 "topic": str(d.get("topic", p.stem)),
                 "domain": str(d.get("domain", "")),
                 "count": len(courses),
+                "prepared": prepared,
             }
         )
     return out
@@ -110,22 +136,13 @@ def get_outline(topic: str) -> dict[str, Any]:
     courses = []
     for c in d["courses"]:
         title = str(c.get("title"))
-        # 出课判定(取并集):course_refs 列表 + course_ref + meta.outline_course_id + 课名
-        ref = str(c.get("course_ref", "") or "")
-        fallback = (by_title.get(title) or [None])[0]
-        file_id = ref if ref in all_ids else linked.get(str(c.get("id"))) or fallback
-        refs = [
-            r
-            for r in [str(x) for x in (c.get("course_refs") or [])]
-            if r in all_ids
-        ]
-        if file_id and file_id not in refs:
-            refs.insert(0, file_id)
+        refs = _course_file_ids(c, by_title, id_title, all_ids, linked)
+        file_id = refs[0] if refs else None
         courses.append(
             {
                 **c,
                 "prereq_titles": [titles_by_id.get(p, p) for p in c.get("prereqs", [])],
-                "course_file_id": refs[0] if refs else None,
+                "course_file_id": file_id,
                 "course_file_ids": refs,
                 "course_file_titles": [id_title.get(r, r) for r in refs],
                 "prep_status": status.get(title),
