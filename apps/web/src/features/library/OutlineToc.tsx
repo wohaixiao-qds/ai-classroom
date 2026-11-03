@@ -24,13 +24,7 @@ interface OutlineDetail {
   courses: OutlineCourse[];
 }
 
-export function OutlineToc({
-  readyById,
-  cursorId,
-}: {
-  readyById: Map<string, boolean>;
-  cursorId?: string;
-}) {
+export function OutlineToc({ readyById }: { readyById: Map<string, boolean> }) {
   const [details, setDetails] = useState<OutlineDetail[] | null>(null);
   const [msg, setMsg] = useState("");
 
@@ -88,7 +82,10 @@ export function OutlineToc({
   return (
     <section className="mb-8 space-y-3">
       {msg && (
-        <p className="rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-xs text-primary">
+        <p
+          key={msg}
+          className="anim-drop rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-xs text-primary"
+        >
           {msg}
         </p>
       )}
@@ -104,6 +101,12 @@ export function OutlineToc({
         const doneCount = d.courses.filter((c) =>
           (c.course_file_ids ?? []).some((r) => readyById.get(r)),
         ).length;
+        // 书内游标:第一门已出而未学完的课
+        const bookCursorId = d.courses.find(
+          (c) =>
+            (c.course_file_ids ?? []).length > 0 &&
+            !(c.course_file_ids ?? []).every((r) => readyById.get(r)),
+        )?.id;
         return (
           <Card key={d.topic} className="p-4">
             <div className="mb-3 flex items-baseline justify-between">
@@ -131,7 +134,7 @@ export function OutlineToc({
                     {g.items.map(({ c, i }) => {
                       const refs = c.course_file_ids ?? [];
                       const done = refs.some((r) => readyById.get(r));
-                      const isCursor = !!cursorId && refs.includes(cursorId);
+                      const isCursor = c.id === bookCursorId;
                       const busy =
                         c.prep_status === "queued" || c.prep_status === "running";
                       const inner = (
@@ -139,15 +142,15 @@ export function OutlineToc({
                           <span className="font-mono text-xs text-muted-foreground">
                             {String(i + 1).padStart(2, "0")}
                           </span>
+                          {/* 状态图标轮换 pop(spin 是循环动画,外包一层避免互斥) */}
                           {done ? (
-                            <CircleCheck size={13} className="shrink-0 text-success" />
+                            <CircleCheck size={13} className="anim-pop shrink-0 text-success" />
                           ) : busy ? (
-                            <LoaderCircle
-                              size={13}
-                              className="shrink-0 animate-spin text-warning"
-                            />
+                            <span className="anim-pop inline-flex shrink-0">
+                              <LoaderCircle size={13} className="animate-spin text-warning" />
+                            </span>
                           ) : isCursor ? (
-                            <Play size={13} className="shrink-0 text-primary" />
+                            <Play size={13} className="anim-pop shrink-0 text-primary" />
                           ) : (
                             <span className="w-[13px] shrink-0" />
                           )}
@@ -188,6 +191,7 @@ export function OutlineToc({
                             <>
                               <Link
                                 to={`/read/${refs[0]}`}
+                                viewTransition
                                 className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-secondary"
                                 title={c.goal}
                               >
@@ -199,6 +203,7 @@ export function OutlineToc({
                                     <Link
                                       key={fid}
                                       to={`/read/${fid}`}
+                                      viewTransition
                                       className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
                                     >
                                       {c.course_file_titles?.[k] ?? `旧课${k + 1}`}

@@ -2,6 +2,7 @@
  *  数据 = /api/v1/outlines(列表)与 /api/v1/outlines/{topic}(详情+备课状态)。
  *  点「备课」= outline_prep 后台任务(原料调研→备课→按大纲钦定先修链→发布)。 */
 import { ArrowDown, ArrowUp, BookOpen, ListOrdered, LoaderCircle, Save, X } from "lucide-react";
+import { motion } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
 
 import { SectionHeader } from "../../components/SectionHeader";
@@ -166,14 +167,24 @@ export function OutlinePanel() {
                 key={o.topic}
                 type="button"
                 onClick={() => void open(o.topic)}
-                className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                className={`relative rounded-full border px-3 py-1.5 text-xs transition-colors ${
                   openTopic === o.topic
-                    ? "border-primary bg-primary/10 font-medium text-primary"
+                    ? "border-primary font-medium text-primary"
                     : "border-border bg-background hover:border-primary/40"
                 }`}
               >
-                {o.domain ? `${o.domain} · ` : ""}
-                {o.topic}({o.count})
+                {/* 选中底色滑动:motion layoutId,切大纲时平滑迁移 */}
+                {openTopic === o.topic && (
+                  <motion.span
+                    layoutId="outline-chip"
+                    className="absolute inset-0 rounded-full bg-primary/10"
+                    transition={{ duration: 0.25, ease: [0.22, 0.9, 0.3, 1] }}
+                  />
+                )}
+                <span className="relative">
+                  {o.domain ? `${o.domain} · ` : ""}
+                  {o.topic}({o.count})
+                </span>
               </button>
             ))}
           </div>
@@ -218,8 +229,11 @@ export function OutlinePanel() {
                       {g.items.map(({ c, i }) => {
                   const busy = c.prep_status === "queued" || c.prep_status === "running";
                   return (
-                    <li
+                    // motion layout:↑↓ 换序时 FLIP 平滑滑到位,不再硬跳
+                    <motion.li
+                      layout
                       key={c.id}
+                      transition={{ duration: 0.3, ease: [0.22, 0.9, 0.3, 1] }}
                       className="flex items-start gap-3 rounded-lg border border-border bg-background/50 px-3 py-2"
                     >
                       <span className="mt-0.5 font-mono text-xs text-muted-foreground">{i + 1}</span>
@@ -227,14 +241,14 @@ export function OutlinePanel() {
                         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
                           {c.title}
                           {c.course_file_id ? (
-                            <Badge variant="success">已出课</Badge>
+                            <Badge variant="success" className="anim-pop">已出课</Badge>
                           ) : busy ? (
-                            <Badge variant="warning">
+                            <Badge variant="warning" className="anim-pop">
                               <LoaderCircle size={10} className="mr-0.5 inline animate-spin" />
                               {c.prep_status === "running" ? "备课中" : "排队中"}
                             </Badge>
                           ) : c.prep_status === "failed" ? (
-                            <Badge variant="destructive">上次失败,可重试</Badge>
+                            <Badge variant="destructive" className="anim-pop">上次失败,可重试</Badge>
                           ) : null}
                         </p>
                         {c.goal && (
@@ -295,14 +309,14 @@ export function OutlinePanel() {
                           <X size={13} />
                         </Button>
                       </div>
-                    </li>
+                    </motion.li>
                   );
                       })}
                     </ol>
                   </div>
                 ));
               })()}
-              {msg && <p className="mt-3 text-xs text-muted-foreground">{msg}</p>}
+              {msg && <p key={msg} className="anim-drop mt-3 text-xs text-muted-foreground">{msg}</p>}
               <p className="mt-3 text-[11px] text-muted-foreground">
                 备课 = 原料调研 → 写课 → 发布,出炉自动按大纲先修链挂进学习路线; minutes 级任务
               </p>

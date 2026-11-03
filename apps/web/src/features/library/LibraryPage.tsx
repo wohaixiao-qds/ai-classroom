@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../components/ui/dialog";
-import { fetchAllCourses, suggestOrder } from "../../lib/learningPath";
+import { fetchAllCourses } from "../../lib/learningPath";
 import type { components } from "../../types/api.gen";
 import { courseUnits, isV2, type AnyCourse } from "../../types/csl";
 
@@ -45,17 +45,13 @@ export function LibraryPage() {
   if (error) return <PageError message={`加载失败:${error}`} />;
   if (!courses) return <PageLoading />;
 
-  // 路线游标:拓扑序里第一个未学完的课,目录里 ▶ 标记
-  const path = suggestOrder(courses);
-  const cursor = path.find((x) => !(readyById.get(x.id) ?? false));
-
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       <h1 className="mb-1 text-2xl font-bold">课程库</h1>
       <p className="mb-6 text-sm text-muted-foreground">
         每本大纲是一本书:篇→课→你的进度。已出的课点开即读;空白章节点击即出课。
       </p>
-      <OutlineToc readyById={readyById} cursorId={cursor?.id} />
+      <OutlineToc readyById={readyById} />
     </div>
   );
 }
@@ -71,7 +67,14 @@ export function CourseDetailPage() {
   const [draftErr, setDraftErr] = useState<string | null>(null);
   const [written, setWritten] = useState<string | null>(null);
   const [depTitles, setDepTitles] = useState<Record<string, string>>({});
-  const [path, setPath] = useState<AnyCourse[] | null>(null);
+  // 书内相邻(P7):本课所在大纲书里的上一课/下一课(取代全局拓扑路线)
+  const [neighbors, setNeighbors] = useState<{
+    book: string;
+    step: number;
+    total: number;
+    prev: { title: string; file: string } | null;
+    next: { title: string; file: string } | null;
+  } | null>(null);
 
   // 先修课标题(详情页展示用;拉不到就用 id 兜底)
   useEffect(() => {
@@ -84,12 +87,44 @@ export function CourseDetailPage() {
     }
   }, [course]);
 
-  // 学习路线(本课在整条路径里的位置 + 上一课/下一课)
   useEffect(() => {
-    void fetchAllCourses()
-      .then(({ courses }) => setPath(suggestOrder(courses)))
-      .catch(() => {});
-  }, []);
+    void (async () => {
+      try {
+        const list = (await fetch("/api/v1/outlines").then((r) => r.json())) as {
+          topic: string;
+        }[];
+        for (const o of list) {
+          const d = (await fetch(`/api/v1/outlines/${encodeURIComponent(o.topic)}`)
+            .then((r) => r.json())) as {
+            topic: string;
+            courses: { id: string; title: string; course_file_id?: string | null; course_file_ids?: string[] }[];
+          };
+          const idx = d.courses.findIndex(
+            (c) =>
+              c.course_file_id === courseId ||
+              (c.course_file_ids ?? []).includes(courseId),
+          );
+          if (idx < 0) continue;
+          const at = (i: number) => {
+            const c = d.courses[i];
+            const file = c.course_file_id ?? (c.course_file_ids ?? [])[0];
+            return file ? { title: c.title, file } : null;
+          };
+          setNeighbors({
+            book: d.topic,
+            step: idx + 1,
+            total: d.courses.length,
+            prev: idx > 0 ? at(idx - 1) : null,
+            next: idx < d.courses.length - 1 ? at(idx + 1) : null,
+          });
+          return;
+        }
+        setNeighbors(null);
+      } catch {
+        setNeighbors(null);
+      }
+    })();
+  }, [courseId]);
 
   useEffect(() => {
     setCourse(null);
@@ -158,10 +193,9 @@ export function CourseDetailPage() {
   const units = courseUnits(course);
   const cps = units.filter((u) => u.hasCheckpoint);
   // 本课在路线中的位置(拉不到全量课时不显示)
-  const stepIdx = path ? path.findIndex((c) => c.id === courseId) : -1;
-  const prevCourse = path && stepIdx > 0 ? path[stepIdx - 1] : null;
-  const nextCourse =
-    path && stepIdx >= 0 && stepIdx + 1 < path.length ? path[stepIdx + 1] : null;
+  const stepIdx = neighbors ? neighbors.step - 1 : -1;
+  const prevCourse = neighbors?.prev ?? null;
+  const nextCourse = neighbors?.next ?? null;
   const sinkTip = !prog?.ready
     ? `学完解锁(还差:${[
         !prog?.done ? "播放到最后一页" : "",
@@ -193,7 +227,7 @@ export function CourseDetailPage() {
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <Button size="lg" asChild>
-            <Link to={`/read/${course.id}`}>
+            <Link to={`/read/${course.id}`} viewTransition>
               <Play size={15} /> 进阅读器
             </Link>
           </Button>
@@ -224,16 +258,16 @@ export function CourseDetailPage() {
         </div>
       )}
 
-      {/* 路线位置:循序渐进的「你在这里」+ 前后课导航 */}
-      {path && stepIdx >= 0 && (
+      {/* 书内位置:循序渐进的「你在这里」+ 前后课导航(直达阅读) */}
+      {neighbors && stepIdx >= 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1 font-mono">
-            <Route size={12} className="text-primary" /> 路线第 {stepIdx + 1} / {path.length} 步
+            <Route size={12} className="text-primary" /> 《{neighbors.book}》第 {stepIdx + 1} / {neighbors.total} 课
           </span>
           {prevCourse && (
             <span>
               ← 上一课:
-              <Link to={`/courses/${prevCourse.id}`} className="text-primary hover:underline">
+              <Link to={`/read/${prevCourse.file}`} className="text-primary hover:underline">
                 {prevCourse.title}
               </Link>
             </span>
@@ -241,7 +275,7 @@ export function CourseDetailPage() {
           {nextCourse && (
             <span>
               下一课:
-              <Link to={`/courses/${nextCourse.id}`} className="text-primary hover:underline">
+              <Link to={`/read/${nextCourse.file}`} className="text-primary hover:underline">
                 {nextCourse.title}
               </Link>
               →
@@ -333,7 +367,7 @@ export function CourseDetailPage() {
         <DialogContent className="flex max-h-[85vh] flex-col gap-0 p-0 sm:max-w-2xl">
           {written ? (
             <div className="p-8 text-center">
-              <CircleCheck size={36} className="mx-auto mb-3 text-success" />
+              <CircleCheck size={36} className="anim-pop mx-auto mb-3 text-success" />
               <p className="mb-1 font-medium">已写回知识库</p>
               <p className="mb-4 font-mono text-xs break-all text-muted-foreground">{written}</p>
               <p className="text-xs text-muted-foreground">巩固区已留空——去 Obsidian 亲手填完它。</p>

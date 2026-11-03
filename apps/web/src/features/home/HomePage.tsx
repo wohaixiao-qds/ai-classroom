@@ -1,9 +1,7 @@
-/** 学习台(甲方案):学习路线 + 今日复习 + 继续学 + 下一步学 + 快捷开课 + 推荐。
- *  「在学什么」的首页;课程全量在课程库,生成管理在生成中心。
- *  复习/顺序(2026-11-02):批改结果服务端累积成掌握度,到期检查点回这里重测;
- *  先修依赖来自课件 meta.depends_on(人工/备课标注),学完前置课才推荐后继。
- *  路线游标(P6 后):拓扑序里第一个未学完的课=当前步,顶部步骤条直答「按什么顺序学」。 */
-import { BookOpen, Compass, Lightbulb, ListTodo, Play, Route, RotateCcw, Sparkles } from "lucide-react";
+/** 学习台:我的书架(大纲进度) + 今日复习 + 继续学 + 下一步学 + 快捷开课 + 想学的/刚冒出的。
+ *  P7 后:学习顺序由大纲书原生承载(篇→课→先修链),不再有跨课扁平「学习路线」;
+ *  书架进度视图直答「每本书学到哪、下一步读哪」。 */
+import { BookOpen, Compass, LibraryBig, Lightbulb, ListTodo, Play, RotateCcw, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -14,12 +12,22 @@ import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { useCatalog } from "../../hooks/useCatalog";
-import { suggestOrder } from "../../lib/learningPath";
-import { cn } from "../../lib/utils";
-import type { AnyCourse } from "../../types/csl";
 import type { components } from "../../types/api.gen";
 
 type ReviewDue = components["schemas"]["ReviewDue"];
+
+interface BookCourse {
+  id: string;
+  title: string;
+  goal?: string;
+  file?: string | null;
+}
+
+interface Book {
+  topic: string;
+  domain: string;
+  courses: BookCourse[];
+}
 
 /** 读阅读器断点:P6 起进度存 reader-pos-{id} = {top, sec};继续学展示「上次读到第N节」 */
 function progressOf(courseId: string): { sec: number } | null {
@@ -37,6 +45,7 @@ export function HomePage() {
   const { cat, err, act } = useCatalog();
   const [topic, setTopic] = useState("");
   const [due, setDue] = useState<ReviewDue | null>(null);
+  const [books, setBooks] = useState<Book[] | null>(null);
 
   // 今日复习清单:进页面拉一次;课堂里重测批改后回来刷新页面即更新
   useEffect(() => {
@@ -46,33 +55,51 @@ export function HomePage() {
       .catch(() => {});
   }, []);
 
+  // 书架:大纲列表 + 各自详情;ready 状态渲染期从 catalog 合并
+  useEffect(() => {
+    void (async () => {
+      try {
+        const list = (await fetch("/api/v1/outlines").then((r) => r.json())) as {
+          topic: string;
+        }[];
+        const ds = await Promise.all(
+          list.map((o) =>
+            fetch(`/api/v1/outlines/${encodeURIComponent(o.topic)}`)
+              .then((r) => r.json())
+              .catch(() => null),
+          ),
+        );
+        setBooks(ds.filter((d): d is Book => d !== null));
+      } catch {
+        setBooks([]);
+      }
+    })();
+  }, []);
+
   if (err) return <PageError message={`加载失败:${err}`} />;
   if (!cat) return <PageLoading />;
 
   const learning = cat.learning.map((c) => ({ ...c, prog: progressOf(c.id) }));
   const continuing = learning.filter((c) => c.prog !== null);
-  const readyById = new Map(learning.map((c) => [c.id, c.ready]));
-  // 学习路线:catalog 的 depends_on 就够排拓扑序(不用拉全量课件 JSON)
-  const route = suggestOrder(
-    learning.map(
-      (c) => ({ id: c.id, title: c.title, meta: { depends_on: c.depends_on } }) as AnyCourse,
-    ),
-  );
-  const steps = route.map((c, i) => ({
-    id: c.id,
-    title: c.title,
-    step: i + 1,
-    ready: readyById.get(c.id) ?? false,
-  }));
-  // 路线游标:第一个未学完的课=当前步(前置已 ready 的天然靠前)
-  const cursor = steps.find((s) => !s.ready) ?? null;
-  const cursorPrev = cursor && cursor.step > 1 ? steps[cursor.step - 2] : null;
+  const ready = new Map(learning.map((c) => [c.id, c.ready]));
+
+  // 书架派生:每本书的已学数与书内游标(第一门已出而未学完的课)
+  const shelves = (books ?? []).map((b) => {
+    const done = b.courses.filter((c) => c.file && ready.get(c.file)).length;
+    const cursor = b.courses.find((c) => c.file && !ready.get(c.file)) ?? null;
+    const cursorNo = cursor ? b.courses.findIndex((c) => c.id === cursor.id) + 1 : 0;
+    return { ...b, done, total: b.courses.length, cursor, cursorNo };
+  });
+  // 下一步学:第一本没读完的书的游标(书序即优先级)
+  const nextBook = shelves.find((b) => b.cursor) ?? null;
+  const nextPrev =
+    nextBook && nextBook.cursorNo > 1 ? nextBook.courses[nextBook.cursorNo - 2] : null;
 
   return (
     <div className="mx-auto max-w-4xl space-y-8 px-6 py-8">
       <h1 className="text-2xl font-bold">学习台</h1>
 
-      {/* 快捷开课:新主题一句话 → 生成中心接手(调研+备课+音频一条龙) */}
+      {/* 快捷开课:新主题一句话 → 生成中心接手(出大纲→备样课一条龙) */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -94,51 +121,72 @@ export function HomePage() {
         </Button>
       </form>
 
-      {/* 学习路线:直答「按什么顺序学」——拓扑序步骤条,当前步即游标 */}
-      {steps.length > 0 && (
-        <section className="rounded-xl border border-border bg-card p-4">
-          <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium">
-            <Route size={14} className="text-primary" /> 学习路线
-            {cursor && (
-              <span className="ml-1 font-mono text-xs font-normal text-muted-foreground">
-                你在第 {cursor.step} / {steps.length} 步
-              </span>
-            )}
-            {!cursor && (
-              <span className="ml-1 font-mono text-xs font-normal text-success">
-                全部学完 🎉
-              </span>
-            )}
-          </h2>
-          <ol className="flex flex-wrap items-center gap-x-2 gap-y-2">
-            {steps.map((s, i) => {
-              const isCursor = cursor?.id === s.id;
+      {/* 我的书架:每本大纲一行——篇章节里的进度与当前课,直答「学到哪、读哪本」 */}
+      <section>
+        <SectionHeader
+          icon={LibraryBig}
+          title="我的书架"
+          count={shelves.length}
+          hint="每本大纲是一本书;当前课=书里第一门已出而未学完的"
+        />
+        {shelves === null ? (
+          <p className="text-sm text-muted-foreground">书架整理中…</p>
+        ) : shelves.length === 0 ? (
+          <EmptyState
+            icon={LibraryBig}
+            title="书架还是空的"
+            hint="上面输入新主题开课,或去生成中心看看"
+          />
+        ) : (
+          <div className="space-y-2">
+            {shelves.map((b) => {
+              const allDone = b.total > 0 && b.done === b.total;
               return (
-                <li key={s.id} className="flex items-center gap-2">
-                  {i > 0 && <span className="text-muted-foreground">→</span>}
-                  <Link
-                    to={isCursor ? `/read/${s.id}` : `/courses/${s.id}`}
-                    className={cn(
-                      "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors",
-                      isCursor
-                        ? "border-primary bg-primary/10 font-medium text-primary"
-                        : s.ready
-                          ? "border-success/50 bg-success/10 text-success"
-                          : "border-border bg-background text-muted-foreground hover:border-primary/40",
+                <Card key={b.topic} className="p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 text-sm font-medium">
+                        <LibraryBig size={13} className="shrink-0 text-primary" />
+                        {b.domain && `${b.domain} · `}
+                        {b.topic}
+                        <span className="font-mono text-xs font-normal text-muted-foreground">
+                          已学 {b.done} / {b.total}
+                        </span>
+                      </p>
+                      {b.cursor ? (
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          ▶ 当前课:{b.cursor.title}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-xs text-success">✓ 全部学完</p>
+                      )}
+                    </div>
+                    {b.cursor && (
+                      <Button size="sm" variant="secondary" asChild className="shrink-0">
+                        <Link to={`/read/${b.cursor.file}`}>
+                          <Play size={13} /> {b.done > 0 ? "继续读" : "开始读"}
+                        </Link>
+                      </Button>
                     )}
-                    title={isCursor ? "当前步,点开就读" : s.ready ? "已学完" : "还没轮到,但也能直接点进去"}
-                  >
-                    <span className="font-mono opacity-70">{i + 1}</span>
-                    {s.ready && "✓"}
-                    {isCursor && "▶ "}
-                    {s.title}
-                  </Link>
-                </li>
+                    {allDone && (
+                      <Badge variant="success" className="shrink-0">
+                        学完
+                      </Badge>
+                    )}
+                  </div>
+                </Card>
               );
             })}
-          </ol>
-        </section>
-      )}
+            <p className="text-right text-[11px] text-muted-foreground">
+              书的全貌在
+              <Link to="/courses" className="mx-1 text-primary underline decoration-dotted">
+                课程库
+              </Link>
+              ;书里空白章节点击即出课
+            </p>
+          </div>
+        )}
+      </section>
 
       {due && due.items.length > 0 && (
         <section>
@@ -194,7 +242,7 @@ export function HomePage() {
           <EmptyState
             icon={BookOpen}
             title="还没有进行中的课"
-            hint="去课程库挑一门,或上面输入新主题直接开课"
+            hint="书架里挑一本开始读,或上面输入新主题直接开课"
           >
             <Button asChild variant="secondary" size="sm">
               <Link to="/courses">去课程库</Link>
@@ -203,27 +251,27 @@ export function HomePage() {
         )}
       </section>
 
-      {cursor && (
+      {nextBook?.cursor && (
         <section>
           <SectionHeader
             icon={Compass}
             title="下一步学"
-            hint="路线上的当前步:前置课都已学完,学完它自动轮到下一门"
+            hint="书序游标:前置课都已学完,学完它自动轮到下一门"
           />
           <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="mb-1 flex items-center gap-1.5 font-mono text-xs text-primary">
-                <Compass size={12} /> 第 {cursor.step} / {steps.length} 步 · 可以开课
+                <Compass size={12} /> 《{nextBook.topic}》第 {nextBook.cursorNo} / {nextBook.total} 课 · 可以开课
               </p>
-              <h3 className="mb-1 text-lg font-medium">{cursor.title}</h3>
+              <h3 className="mb-1 text-lg font-medium">{nextBook.cursor.title}</h3>
               <p className="font-mono text-xs text-muted-foreground">
-                {cursorPrev
-                  ? `承接:你刚学完「${cursorPrev.title}」✓`
-                  : "路线起点,直接开读"}
+                {nextPrev?.file && ready.get(nextPrev.file)
+                  ? `承接:你刚学完「${nextPrev.title}」✓`
+                  : "这本书的当前课,直接开读"}
               </p>
             </div>
             <Button size="lg" asChild className="shrink-0">
-              <Link to={`/read/${cursor.id}`}>
+              <Link to={`/read/${nextBook.cursor.file}`}>
                 <Play size={15} /> 开始学
               </Link>
             </Button>
@@ -238,7 +286,7 @@ export function HomePage() {
             {cat.todo.map((t, i) => (
               <li
                 key={`${t.title}::${i}`}
-                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-2"
+                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-2 transition-colors hover:border-primary/40"
               >
                 <div className="min-w-0">
                   <span className="text-sm">{t.title}</span>
@@ -279,7 +327,7 @@ export function HomePage() {
         ) : (
           <div className="space-y-2">
             {cat.sparks.map((s) => (
-              <div key={s.key} className="rounded-lg border border-border bg-card px-4 py-3">
+              <div key={s.key} className="rounded-lg border border-border bg-card px-4 py-3 transition-colors hover:border-primary/40">
                 <p className="mb-1 flex items-start gap-2 text-sm">
                   <Sparkles size={13} className="mt-1 shrink-0 text-primary" />
                   {s.question}
