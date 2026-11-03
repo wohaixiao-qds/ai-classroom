@@ -1,9 +1,10 @@
 /** 领域大纲·书籍目录(P7·M3):篇归类 + 课进度 + 点单备课。
  *  行为:已出课→点击去读;未出课→点击直接开始备课(行内状态自动跟走)。 */
-import { BookOpen, CircleCheck, LoaderCircle, Play } from "lucide-react";
+import { BookOpen, ChevronDown, CircleCheck, FileText, LoaderCircle, Play } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { Collapse } from "../../components/Collapse";
 import { Card } from "../../components/ui/card";
 import { cn } from "../../lib/utils";
 
@@ -28,6 +29,15 @@ interface OutlineDetail {
 export function OutlineToc({ readyById }: { readyById: Map<string, boolean> }) {
   const [details, setDetails] = useState<OutlineDetail[] | null>(null);
   const [msg, setMsg] = useState("");
+  const [refsOpen, setRefsOpen] = useState<Set<string>>(new Set());
+  /** 手风琴:展开/收起某门课挂接的旧课列表 */
+  const toggleRefs = (id: string) =>
+    setRefsOpen((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
 
   const loadAll = useCallback(async () => {
     try {
@@ -170,11 +180,6 @@ export function OutlineToc({ readyById }: { readyById: Map<string, boolean> }) {
                           >
                             {c.title}
                           </span>
-                          {refs.length > 1 && (
-                            <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                              已挂 {refs.length} 门
-                            </span>
-                          )}
                           {busy && (
                             <span className="shrink-0 text-xs text-warning">
                               {c.prep_status === "running" ? "备课中…" : "排队中…"}
@@ -194,27 +199,52 @@ export function OutlineToc({ readyById }: { readyById: Map<string, boolean> }) {
                         <li key={c.id} className="group">
                           {refs.length > 0 ? (
                             <>
-                              <Link
-                                to={`/read/${refs[0]}`}
-                                viewTransition
-                                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-secondary"
-                                title={c.goal}
-                              >
-                                {inner}
-                              </Link>
+                              <div className="flex items-center gap-1">
+                                <Link
+                                  to={`/read/${refs[0]}`}
+                                  viewTransition
+                                  className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-secondary"
+                                  title={c.goal}
+                                >
+                                  {inner}
+                                </Link>
+                                {/* 手风琴展开钮:挂了多门旧课时收起列表,点开按书内缩进看 */}
+                                {refs.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleRefs(c.id)}
+                                    aria-expanded={refsOpen.has(c.id)}
+                                    className="mr-1 flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[11px] text-muted-foreground transition-colors outline-none hover:bg-secondary hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+                                    title={refsOpen.has(c.id) ? "收起挂接的课" : `展开挂接的 ${refs.length} 门课`}
+                                  >
+                                    已挂 {refs.length} 门
+                                    <ChevronDown
+                                      size={12}
+                                      className={cn("transition-transform", refsOpen.has(c.id) && "rotate-180")}
+                                    />
+                                  </button>
+                                )}
+                              </div>
                               {refs.length > 1 && (
-                                <div className="mb-1 ml-8 flex flex-wrap gap-1.5">
-                                  {refs.map((fid, k) => (
-                                    <Link
-                                      key={fid}
-                                      to={`/read/${fid}`}
-                                      viewTransition
-                                      className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
-                                    >
-                                      {c.course_file_titles?.[k] ?? `旧课${k + 1}`}
-                                    </Link>
-                                  ))}
-                                </div>
+                                <Collapse open={refsOpen.has(c.id)}>
+                                  <ul className="mb-1 ml-8 space-y-0.5 border-l border-border pl-3">
+                                    {refs.map((fid, k) => (
+                                      <li key={fid}>
+                                        <Link
+                                          to={`/read/${fid}`}
+                                          viewTransition
+                                          className="flex items-center gap-1.5 rounded px-1.5 py-1 text-[12px] text-muted-foreground transition-colors outline-none hover:bg-secondary hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+                                          title={c.course_file_titles?.[k]}
+                                        >
+                                          <FileText size={11} className="shrink-0" />
+                                          <span className="truncate">
+                                            {c.course_file_titles?.[k] ?? `旧课${k + 1}`}
+                                          </span>
+                                        </Link>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </Collapse>
                               )}
                             </>
                           ) : (
