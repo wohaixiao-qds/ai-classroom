@@ -20,7 +20,7 @@ interface BookCourse {
   id: string;
   title: string;
   goal?: string;
-  file?: string | null;
+  course_file_id?: string | null;
 }
 
 interface Book {
@@ -85,8 +85,11 @@ export function HomePage() {
 
   // 书架派生:每本书的已学数与书内游标(第一门已出而未学完的课)
   const shelves = (books ?? []).map((b) => {
-    const done = b.courses.filter((c) => c.file && ready.get(c.file)).length;
-    const cursor = b.courses.find((c) => c.file && !ready.get(c.file)) ?? null;
+    const done = b.courses.filter(
+      (c) => c.course_file_id && ready.get(c.course_file_id),
+    ).length;
+    const cursor =
+      b.courses.find((c) => c.course_file_id && !ready.get(c.course_file_id)) ?? null;
     const cursorNo = cursor ? b.courses.findIndex((c) => c.id === cursor.id) + 1 : 0;
     return { ...b, done, total: b.courses.length, cursor, cursorNo };
   });
@@ -163,7 +166,7 @@ export function HomePage() {
                     </div>
                     {b.cursor && (
                       <Button size="sm" variant="secondary" asChild className="shrink-0">
-                        <Link to={`/read/${b.cursor.file}`}>
+                        <Link to={`/read/${b.cursor.course_file_id}`}>
                           <Play size={13} /> {b.done > 0 ? "继续读" : "开始读"}
                         </Link>
                       </Button>
@@ -265,13 +268,13 @@ export function HomePage() {
               </p>
               <h3 className="mb-1 text-lg font-medium">{nextBook.cursor.title}</h3>
               <p className="font-mono text-xs text-muted-foreground">
-                {nextPrev?.file && ready.get(nextPrev.file)
+                {nextPrev?.course_file_id && ready.get(nextPrev.course_file_id)
                   ? `承接:你刚学完「${nextPrev.title}」✓`
                   : "这本书的当前课,直接开读"}
               </p>
             </div>
             <Button size="lg" asChild className="shrink-0">
-              <Link to={`/read/${nextBook.cursor.file}`}>
+              <Link to={`/read/${nextBook.cursor.course_file_id}`}>
                 <Play size={15} /> 开始学
               </Link>
             </Button>

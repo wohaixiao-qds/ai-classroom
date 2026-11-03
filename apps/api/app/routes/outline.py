@@ -26,16 +26,22 @@ _KNOWN_COURSE_KEYS = {
 }
 
 
-def _existing_course_ids_by_title() -> dict[str, str]:
-    """课名 → 已出课件 id(判定「这门大纲课出了没有」)。"""
-    out: dict[str, str] = {}
+def _existing_courses_index() -> tuple[dict[str, list[str]], dict[str, str], set[str]]:
+    """扫描课件目录:课名 → [课件id](同名课多门都保留)、id → 课名、全量 id 集。"""
+    by_title: dict[str, list[str]] = {}
+    id_title: dict[str, str] = {}
+    all_ids: set[str] = set()
     for p in sorted(settings.courses_dir.glob("*.csl.json")):
         try:
             d = json.loads(p.read_text(encoding="utf-8"))
-            out[str(d.get("title", ""))] = str(d.get("id", ""))
         except Exception:  # noqa: BLE001 坏课件不挡列表
             continue
-    return out
+        cid = str(d.get("id", ""))
+        title = str(d.get("title", ""))
+        by_title.setdefault(title, []).append(cid)
+        id_title[cid] = title
+        all_ids.add(cid)
+    return by_title, id_title, all_ids
 
 
 def _outline_linked_ids() -> dict[str, str]:
@@ -98,23 +104,20 @@ def list_outlines() -> list[dict[str, Any]]:
 def get_outline(topic: str) -> dict[str, Any]:
     d = _load_outline(topic)
     titles_by_id = {str(c.get("id")): str(c.get("title")) for c in d["courses"]}
-    by_title = _existing_course_ids_by_title()
+    by_title, id_title, all_ids = _existing_courses_index()
     linked = _outline_linked_ids()
     status = _prep_status(topic, [str(c.get("title")) for c in d["courses"]])
-    existing_ids = set(by_title.values())
-    id_by_title = {v: k for k, v in by_title.items()}
     courses = []
     for c in d["courses"]:
         title = str(c.get("title"))
         # 出课判定(取并集):course_refs 列表 + course_ref + meta.outline_course_id + 课名
         ref = str(c.get("course_ref", "") or "")
-        file_id = (
-            ref if ref in existing_ids else linked.get(str(c.get("id"))) or by_title.get(title)
-        )
+        fallback = (by_title.get(title) or [None])[0]
+        file_id = ref if ref in all_ids else linked.get(str(c.get("id"))) or fallback
         refs = [
             r
             for r in [str(x) for x in (c.get("course_refs") or [])]
-            if r in existing_ids
+            if r in all_ids
         ]
         if file_id and file_id not in refs:
             refs.insert(0, file_id)
@@ -124,7 +127,7 @@ def get_outline(topic: str) -> dict[str, Any]:
                 "prereq_titles": [titles_by_id.get(p, p) for p in c.get("prereqs", [])],
                 "course_file_id": refs[0] if refs else None,
                 "course_file_ids": refs,
-                "course_file_titles": [id_by_title.get(r, r) for r in refs],
+                "course_file_titles": [id_title.get(r, r) for r in refs],
                 "prep_status": status.get(title),
             }
         )
@@ -155,6 +158,38 @@ class OutlinePrepReq(BaseModel):
     title: str
 
 
+@router.get("/outline-jobs")
+def outline_jobs() -> list[dict[str, Any]]:
+    """大纲点单备课的任务动态(最新一条按 target 去重),生成中心「正在造」用。"""
+    db = settings.data_dir / "classroom.db"
+    if not db.exists():
+        return []
+    conn: sqlite3.Connection = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT target, label, status, detail, created_at FROM catalog_actions"
+            " WHERE kind='outline_prep' ORDER BY id DESC LIMIT 50"
+        ).fetchall()
+    finally:
+        conn.close()
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        if r["target"] in seen:
+            continue
+        seen.add(r["target"])
+        out.append(
+            {
+                "target": r["target"],
+                "title": r["label"] or r["target"],
+                "status": r["status"],
+                "detail": r["detail"],
+            }
+        )
+    return out
+
+
 @router.post("/outlines/attribute-all")
 def attribute_all_courses() -> dict[str, Any]:
     """课件归位(P7):全局把每门已出课件归入最贴合的大纲课。幂等可重跑。"""
@@ -171,9 +206,9 @@ def prep_course(topic: str, req: OutlinePrepReq) -> dict[str, Any]:
     d = _load_outline(topic)
     if not any(str(c.get("title")) == req.title for c in d["courses"]):
         raise HTTPException(404, f"大纲里没有「{req.title}」")
-    by_title = _existing_course_ids_by_title()
+    by_title, _, _ = _existing_courses_index()
     if req.title in by_title:
-        raise HTTPException(409, f"这门课已出过(course: {by_title[req.title]});要重做先删旧课件")
+        raise HTTPException(409, f"这门课已出过(course: {by_title[req.title][0]});要重做先删旧课件")
     target = f"{topic}::{req.title}"
     record_action("outline_prep", target, req.title)
     log = start_job("outline_prep", target)

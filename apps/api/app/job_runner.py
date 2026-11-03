@@ -122,6 +122,19 @@ def _run() -> str:
     from app.services.tts_compile import publish_courses
 
     publish_courses()
+
+    # 出课自动归位(P7):新课与旧课都进最贴合的大纲位置(一次 LLM 调用;
+    # 失败不影响交付,下次出课或手动「归位旧课」会再试)
+    try:
+        from app.services.outline_attribution import attribute_all
+
+        r = attribute_all()
+        print(
+            f"归位: {len(r['placements'])} 门"
+            + (f";出圈 {len(r['unplaceable'])} 门" if r["unplaceable"] else "")
+        )
+    except Exception as e:  # noqa: BLE001 归位失败不影响交付
+        print(f"归位失败(不影响交付): {e}")
     return str(course["id"])
 
 
