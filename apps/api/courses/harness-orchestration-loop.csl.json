@@ -1,0 +1,304 @@
+{
+  "id": "harness-orchestration-loop",
+  "title": "编排循环:harness 的心跳",
+  "scenario": "自学",
+  "version": 2,
+  "meta": {
+    "source_notes": [
+      "/Users/zhangyu/CodeDevelopment/ai-classroom/apps/api/data/research/Agent-Harness.编排循环-harness-的心跳.material.json"
+    ],
+    "topic": "Agent Harness",
+    "sources": [
+      {
+        "title": "Building agents with the Claude Agent SDK (Anthropic 官方工程博客)",
+        "url": "https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk"
+      },
+      {
+        "title": "Runner — OpenAI Agents SDK 官方文档(循环参考实现)",
+        "url": "https://openai.github.io/openai-agents-python/ref/run/"
+      },
+      {
+        "title": "Building effective agents (Anthropic 官方工程博客)",
+        "url": "https://www.anthropic.com/engineering/building-effective-agents"
+      },
+      {
+        "title": "How we built our multi-agent research system (Anthropic 官方工程博客,生产案例)",
+        "url": "https://www.anthropic.com/engineering/built-multi-agent-research-system"
+      },
+      {
+        "title": "Ralph Wiggum as a \"software engineer\" (Geoffrey Huntley 一线实践原文)",
+        "url": "https://ghuntley.com/ralph/"
+      },
+      {
+        "title": "deepseek-ai/dsh-superagent-prototype(DeepSeek Harness 团队本周开源的 Super-agent 原型仓库 R",
+        "url": "https://github.com/deepseek-ai/dsh-superagent-prototype"
+      }
+    ],
+    "depends_on": [
+      {
+        "id": "harness-external-layer",
+        "reason": "大纲先修:认识 Harness:模型之外的软件层"
+      }
+    ],
+    "duration_min": null,
+    "outline_course_id": "agent-loop"
+  },
+  "sections": [
+    {
+      "blocks": [
+        {
+          "caption": null,
+          "text": "上一课把 harness 划定为模型之外的那层软件;这一课走进它内部最核心的部件——让 agent 真正「动起来」的编排循环。Anthropic 官方把 agent 的心跳定义为一个反馈循环:**收集上下文 → 采取行动 → 验证工作 → 重复**,并明确说明这是设计其他 agent 能力的思考框架。心跳是个类比:模型本身只做一次推理、交一段输出,让它能连续完成长任务的,是 harness 里那圈不断重启推理的循环。模型负责单步思考,循环负责持续心跳,两者相加才叫 agent。",
+          "type": "p"
+        },
+        {
+          "caption": "agent 心跳:一圈反馈循环,不达标就再来一圈",
+          "code": "graph TD\n  A[收集上下文] --> B[采取行动]\n  B --> C[验证工作]\n  C --> D{工作达标了吗}\n  D -->|是| E[输出结果]\n  D -->|否| A",
+          "lang": "mermaid",
+          "type": "diagram"
+        },
+        {
+          "caption": null,
+          "text": "循环说起来抽象,但工业界的实现意外地简单。OpenAI Agents SDK 的 Runner 给出了循环的精确算法:**调用 agent → 有最终输出则终止 → 有 handoff 则换新 agent 重跑 → 否则执行工具调用后再跑一轮**。所谓 handoff,就是把控制权移交给另一个更合适的 agent。注意这条算法里没有任何魔法:每一圈要么走向终止,要么把工具结果塞回上下文再跑下一圈,心跳的全部复杂度都来自「多跑几圈」而不是「算法本身复杂」。",
+          "type": "p"
+        },
+        {
+          "caption": "Ralph 技术的纯粹形式:一条 bash 循环,输出连同报错不断喂回自身",
+          "code": "while :; do\n  cat PROMPT.md | claude-code\ndone",
+          "language": "bash",
+          "type": "code"
+        },
+        {
+          "caption": null,
+          "text": "最简形态的心跳甚至只是一条 bash 命令。Geoffrey Huntley 提出的 Ralph 技术就是这么干的:`while :; do cat PROMPT.md | claude-code ; done`——把任务说明书喂给编码 agent,把它的输出连同报错不断喂回自身,直到做对为止。Ralph 实践者同时强调**每圈心跳只做一件事**:每次循环只要求完成一个任务,并信任 agent 自行判断当下最重要的事是什么。圈数可以多,但每圈的指令必须小,这是长循环不出轨的第一纪律。",
+          "type": "p"
+        },
+        {
+          "caption": null,
+          "text": "循环里模型凭什么能「行动」?Anthropic 的核心设计原则是**给 agent 一台计算机**:通过终端提供 bash、文件编辑/创建/搜索等工具,让模型像程序员一样迭代工作直到成功。这一原则解释了一个看似意外的现象——Claude Code 这个编码工具能胜任非编码任务,因为真正的能力不在「编码」这个主题里,而在「有台计算机可操作」这个前提里。工具越完整,心跳能推动的事情越多。",
+          "type": "p"
+        },
+        {
+          "hint": null,
+          "id": "s1-heartbeat-essence-cp",
+          "pass_rule": "能按顺序说出心跳四步;说清 Runner 三条出口的优先级;指出 Ralph 每圈只做一个任务",
+          "question": "不看原文,复述:① agent 心跳循环的四个步骤是什么?② Runner 算法在一圈里有哪三条出口路径,优先级如何?③ Ralph 技术对每圈心跳的纪律要求是什么?",
+          "type": "quiz"
+        }
+      ],
+      "heading": "心跳的本质:收集上下文、行动、验证、重复",
+      "id": "s1-heartbeat-essence"
+    },
+    {
+      "blocks": [
+        {
+          "caption": null,
+          "text": "会跳的心脏还必须会停:循环必须有确定性出口。OpenAI Runner 定义了两种异常终止:**max_turns 超限抛 MaxTurnsExceeded**,guardrail 绊线触发则抛对应的 Tripwire 异常。guardrail(护栏)指在输入或输出侧拉起的安全检查线,一旦命中就直接把循环拦停,不再让模型继续跑。没有这两条硬出口的循环不是自主,是失控。",
+          "type": "p"
+        },
+        {
+          "caption": null,
+          "text": "心跳次数是显式可调的运维参数。turn 的官方定义是**一次 AI 调用(含其中发生的工具调用)**——也就是说圈数不按自然时间算,按推理次数算。max_turns 这个参数设多少,循环最多跳多少圈;传 None 还可以干脆关闭轮数上限。生产环境里它就是心跳的保险丝:调大表示信任模型多试几轮,调小表示预算紧张、快速止损。",
+          "type": "p"
+        },
+        {
+          "caption": "workflow 与 agent 的架构分界:流程由代码定死,还是由模型临场指挥",
+          "header": [
+            "维度",
+            "workflow",
+            "agent"
+          ],
+          "rows": [
+            [
+              "流程控制",
+              "LLM 和工具走预定义代码路径",
+              "LLM 动态指挥自己的流程与工具使用"
+            ],
+            [
+              "完成方式",
+              "由开发者写死在编排代码里",
+              "模型自己掌控任务完成方式"
+            ],
+            [
+              "心跳归属",
+              "不在本课讨论范围",
+              "心跳循环属于这一类"
+            ]
+          ],
+          "type": "table"
+        },
+        {
+          "caption": null,
+          "text": "要理解心跳循环在架构图谱里的位置,得看 Anthropic 对 agent 与 workflow 的区分:**workflow 是 LLM 和工具走预定义代码路径,agent 是 LLM 动态指挥自己的流程与工具使用、自己掌控任务完成方式**。同样是循环,workflow 的每一步去哪都是开发者写死的,agent 的下一步去哪由模型看着上下文现场决定。本课讲的心跳循环属于后者——这也是它需要护栏而不是硬编码出口的原因:出口条件没法预先穷举,只能用 max_turns 和 guardrail 兜底。",
+          "type": "p"
+        },
+        {
+          "caption": null,
+          "text": "Anthropic 由此给出一条克制的建议:**从最简方案起步,确有必要再加复杂度**。框架会多加一层抽象,遮住底层的 prompt 与响应,让问题更难调试;对底层实现的错误假设,正是客户出错的常见来源。心跳循环本身已经够简单了——一圈、一圈、又一圈——能在 bash 循环里验证的需求,不必急着搬进重型框架。",
+          "type": "p"
+        },
+        {
+          "hint": null,
+          "id": "s2-termination-guardrails-cp",
+          "pass_rule": "答出 workflow 与 agent 的分界(预定义路径 vs 动态指挥);说出 MaxTurnsExceeded 与 Tripwire 两个异常名及触发条件;说出 turn 等于一次 AI 调用含工具调用",
+          "question": "复述:① workflow 与 agent 的架构区别是什么?心跳循环属于哪一类,为什么这类需要护栏兜底?② Runner 的两种异常终止分别由什么触发?③ turn 的官方定义是什么,max_turns 传 None 意味着什么?",
+          "type": "quiz"
+        },
+        {
+          "kind": "warn",
+          "text": "循环必须有确定性出口:要么 max_turns 超限熔断,要么 guardrail 绊线拦停。两条出口都没有的心跳循环,在生产环境等于一台没有保险丝的电机。",
+          "type": "callout"
+        }
+      ],
+      "heading": "确定性出口:终止条件与护栏",
+      "id": "s2-termination-guardrails"
+    },
+    {
+      "blocks": [
+        {
+          "caption": null,
+          "text": "单循环心跳有一个天然天花板:一圈只能串行地做一件事。Anthropic Research 功能的解法是 orchestrator-worker 模式:**lead agent 分析查询、制定策略、派生专用 subagent 并行探索,再汇总答案**。orchestrator-worker 可译作「编排者-工人」:编排者不亲自找资料,它负责把大问题拆成可并行的子问题,再让每个工人带着自己的上下文窗口去干。心跳从一条线变成了一棵树,根节点仍然是一圈普通的心跳循环。",
+          "type": "p"
+        },
+        {
+          "caption": "orchestrator-worker:lead 派生多个 subagent 并行探索,结果汇总回根节点",
+          "code": "graph TD\n  L[lead agent 分析并制定策略] --> A[subagent 并行探索]\n  L --> B[subagent 并行探索]\n  L --> C[subagent 并行探索]\n  A --> S[lead 汇总答案]\n  B --> S\n  C --> S",
+          "lang": "mermaid",
+          "type": "diagram"
+        },
+        {
+          "caption": null,
+          "text": "这套架构有生产数据背书:**Opus 4 当 lead、Sonnet 4 当 subagent 的多智能体系统,在内部研究评测上比单 agent Opus 4 高出 90.2%**,尤其擅长可并行的广度优先查询。性能之外,subagent 还解决了上下文管理问题:Claude Agent SDK 默认支持 subagent,动机一是并行化,二是**subagent 用隔离的上下文窗口,只把相关结论回传 orchestrator 而非全部上下文**——这让它们特别适合海量信息的筛选任务。脏活累活的原始细节留在工人窗口里,主窗口只进干货。",
+          "type": "p"
+        },
+        {
+          "caption": "单循环与 orchestrator-worker 的取舍对照",
+          "header": [
+            "维度",
+            "单循环 agent",
+            "orchestrator-worker"
+          ],
+          "rows": [
+            [
+              "心跳结构",
+              "一圈一个模型串行推进",
+              "lead 派生多个 subagent 并行"
+            ],
+            [
+              "token 成本",
+              "约比聊天多烧 4 倍",
+              "约比聊天多烧 15 倍"
+            ],
+            [
+              "擅长场景",
+              "流程连贯的纵深任务",
+              "可并行的广度优先查询"
+            ],
+            [
+              "短板场景",
+              "海量并行检索吃力",
+              "共享上下文或 agent 间强依赖"
+            ]
+          ],
+          "type": "table"
+        },
+        {
+          "caption": null,
+          "text": "升级编排的代价是烧钱。生产数据显示:**agent 约比聊天多烧 4 倍 token,多智能体系统约 15 倍**;更关键的是,token 用量一项就解释了 BrowseComp 评测 80% 的性能方差。这组数字点破了一个容易被包装掩盖的真相:**架构本质是在花 token 换性能**,所谓多智能体智能,很大一部分其实是并行买了更多的计算量。",
+          "type": "p"
+        },
+        {
+          "caption": null,
+          "text": "Anthropic 同时明确指出,多智能体并不适合所有任务:**需要所有 agent 共享同一上下文、或 agent 间存在强依赖的场景——如大多数编码任务——目前不合适**。多智能体擅长的画像很具体:高价值、重并行、超出单上下文窗、多工具。编码任务里后一步的改动依赖前一步的确切状态,拆给不同窗口的工人反而制造了同步地狱,这类活单循环跑得更稳。",
+          "type": "p"
+        },
+        {
+          "hint": null,
+          "id": "s3-orchestrator-worker-cp",
+          "pass_rule": "答出 lead 的三步职责(分析/拆解派发/汇总);说出 subagent 两条价值(并行化+隔离上下文只回传结论);举出不适场景(共享上下文或强依赖如编码任务)并说明原因",
+          "question": "复述:① orchestrator-worker 模式里 lead agent 做哪三件事?② subagent 靠什么机制既提速又省主上下文?③ 什么场景不该上多智能体,为什么?多智能体的性能提升背后真正的代价是什么?",
+          "type": "quiz"
+        }
+      ],
+      "heading": "编排升级:从单循环到 orchestrator-worker",
+      "id": "s3-orchestrator-worker"
+    },
+    {
+      "blocks": [
+        {
+          "caption": null,
+          "text": "循环跳得越久,上下文窗越满,而窗口是有限的——长循环靠 compaction 续命。compaction(压缩)指在**接近上下文上限时自动总结历史消息**,把旧对话折成一份摘要腾出空间。Claude Agent SDK 把这个能力做成了默认行为,它脱胎于 Claude Code 的 `/compact` 命令:编码 agent 在长会话里早就需要这根救生索,如今成了心跳循环的标准配件。",
+          "type": "p"
+        },
+        {
+          "caption": null,
+          "text": "压缩不可靠,所以关键计划必须落盘。Anthropic Research 系统的 lead agent 会**先把计划写入 Memory 再开工**,原因是上下文窗超过 200,000 token 就会被截断——计划只活在窗口里,挺不过长循环,持久化之后它才不依赖任何一次推理的存活。这也是编排纪律的一部分:每圈心跳开始前,最重要的上下文不是在窗口里,而是在文件里。",
+          "type": "p"
+        },
+        {
+          "kind": "warn",
+          "text": "上下文窗超过 200,000 token 会被截断,压缩又有信息损耗——两条一起决定了:循环越长,越要靠文件系统而非窗口来保存关键状态。",
+          "type": "callout"
+        },
+        {
+          "caption": null,
+          "text": "往窗口里装什么,第一手段是 agentic search。agentic search 指让 agent 遇到大文件时,**用 grep/tail 等 bash 脚本自主决定加载什么**,而不是一次性把整个文件填进窗口。Anthropic 进一步指出,文件系统的结构本身就是一种 context engineering——目录怎么组织、文件叫什么名字,都是在替模型预筛信息。官方建议的顺序是:**先上 agentic search,确需更快才加语义检索**,别上来就为向量库买复杂度。",
+          "type": "p"
+        },
+        {
+          "hint": null,
+          "id": "s4-context-endurance-cp",
+          "pass_rule": "答出 compaction 的触发时机(接近上限)与动作(总结历史);说出计划写入 Memory 的原因(200,000 token 截断);答出第一手段是 agentic search 且先于语义检索",
+          "question": "复述:① compaction 在什么时机做什么,它脱胎于哪个命令?② lead agent 为什么开工前必须把计划写入 Memory?③ 遇到大文件的第一手段是什么,什么时候才该升级到语义检索?",
+          "type": "quiz"
+        },
+        {
+          "cards": [
+            {
+              "back": "/compact",
+              "front": "Claude Agent SDK 的自动 compaction 脱胎于 Claude Code 的哪个命令?"
+            },
+            {
+              "back": "用 grep/tail 等 bash 脚本自主决定加载什么,确需更快才加语义检索",
+              "front": "Anthropic 建议的上下文获取第一手段是什么?"
+            }
+          ],
+          "type": "flashcards"
+        }
+      ],
+      "heading": "心跳的续航:长循环里的上下文维持",
+      "id": "s4-context-endurance"
+    },
+    {
+      "blocks": [
+        {
+          "caption": null,
+          "text": "心跳循环的质量不靠一次性设计,靠运维者持续调优。Huntley 对 Ralph 的自嘲式总结是:该技术**「在不确定的世界里确定性地烂」**,但它的缺陷可以通过改 prompt 持续收敛——像给吉他调音一样,给 Ralph 加「警示牌」,观察它在哪一圈摔倒,就在下一版说明书里树一块牌子。这揭示了心跳循环的运维本质:循环骨架不变,每圈之间的差异全部来自人对 prompt 的迭代。",
+          "type": "p"
+        },
+        {
+          "caption": null,
+          "text": "Huntley 同时反对在当前阶段上多智能体:**非确定性的「微服务」是灾难**。Ralph 是单体——在单一仓库里作为单一进程自治运行,每圈一个任务,并且每圈以相同方式确定性地分配栈:计划文件加规格文件,哪个文件在哪个位置、管什么,每圈都一样。这套单体纪律与上一节的 orchestrator-worker 并不矛盾,而是同一道选择题的两个答案:强依赖、共享状态的任务走单体,可并行的广度任务才值得拆分。",
+          "type": "p"
+        },
+        {
+          "caption": null,
+          "text": "回报数据让这套朴素方法有了说服力:一位工程师用 Ralph 交付一个 **5 万美元合同(含 MVP、测试与评审),成本仅 297 美元**;YC 黑客松现场则出现过「把编码 agent 放进 while 循环,一夜交付 6 个仓库」的战报。这些案例的共性不是模型多聪明,而是心跳骨架够简单——简单到成本账算得清、每圈行为看得见。",
+          "type": "p"
+        },
+        {
+          "caption": null,
+          "text": "最新动向上,DeepSeek Harness 团队于 10 月 31 日开源了 dsh-superagent 原型:一个监听 GitHub 与飞书的主动式编码 agent,**收到允许的请求后开 work item、在自己独立的 agent session 和目录里干活、再回到原会话回复(如交 PR)**,设计哲学是「占用尽可能少的人类注意力」。它的编排形态又不一样——心跳不在一次对话里,而是分布在多个独立会话之间,harness 替人站岗。引用其编排设计时应注明**参考实现**性质:该仓库自我定位为研究原型而非生产软件,大量工程由编码 agent 完成,可能含 bug,与内部版本及论文描述不完全一致。",
+          "type": "p"
+        },
+        {
+          "kind": "note",
+          "text": "Claude Code SDK 更名为 Claude Agent SDK,官方理由是 Claude Code 已能驱动 Anthropic 内部几乎所有主要的 agent loop——深度研究、视频创作、笔记等非编码用途,同一个 harness 承载多种编排循环。心跳的形态可以千变万化,机制始终是同一圈循环。",
+          "type": "callout"
+        }
+      ],
+      "heading": "生产实战与最新动向",
+      "id": "s5-practice-frontier"
+    }
+  ]
+}

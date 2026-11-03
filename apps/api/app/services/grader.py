@@ -110,7 +110,9 @@ def grade_recitation(
         try:
             resp = client.messages.create(
                 model=settings.llm_model,
-                max_tokens=1024,  # 512 会截断长「精准版」导致 JSON 不完整
+                # 思考模型的思考块也吃 max_tokens 预算:小值被思考烧光→零文本
+                # (实测 1024 间歇性触发;与 prep/归位 8192 同档)
+                max_tokens=8192,
                 messages=[{"role": "user", "content": prompt}],
             )
             break
@@ -121,6 +123,11 @@ def grade_recitation(
         msg = f"批改 LLM 三次均失败: {last_err}"
         raise RuntimeError(msg)
     text = "".join(b.text for b in resp.content if b.type == "text").strip()
+    if not text:
+        raise RuntimeError(
+            f"模型零文本输出(stop={resp.stop_reason}, "
+            f"blocks={[b.type for b in resp.content]})——多为思考块吃尽预算"
+        )
     # 模型偶尔裹 ```json```,剥掉
     if text.startswith("```"):
         text = text.strip("`").removeprefix("json").strip()
