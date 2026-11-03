@@ -85,7 +85,12 @@ export function JobFeed({
           lines.map((l, i) => (
             <p
               key={`${i}-${l.slice(0, 12)}`}
-              className={cn(lineTone(l), i >= freshFrom && "anim-rise")}
+              className={cn(
+                lineTone(l),
+                i >= freshFrom && "anim-rise",
+                // 尾行 ⋯ = 这一次模型调用还在路上,脉冲示意进行中
+                i === lines.length - 1 && l.startsWith("⋯") && "animate-pulse",
+              )}
             >
               {l}
             </p>
@@ -96,12 +101,13 @@ export function JobFeed({
   );
 }
 
-/** 阶段标记着色:规划/建骨架/终验=品牌色,逐节写=正文色,失败=红,警告=黄 */
+/** 阶段标记着色:规划/建骨架/终验=品牌色,逐节写=正文色,失败=红,警告=黄,模型心跳=微亮 */
 function lineTone(line: string): string {
   if (line.includes("FAILED") || line.includes("Traceback")) return "text-destructive";
   if (/^\s*\[(submit_plan|init_course|validate_csl)\]/.test(line) || line.includes("✅"))
     return "text-primary";
   if (/^\s*\[(write_section|research)/.test(line)) return "text-foreground/90";
+  if (line.startsWith("✓ 模型调用")) return "text-foreground/70";
   if (line.trim().startsWith("⚠")) return "text-warning";
   return "text-muted-foreground";
 }
