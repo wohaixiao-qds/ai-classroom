@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 
 from app.agent.tutor import course_text_of, run_tutor
 from app.core.memory import ensure_session, list_sessions, new_session, session_history
-from app.core.trace import trace_tutor
+from app.core.trace import read_traces, trace_tutor
 from app.schemas.chat import (
     ChatRequest,
     FlashReportRequest,
@@ -145,3 +145,19 @@ def flash_report(req: FlashReportRequest) -> dict:
         "mastery": row["mastery"] if row else 0,
         "next_review_at": row["next_review_at"] if row else None,
     }
+
+
+@router.get("/grade/last")
+def grade_last(course_id: str, page_id: str) -> dict:
+    """回查某检查点最近一次批改(通过态跨刷新展示用);没有则 {found: false}。"""
+    for g in read_traces("grade.jsonl", limit=500):
+        if g.get("course_id") == course_id and g.get("page_id") == page_id:
+            return {
+                "found": True,
+                "verdict": g.get("verdict"),
+                "score": g.get("score"),
+                "comment": g.get("comment"),
+                "precise": g.get("precise"),
+                "answer": g.get("answer"),
+            }
+    return {"found": False}

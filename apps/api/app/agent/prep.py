@@ -58,17 +58,29 @@ sections: [{{"id":"s1-xxx(英文slug)","heading":"节标题",
 - covers 保证材料每组都被至少一节覆盖,别漏组
 - 规划会给人审;被给修改意见就按意见重排再交
 
-# 块型菜单(blocks 数组,type 必须精确匹配)
-- p 段落(主力):{{"type":"p","text":"书面 prose 一段,3~6 句,支持**加粗**与 `行内代码`"}}
+{shared_style}
+
+# 流程
+1. submit_plan(规划 → 人审)
+2. init_course(id=子题英文slug, title=子题名, scenario="自学",
+   source_notes=["材料路径"], depends_on=[先修课,见上节])
+3. write_section 逐节追加(一次一节,照计划写;重交同 id = 替换该节,改错别换 id)
+4. 每写 2~3 节 validate_csl 自查一次,有错即改
+5. 全部写完终验通过后,收笔说一句交付总结(不再调工具)"""
+
+
+# 共享段:块型纪律与文风红线(全量/续写两套 prompt 共用,防止漂移)。值为 format 后形态(单花括号)。
+_SHARED_STYLE = """# 块型菜单(blocks 数组,type 必须精确匹配)
+- p 段落(主力):{"type":"p","text":"书面 prose 一段,3~6 句,支持**加粗**与 `行内代码`"}
 - diagram 示意图(每课 1~3 张,只画流程/结构/关系):
-  {{"type":"diagram","lang":"mermaid","code":"graph TD\\n  A[输入] --> B[输出]","caption":"图题"}}
+  {"type":"diagram","lang":"mermaid","code":"graph TD\\n  A[输入] --> B[输出]","caption":"图题"}
   ⚠ 只写保守的 graph TD / graph LR;节点文本别带括号引号等特殊字符——语法错前端会降级成代码块
-- code:{{"type":"code","language":"python","code":"真实可读的示例","caption":"说明"}}
-- table:{{"type":"table","header":["…"],"rows":[["…"]],"caption":"表题"}}
-- callout:{{"type":"callout","kind":"tip|warn|note","text":"关键结论或容易踩的坑"}}
+- code:{"type":"code","language":"python","code":"真实可读的示例","caption":"说明"}
+- table:{"type":"table","header":["…"],"rows":[["…"]],"caption":"表题"}
+- callout:{"type":"callout","kind":"tip|warn|note","text":"关键结论或容易踩的坑"}
 - quiz 复述检查点(has_quiz 的节末必放):
-  {{"type":"quiz","id":"<节id>-cp","question":"复述问题","hint":null,"pass_rule":"具体可判的通过标准"}}
-- flashcards(选配,每节 0~2 张):{{"type":"flashcards","cards":[{{"front":"问","back":"答"}}]}}
+  {"type":"quiz","id":"<节id>-cp","question":"复述问题","hint":null,"pass_rule":"具体可判的通过标准"}
+- flashcards(选配,每节 0~2 张):{"type":"flashcards","cards":[{"front":"问","back":"答"}]}
 
 # 文风(书面 prose)
 一段只讲一个论点;术语首现给一句白话解释;类比保留但别滥用。
@@ -80,13 +92,7 @@ quiz 的 question 问「关系/区别/步骤/为什么」这类要动脑复述�
 pass_rule 写具体判定标准(例:「答出四层名称和顺序」),批改 agent 靠它判;
 id 固定用「<节id>-cp」。
 
-# 流程
-1. submit_plan(规划 → 人审)
-2. init_course(id=子题英文slug, title=子题名, scenario="自学",
-   source_notes=["材料路径"], depends_on=[先修课,见上节])
-3. write_section 逐节追加(一次一节,照计划写;重交同 id = 替换该节,改错别换 id)
-4. 每写 2~3 节 validate_csl 自查一次,有错即改
-5. 全部写完终验通过后,收笔说一句交付总结(不再调工具)"""
+"""
 
 
 # ---------- 工具实现(闭包持有课件路径与材料来源) ----------
@@ -541,10 +547,46 @@ def _render_material(m: dict[str, Any]) -> str:
     return head + body
 
 
+
+# 续写 prompt(中断/取消后的课件,载盘上已有节继续写;不重新规划)
+RESUME_PROMPT = """你在**续写**一份未完成的书页课件(它属于某条零基础学习路线,写到一半中断了)。
+
+{position}
+
+# 课件已有内容(不要重复、不要改动——你的任务是接在后面写)
+{existing_sections}
+
+# 续写材料(与已写部分同一来源,每条要点带来源 id)
+{material}
+
+# 学员已有课程
+{existing}
+
+# 任务:直接 write_section 续写(不要 init_course/submit_plan,工具清单里也没有)
+- 已有节你看得到讲了什么;新节补它们**没讲的**,把这门课补完整
+- 新节 id 从「s{next_no}」起续编号;总节数含已有节控制在 9 节内
+- 若材料已覆盖得差不多,写 1~2 节收尾即可,宁短勿凑
+
+{shared_style}
+
+# 检查点纪律(教学闸)
+新写的节,节末放 quiz(id「<节id>-cp」),question 问关系/区别/步骤,
+pass_rule 写具体可判标准。
+
+# 流程
+1. 直接 write_section 逐节续写(一次一节;重交同 id = 替换)
+2. 每写 2~3 节 validate_csl 自查
+3. 终验通过后收笔说交付总结(不再调工具)"""
+
+
 # ---------- 主循环 ----------
 
 
-def run_prep(material: dict[str, Any], prev_subtopic: str | None = None) -> dict[str, Any]:
+def run_prep(
+    material: dict[str, Any],
+    prev_subtopic: str | None = None,
+    resume_course_id: str | None = None,
+) -> dict[str, Any]:
     tools, dispatch, state = _make_tools(
         material.get("sources") or [],
         material_path=material.get("_material_path"),
@@ -556,9 +598,38 @@ def run_prep(material: dict[str, Any], prev_subtopic: str | None = None) -> dict
         f"本课在「{material.get('topic')}」学习框架中的位置:前一课讲了「{prev_subtopic}」,"
         f"开场用一句话承接它。" if prev_subtopic else "这是该主题的第一课。"
     )
-    prompt = PREP_PROMPT.format(
-        position=position, material=_render_material(material), existing=_course_brief()
-    )
+    if resume_course_id:
+        # 续写模式(P7):载盘上已有节,RESUME_PROMPT 直接逐节续写
+        rc = _load(_course_path(resume_course_id))
+        if rc is None:
+            raise ValueError(f"续写目标课件不存在: {resume_course_id}")
+        state["course_id"] = resume_course_id
+        secs = rc.get("sections", [])
+        existing_lines = (
+            "\n".join(
+                f"- {s.get('id')} | {s.get('heading', '')} | 块 {len(s.get('blocks', []))} 个"
+                for s in secs
+            )
+            or "(尚无节)"
+        )
+        prompt = RESUME_PROMPT.format(
+            position=position,
+            existing_sections=(
+                f"课件「{rc.get('title', '')}」已有 {len(secs)} 节:\n{existing_lines}\n"
+                f"新节 id 从 s{len(secs) + 1} 起续编号"
+            ),
+            material=_render_material(material),
+            existing=_course_brief(),
+            shared_style=_SHARED_STYLE,
+            next_no=len(secs) + 1,
+        )
+    else:
+        prompt = PREP_PROMPT.format(
+            position=position,
+            material=_render_material(material),
+            existing=_course_brief(),
+            shared_style=_SHARED_STYLE,
+        )
     # 离线批量循环放宽单次超时:模型一轮会写几千 token 的规划+页 JSON,
     # 中转慢速时 60s 必掐死(实测 191s);chat 的 60s 交互护栏不受影响
     client = get_llm_client().with_options(timeout=240.0)
@@ -671,12 +742,25 @@ if __name__ == "__main__":
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--material", help="找资料产出的原料 JSON 路径(新课)")
     g.add_argument("--note", help="vault 笔记相对路径(复习)")
+    g.add_argument("--resume", help="续写未完成课件(按课件 id)")
     ap.add_argument("--prev", help="前置子题名(位置感,开场承接)")
     a = ap.parse_args()
 
-    m = _load_material(a.material) if a.material else _material_from_note(a.note)
-    m["_material_path"] = a.material or a.note  # vault 相对路径,课表关联靠它
-    r = run_prep(m, prev_subtopic=a.prev)
+    if a.resume:
+        # 续写:材料路径从课件 meta.source_notes 恢复(当初用哪份材料就接着用)
+        rc = _load(_course_path(a.resume))
+        if rc is None:
+            raise SystemExit(f"课件不存在: {a.resume}")
+        src = (rc.get("meta", {}).get("source_notes") or [None])[0]
+        if not src:
+            raise SystemExit("课件 meta.source_notes 为空,无法恢复材料")
+        m = _load_material(src) if src.endswith(".json") else _material_from_note(src)
+        m["_material_path"] = src
+        r = run_prep(m, resume_course_id=a.resume)
+    else:
+        m = _load_material(a.material) if a.material else _material_from_note(a.note)
+        m["_material_path"] = a.material or a.note  # vault 相对路径,课表关联靠它
+        r = run_prep(m, prev_subtopic=a.prev)
     if r["ok"]:
         from app.services.tts_compile import publish_courses
 

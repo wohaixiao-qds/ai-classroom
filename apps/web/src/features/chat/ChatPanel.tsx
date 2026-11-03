@@ -54,6 +54,7 @@ export function ChatPanel({
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [showList, setShowList] = useState(false);
@@ -170,6 +171,14 @@ export function ChatPanel({
     setMsgs([]);
   }
 
+  function stop() {
+    abortRef.current?.abort();
+    setMsgs((m) => [
+      ...m,
+      { role: "assistant", text: "(已停止生成——已生成的部分保留在会话里,继续追问即可)" },
+    ]);
+  }
+
   async function ask(override?: string, checkpoint?: ChatSeed["checkpoint"]) {
     const q = (override ?? input).trim();
     if (!q || busy) return;
@@ -177,6 +186,8 @@ export function ChatPanel({
     setMsgs((m) => [...m, { role: "user", text: q }]);
     setBusy(true);
     try {
+      const ac = new AbortController();
+      abortRef.current = ac;
       const resp = await fetch("/api/v1/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -187,6 +198,7 @@ export function ChatPanel({
           session_id: sessionId,
           checkpoint: checkpoint ?? null,
         }),
+        signal: ac.signal,
       });
       if (!resp.ok || !resp.body) {
         // 后端 4xx/5xx 不再静默空泡——把错误亮给学员
@@ -326,10 +338,16 @@ export function ChatPanel({
           onKeyDown={(e) => e.key === "Enter" && ask()}
           placeholder="例如:汽车类比再讲一遍"
         />
-        <Button onClick={() => void ask()} disabled={busy || !input.trim()} title="发送">
-          <Send size={14} />
-          发送
-        </Button>
+        {busy ? (
+          <Button variant="outline" onClick={stop} title="停止生成">
+            停止
+          </Button>
+        ) : (
+          <Button onClick={() => void ask()} disabled={!input.trim()} title="发送">
+            <Send size={14} />
+            发送
+          </Button>
+        )}
       </div>
     </aside>
   );

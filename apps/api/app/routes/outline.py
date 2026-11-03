@@ -225,7 +225,20 @@ def prep_course(topic: str, req: OutlinePrepReq) -> dict[str, Any]:
         raise HTTPException(404, f"大纲里没有「{req.title}」")
     by_title, _, _ = _existing_courses_index()
     if req.title in by_title:
-        raise HTTPException(409, f"这门课已出过(course: {by_title[req.title][0]});要重做先删旧课件")
+        # 骨架课(0 节,取消/失败残留)放行重新点单;有内容的才挡
+        skeleton = [
+            cid
+            for cid in by_title[req.title]
+            if not json.loads(
+                (settings.courses_dir / f"{cid}.csl.json").read_text(encoding="utf-8")
+            ).get("sections")
+        ]
+        if not skeleton:
+            cid0 = by_title[req.title][0]
+            raise HTTPException(409, f"这门课已出过(course: {cid0});要重做先删旧课件")
+        # 删骨架:点单后 outline_prep 会走续写模式(0 节=全新写)
+        for cid in skeleton:
+            (settings.courses_dir / f"{cid}.csl.json").unlink(missing_ok=True)
     target = f"{topic}::{req.title}"
     record_action("outline_prep", target, req.title)
     log = start_job("outline_prep", target)

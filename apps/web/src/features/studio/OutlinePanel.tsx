@@ -130,6 +130,23 @@ export function OutlinePanel() {
     await loadDetail(detail.topic);
   };
 
+  const cancelJob = async (title: string) => {
+    if (!detail) return;
+    const r = await fetch(
+      `/api/v1/jobs/cancel?kind=outline_prep&target=${encodeURIComponent(
+        `${detail.topic}::${title}`,
+      )}`,
+      { method: "POST" },
+    );
+    if (!r.ok) {
+      const d2 = (await r.json().catch(() => ({}))) as { detail?: string };
+      setMsg(`取消失败:${d2.detail}`);
+      return;
+    }
+    setMsg(`「${title}」已取消(0 节骨架课会自动清理)`);
+    await loadDetail(detail.topic);
+  };
+
   const prep = async (title: string) => {
     if (!openTopic) return;
     setMsg("");
@@ -270,6 +287,15 @@ export function OutlinePanel() {
                         )}
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
+                        {busy && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => void cancelJob(c.title)}
+                          >
+                            取消
+                          </Button>
+                        )}
                         {c.course_file_id ? (
                           <Button size="sm" variant="secondary" asChild>
                             <a href={`/read/${c.course_file_id}`}>

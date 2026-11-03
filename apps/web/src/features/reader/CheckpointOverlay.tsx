@@ -32,7 +32,14 @@ export function CheckpointOverlay({
   /** 批改→答疑联动(P7 补):没过时把「我的回答+判定」带给答疑面板 */
   onAskTutor?: (answer: string, verdict: string) => void;
 }) {
-  const [answer, setAnswer] = useState("");
+  const [answer, setAnswer] = useState(() => {
+    // 草稿持久(P7):关弹层/刷新不丢学员写了一半的回答
+    try {
+      return localStorage.getItem(`recite-draft-${courseId}:${pageId}`) ?? "";
+    } catch {
+      return "";
+    }
+  });
   const [tutored, setTutored] = useState(false); // 问过老师后置 true → 重述保底 70
   const [result, setResult] = useState<{
     verdict: string;
@@ -98,7 +105,14 @@ export function CheckpointOverlay({
           <>
             <Textarea
               value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
+              onChange={(e) => {
+                setAnswer(e.target.value);
+                try {
+                  localStorage.setItem(`recite-draft-${courseId}:${pageId}`, e.target.value);
+                } catch {
+                  /* 隐私模式存不进就算了 */
+                }
+              }}
               rows={4}
               placeholder="用你自己的话写下来——说清才算学会"
               className="mb-4 leading-relaxed"
@@ -170,15 +184,20 @@ export function CheckpointOverlay({
                 </Button>
               )}
               <Button
-                onClick={() =>
-                  passed &&
+                onClick={() => {
+                  if (!passed) return;
+                  try {
+                    localStorage.removeItem(`recite-draft-${courseId}:${pageId}`);
+                  } catch {
+                    /* 同上 */
+                  }
                   onPass({
                     score: result.score,
                     comment: result.comment,
                     precise: result.precise,
                     answer,
-                  })
-                }
+                  });
+                }}
                 disabled={!passed}
               >
                 通过后继续 →

@@ -217,6 +217,25 @@ function QuizCard({
     answer: string;
   } | null>(null);
   const passed = passedResult !== null;
+
+  // 结果回查(P7):挂载时查最近一次批改——刷新/隔天再来看,通过态不丢
+  useEffect(() => {
+    void fetch(
+      `/api/v1/grade/last?course_id=${encodeURIComponent(courseId)}&page_id=${encodeURIComponent(block.id)}`,
+    )
+      .then((r) => r.json())
+      .then((d: { found: boolean; verdict?: string; score?: number; comment?: string; precise?: string; answer?: string }) => {
+        if (d.found && d.verdict === "pass" && d.score !== undefined) {
+          setPassedResult({
+            score: d.score,
+            comment: d.comment ?? "",
+            precise: d.precise ?? undefined,
+            answer: d.answer ?? "",
+          });
+        }
+      })
+      .catch(() => {});
+  }, [block.id, courseId]);
   return (
     <div
       className={`rounded-xl border px-4 py-3.5 transition-colors duration-300 ease-out ${passed ? "border-success/50 bg-success/5" : "border-primary/40 bg-primary/5"}`}

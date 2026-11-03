@@ -12,7 +12,8 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 
-from app.services.executor import log_path_for
+from app.core.catalog_store import set_status
+from app.services.executor import cancel_job, log_path_for
 
 router = APIRouter(prefix="/api/v1", tags=["jobs"])
 
@@ -29,3 +30,13 @@ def job_log(kind: Kind, target: str, tail: int = 40) -> dict[str, object]:
         return {"exists": False, "lines": []}
     text = path.read_text(encoding="utf-8", errors="replace")
     return {"exists": True, "lines": text.splitlines()[-tail:]}
+
+
+@router.post("/jobs/cancel")
+def cancel(kind: Kind, target: str) -> dict[str, object]:
+    """手动取消后台任务:SIGTERM → job_runner 收尾(清 0 节骨架/置 cancelled)。"""
+    r = cancel_job(kind, target)
+    if r["cancelled"]:
+        # 状态置 cancelled(信号钩子也会置,双保险防钩子前窗口)
+        set_status(target, "cancelled", str(r.get("note", "手动取消")))
+    return r

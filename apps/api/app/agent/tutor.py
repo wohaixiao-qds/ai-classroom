@@ -114,75 +114,91 @@ def run_tutor(
     append_turn(session_id, course_id, "user", question, page_id=current_page)
     tool_calls: list[dict] = []
     usage_total = {"input_tokens": 0, "output_tokens": 0, "cache_read": 0}
+    answer_parts: list[str] = []
+    finalized = False
 
-    for turn in range(MAX_TURNS):
-        last_turn = turn == MAX_TURNS - 1
-        # 兜底终止的「软着陆」:最后一轮不给工具,逼模型用已查到的信息收尾。
-        if last_turn and isinstance(messages[-1].get("content"), list):
-            messages[-1]["content"].append({
-                "type": "text",
-                "text": "(已达查询上限,请基于目前已掌握的信息尽力作答;仍不确定的部分如实说明。)",
-            })
+    try:
+        for turn in range(MAX_TURNS):
+            last_turn = turn == MAX_TURNS - 1
+            # 兜底终止的「软着陆」:最后一轮不给工具,逼模型用已查到的信息收尾。
+            if last_turn and isinstance(messages[-1].get("content"), list):
+                messages[-1]["content"].append({
+                    "type": "text",
+                    "text": (
+                        "(已达查询上限,请基于目前已掌握的信息尽力作答;仍不确定的部分如实说明。)"
+                    ),
+                })
 
-        # 流式调用:边收 token 边 yield,结束后取完整消息判 stop_reason
-        answer_parts: list[str] = []
-        with client.messages.stream(
-            model=settings.llm_model,
-            max_tokens=1024,
-            system=build_system(course_text),
-            messages=messages,
-            tools=[] if last_turn else TOOLS,
-        ) as stream:
-            for text in stream.text_stream:
-                answer_parts.append(text)
-                yield {"type": "delta", "text": text}
-            final = stream.get_final_message()
+            # 流式调用:边收 token 边 yield,结束后取完整消息判 stop_reason
+            answer_parts = []
+            with client.messages.stream(
+                model=settings.llm_model,
+                max_tokens=1024,
+                system=build_system(course_text),
+                messages=messages,
+                tools=[] if last_turn else TOOLS,
+            ) as stream:
+                for text in stream.text_stream:
+                    answer_parts.append(text)
+                    yield {"type": "delta", "text": text}
+                final = stream.get_final_message()
 
-        # 累计 token 用量(观测:每问成本 + 缓存是否真命中)
-        u = final.usage
-        usage_total["input_tokens"] += getattr(u, "input_tokens", 0) or 0
-        usage_total["output_tokens"] += getattr(u, "output_tokens", 0) or 0
-        usage_total["cache_read"] += getattr(u, "cache_read_input_tokens", 0) or 0
+            # 累计 token 用量(观测:每问成本 + 缓存是否真命中)
+            u = final.usage
+            usage_total["input_tokens"] += getattr(u, "input_tokens", 0) or 0
+            usage_total["output_tokens"] += getattr(u, "output_tokens", 0) or 0
+            usage_total["cache_read"] += getattr(u, "cache_read_input_tokens", 0) or 0
 
-        if final.stop_reason != "tool_use":  # 终止:模型不再要工具
-            answer = "".join(answer_parts)
-            append_turn(session_id, course_id, "assistant", answer, page_id=current_page)
-            yield {
-                "type": "final",
-                "answer": answer,
-                "tool_calls": tool_calls,
-                "usage": usage_total,
-                "soft_landed": last_turn,  # 撞 MAX_TURNS 才收尾 = 查不到硬答
-                "truncated": final.stop_reason == "max_tokens",
-            }
-            return
+            if final.stop_reason != "tool_use":  # 终止:模型不再要工具
+                answer = "".join(answer_parts)
+                finalized = True
+                append_turn(session_id, course_id, "assistant", answer, page_id=current_page)
+                yield {
+                    "type": "final",
+                    "answer": answer,
+                    "tool_calls": tool_calls,
+                    "usage": usage_total,
+                    "soft_landed": last_turn,  # 撞 MAX_TURNS 才收尾 = 查不到硬答
+                    "truncated": final.stop_reason == "max_tokens",
+                }
+                return
 
-        # 工具轮:解析+执行+回填(此轮的 delta 是模型的思考文字,前端可忽略)
-        assistant_blocks = [b.model_dump() for b in final.content]
-        messages.append({"role": "assistant", "content": assistant_blocks})
-        append_turn(session_id, course_id, "assistant", assistant_blocks, kind="tool_use")
-        tool_results = []
-        for block in final.content:
-            if block.type != "tool_use":
-                continue
-            t0 = time.time()
-            try:
-                result = execute_tool(block.name, dict(block.input))
-                err = None
-            except Exception as e:  # noqa: BLE001 错误回收:工具炸了不拖垮循环
-                result, err = f"(工具执行出错: {e})", str(e)
-            tc = {
-                "name": block.name, "args": dict(block.input),
-                "ms": round((time.time() - t0) * 1000), "error": err,
-            }
-            tool_calls.append(tc)
-            yield {"type": "tool_call", **tc}  # 实时:老师正在查
-            tool_results.append(
-                {"type": "tool_result", "tool_use_id": block.id, "content": result}
+            # 工具轮:解析+执行+回填(此轮的 delta 是模型的思考文字,前端可忽略)
+            assistant_blocks = [b.model_dump() for b in final.content]
+            messages.append({"role": "assistant", "content": assistant_blocks})
+            append_turn(session_id, course_id, "assistant", assistant_blocks, kind="tool_use")
+            tool_results = []
+            for block in final.content:
+                if block.type != "tool_use":
+                    continue
+                t0 = time.time()
+                try:
+                    result = execute_tool(block.name, dict(block.input))
+                    err = None
+                except Exception as e:  # noqa: BLE001 错误回收:工具炸了不拖垮循环
+                    result, err = f"(工具执行出错: {e})", str(e)
+                tc = {
+                    "name": block.name, "args": dict(block.input),
+                    "ms": round((time.time() - t0) * 1000), "error": err,
+                }
+                tool_calls.append(tc)
+                yield {"type": "tool_call", **tc}  # 实时:老师正在查
+                tool_results.append(
+                    {"type": "tool_result", "tool_use_id": block.id, "content": result}
+                )
+            messages.append({"role": "user", "content": tool_results})
+            append_turn(session_id, course_id, "user", tool_results, kind="tool_result")
+
+    finally:
+        # 断连保护(P7):学员点了停止/关页面,已生成的半截答案也入会话史,
+        # 避免历史里留下「问了没答」的孤儿轮
+        partial = "".join(answer_parts)
+        if not finalized and partial.strip():
+            append_turn(
+                session_id, course_id, "assistant",
+                partial + "\n(回答在此中断——继续追问即可)",
+                page_id=current_page,
             )
-        messages.append({"role": "user", "content": tool_results})
-        append_turn(session_id, course_id, "user", tool_results, kind="tool_result")
-
     fallback = "(本轮信息有限,请换个更具体的问题再试)"
     append_turn(session_id, course_id, "assistant", fallback, page_id=current_page)
     yield {

@@ -10,10 +10,35 @@
 
 from __future__ import annotations
 
+import json
+import signal
 import sys
+from pathlib import Path
 from typing import Any
 
 from app.core.catalog_store import set_status
+
+
+def _on_cancel(signum: int, _frame: Any) -> None:
+    """手动取消(P7):SIGTERM → 清 0 节骨架课+置 cancelled,不留下半成品。"""
+    kind, target = sys.argv[1], sys.argv[2]
+    if kind == "outline_prep":
+        course_title = target.partition("::")[2]
+        from app.routes.outline import _existing_courses_index
+
+        by_title, _, _ = _existing_courses_index()
+        for cid in by_title.get(course_title, []):
+            cp = Path("courses") / f"{cid}.csl.json"
+            try:
+                d = json.loads(cp.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if not d.get("sections"):
+                cp.unlink(missing_ok=True)
+                print(f"已清理 0 节骨架课: {cid}")
+    set_status(target, "cancelled", "手动取消")
+    print("CANCELLED: 手动取消")
+    sys.exit(1)
 
 
 def _run() -> str:
@@ -52,11 +77,27 @@ def _run() -> str:
         area = find_todo_area(course_title)
         if area:
             material["topic"] = area
+        # 取消/失败重发自动判续:同名课件已在盘上 → 续写模式(载已有节继续)
+        resume_cid = None
+        import json as _json
+
+        for _p in Path("courses").glob("*.csl.json"):
+            try:
+                cd = _json.loads(_p.read_text(encoding="utf-8"))
+            except (OSError, _json.JSONDecodeError):
+                continue
+            if str(cd.get("title", "")) == course_title:
+                resume_cid = str(cd.get("id"))
+                break
         prereq_ids = list(outline_course.get("prereqs", []))
         titles_by_id = {c["id"]: c["title"] for c in fw["courses"]}
         prereq_titles = [titles_by_id[pid] for pid in prereq_ids if pid in titles_by_id]
         prev = prereq_titles[-1] if prereq_titles else None
-        result = run_prep(material, prev_subtopic=prev)
+        if resume_cid:
+            print(f"检测到未完成课件 {resume_cid} → 续写模式")
+            result = run_prep(material, resume_course_id=resume_cid)
+        else:
+            result = run_prep(material, prev_subtopic=prev)
     elif kind == "request_research":
         # 样课先行(P5 补):一句话开课 = 先出领域大纲(零基础完整路线),
         # 再自动备大纲第一门样课;其余课在大纲里逐课点单(生成中心)
@@ -139,6 +180,7 @@ def _run() -> str:
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, _on_cancel)
     try:
         detail = _run()
     except Exception as e:  # noqa: BLE001 后台任务:任何异常都要落状态,不能静默死掉
