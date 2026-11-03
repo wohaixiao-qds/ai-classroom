@@ -238,8 +238,17 @@ TOOLS = [
 ]
 
 
+def emit_call(name: str, args: dict) -> None:
+    """工具在飞提示(纯观测,不改执行):python -u 实时进任务日志,页面 JobFeed 可见。
+    参数摘要取第一个值截断——够认出在干什么,不刷屏。"""
+    val = next(iter(args.values()), "") if args else ""
+    s = str(val).replace("\n", " ")
+    print(f"  ↳ {name}({s[:60]}{'…' if len(s) > 60 else ''})", flush=True)
+
+
 def execute_tool(name: str, args: dict) -> str:
     """工具派发:名字 → 函数。未知工具返回提示(不崩,模型会自我纠正)。"""
+    emit_call(name, args)
     if name == "web_search":
         return web_search(args["query"])
     if name == "read_notes":

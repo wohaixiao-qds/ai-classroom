@@ -101,12 +101,13 @@ export function JobFeed({
   );
 }
 
-/** 阶段标记着色:规划/建骨架/终验=品牌色,逐节写=正文色,失败=红,警告=黄,模型心跳=微亮 */
+/** 阶段标记着色:规划/建骨架/终验=品牌色,逐节写=正文色,在飞工具=白,失败=红,警告=黄 */
 function lineTone(line: string): string {
   if (line.includes("FAILED") || line.includes("Traceback")) return "text-destructive";
   if (/^\s*\[(submit_plan|init_course|validate_csl)\]/.test(line) || line.includes("✅"))
     return "text-primary";
   if (/^\s*\[(write_section|research)/.test(line)) return "text-foreground/90";
+  if (line.trim().startsWith("↳")) return "text-foreground/90";
   if (line.startsWith("✓ 模型调用")) return "text-foreground/70";
   if (line.trim().startsWith("⚠")) return "text-warning";
   return "text-muted-foreground";

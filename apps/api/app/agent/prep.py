@@ -27,7 +27,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from app.agent.tools import read_notes
+from app.agent.tools import emit_call, read_notes
 from app.core.config import settings
 from app.core.llm import get_llm_client
 from app.core.trace import trace_prep
@@ -584,8 +584,9 @@ def run_prep(material: dict[str, Any], prev_subtopic: str | None = None) -> dict
         resp = client.messages.create(
             model=settings.llm_model,
             max_tokens=8192,
-            messages=messages,  # type: ignore[arg-type]  # dict 字面量 vs SDK TypedDict,同 tutor.py
-            tools=[] if last_turn else tools,  # type: ignore[arg-type]
+            # 观测客户端返回 Any,dict messages 直传不再需要 ignore(历史上 SDK TypedDict 拒 dict)
+            messages=messages,
+            tools=[] if last_turn else tools,
         )
         u = resp.usage
         usage["input_tokens"] += getattr(u, "input_tokens", 0) or 0
@@ -630,6 +631,7 @@ def run_prep(material: dict[str, Any], prev_subtopic: str | None = None) -> dict
                 continue
             ts = time.time()
             try:
+                emit_call(b.name, dict(b.input))
                 out, err = dispatch[b.name](dict(b.input)), None
             except Exception as e:  # noqa: BLE001 工具炸了不拖垮循环(错误回收)
                 out, err = f"(工具执行出错: {e})", str(e)

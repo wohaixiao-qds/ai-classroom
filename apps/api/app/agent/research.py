@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from app.agent.tools import (  # noqa: F401  # web_search 供 _require_search 探针
+    emit_call,
     fetch_page,
     web_search,
 )
@@ -323,8 +324,9 @@ def _loop(
         resp = client.messages.create(
             model=settings.llm_model,
             max_tokens=8192,
-            messages=messages,  # type: ignore[arg-type]  # dict 字面量 vs SDK TypedDict,同 tutor.py 现象
-            tools=[] if last_turn else RESEARCH_TOOLS,  # type: ignore[arg-type]
+            # 观测客户端返回 Any,dict messages 直传不再需要 ignore(历史上 SDK TypedDict 拒 dict)
+            messages=messages,
+            tools=[] if last_turn else RESEARCH_TOOLS,
         )
         u = resp.usage
         usage["input_tokens"] += getattr(u, "input_tokens", 0) or 0
@@ -374,6 +376,7 @@ def _loop(
                 continue
             ts = time.time()
             try:
+                emit_call(b.name, dict(b.input))
                 out, err = _execute(b.name, dict(b.input)), None
             except Exception as e:  # noqa: BLE001 工具炸了不拖垮循环(错误回收)
                 out, err = f"(抓取失败: {e})", str(e)
