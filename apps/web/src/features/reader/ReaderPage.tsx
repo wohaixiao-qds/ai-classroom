@@ -131,7 +131,7 @@ function Reader({ course }: { course: CourseV2 }) {
   return (
     <div className="flex h-full">
       {/* 节目录 */}
-      <nav className="hidden w-56 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-secondary/30 px-3 py-4 md:flex">
+      <nav className="hidden w-56 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-secondary/30 pl-3 pr-4 py-4 md:flex">
         <p className="mb-2 px-2 font-mono text-[11px] tracking-widest text-muted-foreground">目录</p>
         {course.sections.map((s, i) => (
           <button

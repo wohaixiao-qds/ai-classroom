@@ -66,7 +66,7 @@ export function JobFeed({
     <div
       ref={boxRef}
       className={cn(
-        "max-h-56 min-h-[72px] overflow-y-auto rounded-lg border border-border bg-background/60 px-3 py-2 font-mono text-[11px] leading-5",
+        "max-h-56 min-h-[72px] overflow-y-auto rounded-lg border border-border bg-background/60 pl-3 pr-5 py-2 font-mono text-[11px] leading-5",
         className,
       )}
     >

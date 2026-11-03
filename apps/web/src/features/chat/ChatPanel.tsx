@@ -237,7 +237,7 @@ export function ChatPanel({
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
+      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto py-4 pl-4 pr-5">
         {msgs.length === 0 && (
           <p className="text-sm leading-relaxed text-muted-foreground">
             随时提问——课件内的直接讲,课件外的会联网查,学过的会翻你笔记。
