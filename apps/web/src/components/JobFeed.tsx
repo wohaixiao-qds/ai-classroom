@@ -5,9 +5,10 @@ import { cn } from "../lib/utils";
 
 type JobKind = "request_prep" | "request_research" | "outline_prep";
 
-/** 后台任务实时 feed:2s 轮询 /api/v1/jobs/log 尾部,亮出 agent 循环的阶段消息
+/** 后台任务实时 feed:一个盒子装下模型全程干活的过程——
+ *  顶部不确定进度光条(进行中)+「思考中」等待态(带秒数)+阶段消息逐行浮入
  *  (submit_plan 规划 / init_course 建骨架 / write_section 逐节写 / validate_csl 终验)。
- *  active=false 时停止轮询但保留最后一屏(失败回看原因用);新到的行 anim-rise 浮入。 */
+ *  2s 轮询 /api/v1/jobs/log;active=false 停轮询保留末屏(失败回看原因用)。 */
 export function JobFeed({
   kind,
   target,
@@ -63,30 +64,34 @@ export function JobFeed({
   }, [lines]);
 
   return (
-    <div
-      ref={boxRef}
-      className={cn(
-        "max-h-56 min-h-[72px] overflow-y-auto rounded-lg border border-border bg-background/60 pl-3 pr-5 py-2 font-mono text-[11px] leading-5",
-        className,
-      )}
-    >
-      {lines.length === 0 ? (
-        active ? (
-          <p className="flex items-center gap-1.5 text-muted-foreground">
-            <LoaderCircle size={12} className="shrink-0 animate-spin text-primary" />
-            模型思考中(规划/调研),第一批输出马上来
-            <span className="ml-auto tabular-nums">{elapsed}s</span>
-          </p>
+    /* 单一表面:进度光条贴在盒顶,滚动区在下——进度/思考/输出不散在卡片各处 */
+    <div className={cn("overflow-hidden rounded-lg border border-border", className)}>
+      {active && <div className="anim-progress h-1 rounded-t-lg" />}
+      <div
+        ref={boxRef}
+        className="max-h-56 min-h-[72px] overflow-y-auto bg-background/60 pl-3 pr-5 py-2 font-mono text-[11px] leading-5"
+      >
+        {lines.length === 0 ? (
+          active ? (
+            <p className="flex items-center gap-1.5 text-muted-foreground">
+              <LoaderCircle size={12} className="shrink-0 animate-spin text-primary" />
+              模型思考中(规划/调研),第一批输出马上来
+              <span className="ml-auto tabular-nums">{elapsed}s</span>
+            </p>
+          ) : (
+            <p className="text-muted-foreground">还没有这次任务的日志</p>
+          )
         ) : (
-          <p className="text-muted-foreground">还没有这次任务的日志</p>
-        )
-      ) : (
-        lines.map((l, i) => (
-          <p key={`${i}-${l.slice(0, 12)}`} className={cn(lineTone(l), i >= freshFrom && "anim-rise")}>
-            {l}
-          </p>
-        ))
-      )}
+          lines.map((l, i) => (
+            <p
+              key={`${i}-${l.slice(0, 12)}`}
+              className={cn(lineTone(l), i >= freshFrom && "anim-rise")}
+            >
+              {l}
+            </p>
+          ))
+        )}
+      </div>
     </div>
   );
 }

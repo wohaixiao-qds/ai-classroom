@@ -95,12 +95,10 @@ export function StudioPage() {
                 className="overflow-hidden rounded-lg border border-primary/40 bg-primary/5 text-sm"
               >
                 <div className="flex items-center gap-3 px-4 py-2">
-                  <LoaderCircle size={13} className="shrink-0 animate-spin text-primary" />
                   <span className="flex-1 truncate">{j.title}</span>
                   <span className="font-mono text-xs text-muted-foreground">{j.kind}</span>
                 </div>
-                {/* 不确定进度线:分钟级等待的「活着」信号 */}
-                <div className="anim-progress h-1" />
+                {/* 一个盒子装下全过程:顶部进度光条+思考中计时+阶段消息(JobFeed 内聚) */}
                 <JobFeed kind={j.apiKind} target={j.target} active className="mx-4 mb-3" />
               </li>
             ))}

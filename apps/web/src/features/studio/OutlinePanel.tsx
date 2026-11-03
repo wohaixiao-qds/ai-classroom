@@ -317,8 +317,7 @@ export function OutlinePanel() {
                         </Button>
                       </div>
                       </div>
-                      {/* 备课进行时:不确定进度线 + 实时输出;失败行直接亮出原因 */}
-                      {busy && <div className="anim-progress h-1 rounded-full" />}
+                      {/* 备课进行时:实时输出(进度光条已内置于 JobFeed 盒顶);失败行直接亮出原因 */}
                       {(busy || c.prep_status === "failed") && (
                         <JobFeed
                           kind="outline_prep"
