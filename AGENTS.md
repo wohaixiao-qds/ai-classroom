@@ -154,6 +154,7 @@
 - ✅ **追加(同日)·大纲层「已出课件」标记(`4da4e0a`)**:用户要求「给个标记已经有课件的」。出课判定(course_refs∪course_ref∪outline_course_id 链∪课名兜底)从详情端点抽成 `_course_file_ids` 共用(列表/详情单源,顺带修 mypy 基线 1 处);`GET /outlines` 列表带 `prepared` 计数(索引扫描一次);生成中心大纲 chips 已出 N>0 时 success 色标注(如 Agent Harness(8) 已出 6),课程库目录卡头「已出 N · 已学 M / 总」——出了课≠学了,两口径分开。浏览器实测两处渲染 ✓
 - ✅ **追加(同日)·挂接课手风琴(`94b3eb2`)**:用户拍板「课程库挂了课的用手风琴展示」。目录里挂多门旧课的行原本常驻平铺 chips(撑乱目录节奏),改为「已挂 N 门」展开钮(chevron 翻转+aria-expanded)+复用动效体系的 Collapse 缩进列表(左边线+FileText,点行去读,新行 viewTransition);单挂行保持直达;reduced-motion 自动降级
 - ✅ **追加(同日)·修备课输出缓冲吞没+等待期样式(`e0a3651`)**:用户反馈「一直没有模型的思考输出」。根因=executor 派子进程没加 `-u`:stdout 对文件块缓冲,阶段 print 全憋到退出才落地(「必须 python -u」老坑,接 feed 时漏了)——executor 补 `-u`,新任务逐 print 实时落盘(已在跑的旧任务不回填);样式:anim-progress 提对比+线高 1,JobFeed 空态改 spinner+「模型思考中」+已等待秒数计时,min-h 撑盒/max-h-56 滚动
+- ✅ **追加(同日)·滚动容器呼吸位(`eeb5236`)**:用户指出内容与滚动条间隔太挤。自定义细滚动条占 8px 布局宽,px-3 的容器只剩 4px 视觉间隙——统一右留白:JobFeed 日志框 pl-3 pr-5(长行贴滑轨重灾区)、答疑消息区 pl-4 pr-5、阅读器目录 pl-3 pr-4;经 getComputedStyle 实测生效(16/20px)
 - ✅ 收尾已清(2026-08-24):gen-types 管线接上(catalog `59f15bc` + sessions `89b8ac1`;csl.ts 经决策保持手写——稳定的作者态契约,理由注记在文件头)、A4 多页可点(`5349427`)、B2 显示自评瞎编率(`6ecd5be`)、traces/ 移出 git(`05a0c2d`)。**P1/P1.5 收口完成**
 - ⚠️ 长期记账(不阻塞 P2):①A4/ChatPanel 的 typescript-reviewer 屡被中转挡,恢复后补(现以 §3.1 自查+浏览器实测代替);②A6 局限:伪造「课件第N页」假引用会绕过自评 → `self_eval_fabricated` 是下限;③dev 服务器(API :8100 / web :5273,原 5173 与他项目冲突已改)会话结束需重启
 
