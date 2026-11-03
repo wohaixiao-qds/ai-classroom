@@ -111,7 +111,9 @@ def create_session(course_id: str) -> dict:
 @router.post("/grade")
 def grade(req: GradeRequest) -> dict:
     try:
-        result = grade_recitation(req.course_id, req.page_id, req.answer)
+        result = grade_recitation(
+            req.course_id, req.page_id, req.answer, tutored=req.tutored
+        )
     except KeyError as e:
         raise HTTPException(404, str(e)) from None
     except json.JSONDecodeError:

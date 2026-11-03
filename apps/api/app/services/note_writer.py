@@ -75,9 +75,14 @@ def _render_grades(course_id: str) -> str:
     for g in read_traces("grade.jsonl", limit=200):
         if g.get("course_id") != course_id:
             continue
+        score = g.get("score")
+        score_s = f"{score}分 · " if score is not None else ""
+        precise = str(g.get("precise") or "")[:150]
         out.append(
-            f"[{g.get('verdict')}] 页{g.get('page_id')}:复述「{g.get('answer', '')[:80]}」"
+            f"[{g.get('verdict')}{(' ' + score_s) if score_s else ''}"
+            f"{g.get('page_id')}]:复述「{g.get('answer', '')[:80]}」"
             f"→ {g.get('comment', '')[:120]}"
+            + (f"  ▸标准表述:{precise}" if precise else "")
         )
     return "\n".join(out) or "(没有检查点批改记录)"
 

@@ -94,6 +94,8 @@ def trace_grade(
     verdict: str,
     comment: str,
     elapsed_s: float,
+    score: int | None = None,
+    precise: str | None = None,
 ) -> None:
     """复述批改的轨迹(供观测页算检查点通过率)。"""
     _append(
@@ -105,6 +107,8 @@ def trace_grade(
             "answer_len": len(answer),
             "verdict": verdict,
             "comment": comment,
+            "score": score,
+            "precise": precise,
             "elapsed_s": round(elapsed_s, 1),
         },
     )

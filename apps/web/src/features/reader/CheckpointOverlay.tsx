@@ -3,15 +3,16 @@ import Markdown from "react-markdown";
 import { Sparkles } from "lucide-react";
 import { motion } from "motion/react";
 
-import { Badge } from "../../components/ui/badge";
+
 import { Button } from "../../components/ui/button";
 import { Textarea } from "../../components/ui/textarea";
 import { normalizeBold } from "../../utils/md";
+import { cn } from "../../lib/utils";
 
-/** 复述检查点弹层:复述文本 → POST /grade 批改(通过/存疑/未过 + 精准版)
- * pass 解锁继续;warn 看完精准版可继续或重述;fail 必须重述。
- * 批改文本按 markdown 渲染(grader 会用 **加粗** 等标记,纯文本会裸露星号)。
- * 遮罩走主题 token --overlay;进出动画由父级 AnimatePresence 驱动(reduced-motion 自动跳过)。 */
+/** 复述检查点弹层:复述文本 → POST /grade 百分制批改。
+ *  score≥70 判 pass(答案+精准版都保留进笔记);<70 判 fail——重新复述,
+ *  或「问 AI 老师」带着检查点上下文答疑,学过一轮后再复述保底 70。
+ *  批改文本按 markdown 渲染;遮罩走 --overlay;进出动画由父级 AnimatePresence 驱动。 */
 export function CheckpointOverlay({
   question,
   hint,
@@ -26,19 +27,20 @@ export function CheckpointOverlay({
   courseId: string;
   pageId: string;
   onPass: () => void;
-  /** 可选退出口:课堂自动弹出用不到;阅读器是用户手点的,要能反悔 */
+  /** 可选退出口:阅读器是用户手点的,要能反悔 */
   onClose?: () => void;
   /** 批改→答疑联动(P7 补):没过时把「我的回答+判定」带给答疑面板 */
   onAskTutor?: (answer: string, verdict: string) => void;
 }) {
   const [answer, setAnswer] = useState("");
+  const [tutored, setTutored] = useState(false); // 问过老师后置 true → 重述保底 70
   const [result, setResult] = useState<{
     verdict: string;
+    score: number;
     comment: string;
     precise?: string;
   } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [acknowledged, setAcknowledged] = useState(false);
 
   async function submit() {
     if (!answer.trim() || busy) return;
@@ -47,22 +49,31 @@ export function CheckpointOverlay({
       const resp = await fetch("/api/v1/grade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ course_id: courseId, page_id: pageId, answer }),
+        body: JSON.stringify({
+          course_id: courseId,
+          page_id: pageId,
+          answer,
+          tutored,
+        }),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       setResult(await resp.json());
     } catch (e) {
       setResult({
-        verdict: "warn",
+        verdict: "fail",
+        score: 0,
         comment: `批改服务异常: ${e}`,
-        precise: "批改服务暂不可用,本轮已放行——但「动脑活不许代填」的规则仍适用,建议自查一遍。",
+        precise: "批改服务暂不可用,本轮不计成绩——稍后重试;「动脑活不许代填」的规则仍适用。",
       });
-      setAcknowledged(true);
     }
     setBusy(false);
   }
 
-  const passed = result?.verdict === "pass" || (result?.verdict === "warn" && acknowledged);
+  const passed = result?.verdict === "pass";
+  const askTutor = (verdict: string) => {
+    onAskTutor?.(answer, verdict);
+    setTutored(true); // 问过老师:下一次复述保底 70(答疑学过一轮)
+  };
 
   return (
     <motion.div
@@ -94,11 +105,7 @@ export function CheckpointOverlay({
             />
             {onAskTutor && (
               <div className="mb-3 flex justify-end">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => onAskTutor(answer, "未提交")}
-                >
+                <Button variant="secondary" size="sm" onClick={() => askTutor("未提交")}>
                   没懂,问 AI 老师
                 </Button>
               </div>
@@ -117,20 +124,17 @@ export function CheckpointOverlay({
         ) : (
           <>
             <div className="mb-4 rounded-lg border border-border bg-background p-4">
-              <div className="flex items-start gap-2">
-                <Badge
-                  variant={
-                    result.verdict === "pass"
-                      ? "success"
-                      : result.verdict === "warn"
-                        ? "warning"
-                        : "destructive"
-                  }
-                  className="mt-0.5 shrink-0"
+              <div className="flex items-start gap-3">
+                <div
+                  className={cn(
+                    "flex w-14 shrink-0 flex-col items-center rounded-lg py-2",
+                    passed ? "bg-success/15 text-success" : "bg-warning/15 text-warning",
+                  )}
                 >
-                  {result.verdict === "pass" ? "通过" : result.verdict === "warn" ? "存疑" : "未过"}
-                </Badge>
-                <span className="chat-md text-base leading-relaxed">
+                  <span className="text-xl font-bold leading-none">{result.score}</span>
+                  <span className="mt-0.5 text-[10px]">得分</span>
+                </div>
+                <span className="chat-md text-sm leading-relaxed">
                   <Markdown>{normalizeBold(result.comment)}</Markdown>
                 </span>
               </div>
@@ -149,38 +153,31 @@ export function CheckpointOverlay({
                 </div>
               )}
             </div>
-            {result.verdict !== "pass" && onAskTutor && (
-              <div className="mb-3 flex justify-end">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => onAskTutor(answer, result.verdict)}
-                >
+            <div className="flex flex-wrap justify-end gap-2">
+              {!passed && onAskTutor && (
+                <Button variant="secondary" size="sm" onClick={() => askTutor(result.verdict)}>
                   没懂,问 AI 老师
                 </Button>
-              </div>
-            )}
-            <div className="flex justify-end gap-2">
-              {result.verdict !== "pass" && (
+              )}
+              {!passed && (
                 <Button
                   variant="outline"
                   onClick={() => {
                     setResult(null);
-                    setAcknowledged(false);
                   }}
                 >
                   ↺ 重新复述
                 </Button>
               )}
-              {result.verdict === "warn" && !acknowledged && (
-                <Button variant="outline" onClick={() => setAcknowledged(true)}>
-                  看过精准版了
-                </Button>
-              )}
               <Button onClick={onPass} disabled={!passed}>
-                {passed ? "继续上课 →" : "通过后继续"}
+                {passed ? "通过后继续 →" : "通过后继续"}
               </Button>
             </div>
+            {!passed && (
+              <p className="mt-3 text-[11px] text-muted-foreground">
+                70 分及格;没懂就问 AI 老师——学过一轮后再复述,核心说清即过。
+              </p>
+            )}
           </>
         )}
       </motion.div>

@@ -23,6 +23,7 @@ class GradeRequest(BaseModel):
     course_id: str
     page_id: str
     answer: str = Field(min_length=1, max_length=2000)
+    tutored: bool = False  # 问过 AI 老师后再复述:保底 70(P7)
 
 
 class CheckpointContext(BaseModel):

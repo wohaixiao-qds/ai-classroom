@@ -1,7 +1,8 @@
 """复述批改:单次 LLM 调用(无工具,不进循环)。
 
-输入: 复述文本 + 该页讲稿/内容 + 检查点的 pass_rule(T1 埋好的通过标准)
-输出: ✅(过) / ⚠️(大体对,需补正) / ❌(没说清,重述) + 🎯 精准版对照。
+输入: 复述文本 + 该节内容 + 检查点的 pass_rule(T1 埋好的通过标准)
+输出: 百分制 score + pass/fail(score≥70 过;<70 需重学或问 AI 老师后再复述)
+      + 🎯 精准版对照(无论分数都给,pass 时作为「更完整的说法」→ 落笔记)。
 """
 
 from __future__ import annotations
@@ -15,9 +16,9 @@ from app.core.config import settings
 from app.core.llm import get_llm_client
 from app.core.trace import trace_grade
 
-GRADE_PROMPT = """你是学习督导,批改学员对刚学内容的复述。严格但鼓励。
+GRADE_PROMPT = """你是学习督导,批改学员对刚学内容的复述,并给出百分制评分。
 
-本页讲过的内容:
+本节讲过的内容:
 {page_content}
 
 通过标准(出题人写的):
@@ -26,16 +27,23 @@ GRADE_PROMPT = """你是学习督导,批改学员对刚学内容的复述。严�
 学员的复述:
 {answer}
 
-按 JSON 输出(不要输出其他内容):
-{{"verdict": "pass|warn|fail",
-  "comment": "一两句点评,指出对在哪/缺在哪",
-  "precise": "若非 pass,给出该复述应有的准确表述(纯内容,不要写「精准版」等任何标签)"}}
+按 JSON 输出(不要其他内容):
+{{"score": 0~100 的整数,
+  "comment": "一两句点评:对在哪/缺在哪",
+  "precise": "标准表述——分数再高也给,pass 时作为「更完整的说法」"}}
 
-判定尺度:
-- pass: 核心关系/区分说清了,措辞小瑕疵不扣
-- warn: 方向对但漏了关键一半,或踩了标准里点名的坑 → 给精准版
-- fail: 关系说反/完全没说到点子上
-"""
+评分标尺:
+- 85~100:核心关系/步骤全对,细节小瑕疵不扣
+- 70~84:核心说清,个别小漏不扣
+- 40~69:方向对但漏了关键一半,或踩了标准里点名的坑
+- 0~39:说反了/完全没说到点子上
+
+判定尺度(服务端按 score≥70 判过):
+- 70 以上:核心说清即过,措辞小瑕疵不扣
+- 70 以下:漏关键或说反——学员会先问 AI 老师再重新复述"""
+
+# 同步批改场景:中转间歇 502/坏 JSON 常见,最多试 3 次(1.5s 递增退避)
+_ATTEMPTS = 3
 
 
 def _locate_v2(d: dict[str, Any], page_id: str) -> tuple[dict[str, Any], str]:
@@ -49,12 +57,12 @@ def _locate_v2(d: dict[str, Any], page_id: str) -> tuple[dict[str, Any], str]:
             continue
         parts = [f"## {sec.get('heading', '')}"]
         for b in sec.get("blocks", []):
-            t = b.get("type")
-            if t == "p" or t == "callout":
+            bt = b.get("type")
+            if bt in ("p", "callout"):
                 parts.append(str(b.get("text", "")))
-            elif t == "code":
+            elif bt == "code":
                 parts.append(f"```\n{b.get('code', '')}\n```")
-            elif t == "table":
+            elif bt == "table":
                 rows = [b.get("header", []), *b.get("rows", [])]
                 parts.extend("|".join(map(str, row)) for row in rows)
         return hit, "\n".join(parts)
@@ -62,8 +70,17 @@ def _locate_v2(d: dict[str, Any], page_id: str) -> tuple[dict[str, Any], str]:
     raise KeyError(msg)
 
 
-def grade_recitation(course_id: str, page_id: str, answer: str) -> dict[str, Any]:
-    """批改一次复述,返回 {verdict, comment, precise}。"""
+def grade_recitation(
+    course_id: str,
+    page_id: str,
+    answer: str,
+    *,
+    tutored: bool = False,
+) -> dict[str, Any]:
+    """批改一次复述,返回 {score, verdict, comment, precise}。
+
+    tutored=学员已在答疑里学过一轮:判分以「核心概念说清」为主,保底 70。
+    """
     p: Path = settings.courses_dir / f"{course_id}.csl.json"
     d: dict[str, Any] = json.loads(p.read_text(encoding="utf-8"))
     if d.get("version") == 2:
@@ -88,9 +105,8 @@ def grade_recitation(course_id: str, page_id: str, answer: str) -> dict[str, Any
     t0 = time.perf_counter()
     resp = None
     last_err: Exception | None = None
-    for attempt in range(3):
-        # 中转间歇 502 常见:同步批改场景最多试 3 次(1.5s 退避)——
-        # 学员正坐在弹层里等,一次坏响应就 502 太脆
+    for attempt in range(_ATTEMPTS):
+        # 中转间歇 502/坏 JSON 常见:学员坐在弹层里等,一次坏响应就 502 太脆
         try:
             resp = client.messages.create(
                 model=settings.llm_model,
@@ -102,14 +118,26 @@ def grade_recitation(course_id: str, page_id: str, answer: str) -> dict[str, Any
             last_err = e
             time.sleep(1.5 * (attempt + 1))
     if resp is None:
-        raise RuntimeError(f"批改 LLM 三次均失败: {last_err}")
+        msg = f"批改 LLM 三次均失败: {last_err}"
+        raise RuntimeError(msg)
     text = "".join(b.text for b in resp.content if b.type == "text").strip()
     # 模型偶尔裹 ```json```,剥掉
     if text.startswith("```"):
         text = text.strip("`").removeprefix("json").strip()
-    result: dict[str, Any] = json.loads(text)
-    if result.get("verdict") not in ("pass", "warn", "fail"):
-        result["verdict"] = "warn"
+    try:
+        result: dict[str, Any] = json.loads(text)
+    except json.JSONDecodeError as e:
+        msg = f"批改返回格式异常: {e}"
+        raise RuntimeError(msg) from None
+    # 百分制判分:score≥70 过,<70 需重学/答疑后再复述;tutored 保底 70
+    try:
+        score = max(0, min(100, int(result.get("score", 0))))
+    except (TypeError, ValueError):
+        score = 0
+    if tutored:
+        score = max(score, 70)  # 已在答疑里学过一轮:核心说清即过
+    result["score"] = score
+    result["verdict"] = "pass" if score >= 70 else "fail"
     trace_grade(
         course_id=course_id,
         page_id=page_id,
@@ -117,5 +145,7 @@ def grade_recitation(course_id: str, page_id: str, answer: str) -> dict[str, Any
         verdict=result["verdict"],
         comment=result.get("comment", ""),
         elapsed_s=time.perf_counter() - t0,
+        score=score,
+        precise=str(result.get("precise", "")),
     )
     return result
