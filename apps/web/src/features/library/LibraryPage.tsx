@@ -25,6 +25,18 @@ type CompletionState = components["schemas"]["CompletionState"];
 type NoteDraft = components["schemas"]["NoteDraft"];
 type ApplyResult = components["schemas"]["ApplyResult"];
 
+/** 错误响应解析:HTTPException 的 JSON 取 detail;网关/裸 500 的纯文本直接用原文。 */
+async function errText(r: Response): Promise<string> {
+  const raw = await r.text();
+  try {
+    const detail = (JSON.parse(raw) as { detail?: string }).detail;
+    if (detail) return detail;
+  } catch {
+    /* 非 JSON 响应体,原文透出 */
+  }
+  return raw || `HTTP ${r.status}`;
+}
+
 /** 课程库(P7)= 大纲书架:每本大纲是一本书(篇→课→进度),所有课(新旧)
  *  一律挂在大纲目录的对应位置;不再展示零散课程卡。详情页直达:/courses/:id。 */
 export function LibraryPage() {
@@ -149,7 +161,7 @@ export function CourseDetailPage() {
     setDraftBusy(true);
     void fetch(`/api/v1/notes/draft/${courseId}`, { method: "POST" })
       .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json()).detail ?? `HTTP ${r.status}`);
+        if (!r.ok) throw new Error(await errText(r));
         return r.json() as Promise<NoteDraft>;
       })
       .then(setDraft)
@@ -177,7 +189,7 @@ export function CourseDetailPage() {
   function confirmWrite() {
     void fetch(`/api/v1/notes/apply/${courseId}`, { method: "POST" })
       .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json()).detail ?? `HTTP ${r.status}`);
+        if (!r.ok) throw new Error(await errText(r));
         return r.json() as Promise<ApplyResult>;
       })
       .then((r) => {

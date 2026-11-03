@@ -208,7 +208,9 @@ def build_draft(course_id: str) -> dict[str, Any]:
     dialogs = _render_dialogs(course_id)
     grades = _render_grades(course_id)
 
-    client = get_llm_client()
+    # 离线蒸馏放宽单次超时(同 prep/research):三源蒸馏要写整篇笔记,
+    # 中转慢速时 60s 必掐死(实测 ReadTimeout);chat 的 60s 交互护栏不受影响
+    client = get_llm_client().with_options(timeout=240.0)
     if existing:
         prompt = _APPEND_PROMPT.format(
             title=title,
@@ -238,10 +240,16 @@ def build_draft(course_id: str) -> dict[str, Any]:
 
     resp = client.messages.create(
         model=settings.llm_model,
-        max_tokens=4096,
+        max_tokens=16384,  # 思考模型的思考块也吃预算:蒸馏整课笔记思考很重,
+        # 实测 8192 被全烧光零文本(同 grader,这里更深)
         messages=[{"role": "user", "content": prompt}],
     )
     content = "".join(b.text for b in resp.content if b.type == "text").strip()
+    if not content:
+        raise RuntimeError(
+            f"笔记蒸馏零文本输出(stop={resp.stop_reason}, "
+            f"blocks={[b.type for b in resp.content]})——多为思考块吃尽预算"
+        )
     if content.startswith("```"):  # 容忍围栏(同 grader)
         content = content.strip("`").removeprefix("markdown").strip()
     # 删掉空占位节(「(无)」),有真内容的才留
@@ -293,10 +301,10 @@ def build_recheck(note_rel: str, material_path: str) -> dict[str, Any]:
             sid = f"(源[{p.get('source_id')}])" if p.get("source_id") else ""
             mat_lines += f"\n- {p['text']}{sid}"
 
-    client = get_llm_client()
+    client = get_llm_client().with_options(timeout=240.0)
     resp = client.messages.create(
         model=settings.llm_model,
-        max_tokens=4096,
+        max_tokens=16384,  # 思考模型的思考块也吃预算(同 grader/note 蒸馏,见上)
         messages=[
             {
                 "role": "user",
@@ -309,6 +317,11 @@ def build_recheck(note_rel: str, material_path: str) -> dict[str, Any]:
         ],
     )
     content = "".join(b.text for b in resp.content if b.type == "text").strip()
+    if not content:
+        raise RuntimeError(
+            f"外证增补零文本输出(stop={resp.stop_reason}, "
+            f"blocks={[b.type for b in resp.content]})——多为思考块吃尽预算"
+        )
     if content.startswith("```"):
         content = content.strip("`").removeprefix("markdown").strip()
     return {"mode": "append", "note_path": str(note_path), "content": content, "todo_edit": None}

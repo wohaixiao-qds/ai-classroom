@@ -52,6 +52,8 @@ def note_draft(course_id: str) -> NoteDraft:
         d = build_draft(course_id)
     except FileNotFoundError as e:
         raise HTTPException(404, str(e)) from None
+    except Exception as e:  # noqa: BLE001 LLM 认证/网络/超时等,给可读信息(同 /grade)
+        raise HTTPException(502, f"笔记草稿生成失败,请稍后重试: {e}") from None
     _DRAFT_CACHE[course_id] = d
     te = d.get("todo_edit")
     todo = TodoEdit(file=te[0].name, old_line=te[1], new_line=te[2]) if te else None
@@ -68,10 +70,13 @@ def note_draft(course_id: str) -> NoteDraft:
 def note_apply(course_id: str) -> ApplyResult:
     """确认落盘——写的是缓存里预览过的那份;没有缓存(过期/重启)则现生成。"""
     _require_ready(course_id)
-    d = _DRAFT_CACHE.get(course_id)
-    if d is None:
-        d = build_draft(course_id)
-    apply_draft(d)
+    try:
+        d = _DRAFT_CACHE.get(course_id)
+        if d is None:
+            d = build_draft(course_id)
+        apply_draft(d)
+    except Exception as e:  # noqa: BLE001 LLM/文件系统等,给可读信息(同 /grade)
+        raise HTTPException(502, f"笔记写盘失败,请稍后重试: {e}") from None
     _DRAFT_CACHE.pop(course_id, None)
     return ApplyResult(written=True, note_path=d["note_path"])
 
