@@ -56,6 +56,7 @@ def chat(req: ChatRequest) -> StreamingResponse:
                 req.current_page,
                 session_id=session_id,
                 course_id=req.course_id,
+                checkpoint=req.checkpoint.model_dump() if req.checkpoint else None,
             ):
                 eid += 1
                 if ev["type"] == "tool_call":

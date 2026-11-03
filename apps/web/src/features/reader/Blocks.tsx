@@ -10,15 +10,24 @@ import type { Block } from "../../types/csl";
 import { normalizeBold } from "../../utils/md";
 import { CheckpointOverlay } from "./CheckpointOverlay";
 
+export interface CheckpointAskPayload {
+  question: string;
+  pass_rule: string | null;
+  answer: string;
+  verdict: string;
+}
+
 /** v2 块渲染:节内块按序即版式(P6 书页形态)。quiz 内嵌复述卡,闪卡点按翻面+自评。 */
 export function Blocks({
   blocks,
   courseId,
   sectionId,
+  onAskTutor,
 }: {
   blocks: Block[];
   courseId: string;
   sectionId: string;
+  onAskTutor?: (payload: CheckpointAskPayload) => void;
 }) {
   let fcCount = 0;
   return (
@@ -26,7 +35,15 @@ export function Blocks({
       {blocks.map((b, i) => {
         // 闪卡块 id 渲染期合成:<节id>-fc<序>,与后端 flash_lookup 同约定(M4)
         const blockId = b.type === "flashcards" ? `${sectionId}-fc${fcCount++}` : undefined;
-        return <BlockView key={i} block={b} courseId={courseId} blockId={blockId} />;
+        return (
+          <BlockView
+            key={i}
+            block={b}
+            courseId={courseId}
+            blockId={blockId}
+            onAskTutor={onAskTutor}
+          />
+        );
       })}
     </div>
   );
@@ -36,10 +53,12 @@ function BlockView({
   block,
   courseId,
   blockId,
+  onAskTutor,
 }: {
   block: Block;
   courseId: string;
   blockId?: string;
+  onAskTutor?: (payload: CheckpointAskPayload) => void;
 }) {
   switch (block.type) {
     case "p":
@@ -120,7 +139,7 @@ function BlockView({
       );
     }
     case "quiz":
-      return <QuizCard block={block} courseId={courseId} />;
+      return <QuizCard block={block} courseId={courseId} onAskTutor={onAskTutor} />;
     case "flashcards":
       return <FlashCards cards={block.cards} courseId={courseId} blockId={blockId ?? ""} />;
   }
@@ -181,7 +200,15 @@ function MermaidDiagram({ code, caption }: { code: string; caption: string | nul
 }
 
 /** 内嵌复述检查点:复用 /grade 全链(批改→落库→排下次复习),通过就地打勾 */
-function QuizCard({ block, courseId }: { block: Extract<Block, { type: "quiz" }>; courseId: string }) {
+function QuizCard({
+  block,
+  courseId,
+  onAskTutor,
+}: {
+  block: Extract<Block, { type: "quiz" }>;
+  courseId: string;
+  onAskTutor?: (payload: CheckpointAskPayload) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [passed, setPassed] = useState(false);
   return (
@@ -214,6 +241,15 @@ function QuizCard({ block, courseId }: { block: Extract<Block, { type: "quiz" }>
               setOpen(false);
             }}
             onClose={() => setOpen(false)}
+          onAskTutor={(answer, verdict) => {
+            setOpen(false);
+            onAskTutor?.({
+              question: block.question,
+              pass_rule: block.pass_rule,
+              answer,
+              verdict,
+            });
+          }}
           />
         )}
       </AnimatePresence>

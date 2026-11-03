@@ -16,12 +16,22 @@ class ChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     session_id: str | None = None  # 会话 id;缺省则后端新建(记忆归后端,前端不递历史)
     source: str = "user"  # user=真实使用 / test=调试(观测统计默认只算 user)
+    checkpoint: CheckpointContext | None = None  # 复述卡没过→答疑带上下文
 
 
 class GradeRequest(BaseModel):
     course_id: str
     page_id: str
     answer: str = Field(min_length=1, max_length=2000)
+
+
+class CheckpointContext(BaseModel):
+    """批改→答疑联动(P7 补):复述卡没过时,答疑带上检查点全上下文。"""
+
+    question: str
+    pass_rule: str | None = None
+    answer: str = ""
+    verdict: str | None = None
 
 
 class FlashReportRequest(BaseModel):

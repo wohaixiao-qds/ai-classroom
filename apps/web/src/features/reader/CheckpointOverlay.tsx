@@ -19,6 +19,7 @@ export function CheckpointOverlay({
   pageId,
   onPass,
   onClose,
+  onAskTutor,
 }: {
   question: string;
   hint: string | null;
@@ -27,6 +28,8 @@ export function CheckpointOverlay({
   onPass: () => void;
   /** 可选退出口:课堂自动弹出用不到;阅读器是用户手点的,要能反悔 */
   onClose?: () => void;
+  /** 批改→答疑联动(P7 补):没过时把「我的回答+判定」带给答疑面板 */
+  onAskTutor?: (answer: string, verdict: string) => void;
 }) {
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState<{
@@ -89,6 +92,17 @@ export function CheckpointOverlay({
               placeholder="用你自己的话写下来——说清才算学会"
               className="mb-4 leading-relaxed"
             />
+            {onAskTutor && (
+              <div className="mb-3 flex justify-end">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => onAskTutor(answer, "未提交")}
+                >
+                  没懂,问 AI 老师
+                </Button>
+              </div>
+            )}
             <div className="flex justify-end gap-2">
               {onClose && (
                 <Button variant="ghost" onClick={onClose}>
@@ -135,6 +149,17 @@ export function CheckpointOverlay({
                 </div>
               )}
             </div>
+            {result.verdict !== "pass" && onAskTutor && (
+              <div className="mb-3 flex justify-end">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => onAskTutor(answer, result.verdict)}
+                >
+                  没懂,问 AI 老师
+                </Button>
+              </div>
+            )}
             <div className="flex justify-end gap-2">
               {result.verdict !== "pass" && (
                 <Button

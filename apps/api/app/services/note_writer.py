@@ -43,13 +43,13 @@ def _render_course(course: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _render_dialogs(course_id: str, limit: int = 6) -> str:
+def _render_dialogs(course_id: str, limit: int = 10) -> str:
     """该课的答疑问答(我问过什么——最个性化的部分)。"""
     out: list[str] = []
     for s in list_sessions(course_id)[:limit]:
         for t in session_history(s["id"]):
             tag = "问" if t["role"] == "user" else "答"
-            out.append(f"{tag}:{t['content'][:200]}")
+            out.append(f"{tag}:{t['content'][:300]}")
     return "\n".join(out) or "(本轮没有提问记录)"
 
 
@@ -193,7 +193,7 @@ def build_draft(course_id: str) -> dict[str, Any]:
             title=title,
             existing=existing.read_text(encoding="utf-8")[:4000],
             course=course_txt[:6000],
-            dialogs=dialogs[:2000],
+            dialogs=dialogs[:3000],
             grades=grades[:1500],
             date=today,
             course_id=course_id,
@@ -204,7 +204,7 @@ def build_draft(course_id: str) -> dict[str, Any]:
         d, found = _dir_for_topic(topic)
         prompt = _NEW_PROMPT.format(
             course=course_txt[:6000],
-            dialogs=dialogs[:2000],
+            dialogs=dialogs[:3000],
             grades=grades[:1500],
             title=title,
             topic=topic,

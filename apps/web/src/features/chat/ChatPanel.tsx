@@ -16,6 +16,17 @@ export interface ProgressLike {
   jumpToPage: (n: number) => void;
 }
 
+/** 批改→答疑联动种子:复述卡没过,带检查点全上下文来问(P7 补) */
+export interface ChatSeed {
+  text: string;
+  checkpoint: {
+    question: string;
+    pass_rule: string | null;
+    answer: string;
+    verdict: string;
+  };
+}
+
 interface Msg {
   role: "user" | "assistant";
   text: string;
@@ -32,9 +43,13 @@ type SessionTurn = components["schemas"]["SessionTurn"];
 export function ChatPanel({
   course,
   playback,
+  seed,
+  onSeedConsumed,
 }: {
   course: Course | CourseV2;
   playback: ProgressLike;
+  seed?: ChatSeed | null;
+  onSeedConsumed?: () => void;
 }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -46,6 +61,20 @@ export function ChatPanel({
 
   const units = "pages" in course ? course.pages : course.sections;
   const currentPage = units[playback.state.page]?.id ?? null;
+
+  // 批改→答疑联动:种子到达即自动发送(正忙则稍后重试)
+  useEffect(() => {
+    if (!seed) return;
+    const t = window.setInterval(() => {
+      if (!busy) {
+        window.clearInterval(t);
+        onSeedConsumed?.();
+        void ask(seed.text, seed.checkpoint);
+      }
+    }, 1000);
+    return () => window.clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed]);
   const sessionKey = `classroom-session-${course.id}`;
 
   /** 把回答里的「课件第N页」变成可点按钮 → 跳到该页(A4)。
@@ -141,10 +170,10 @@ export function ChatPanel({
     setMsgs([]);
   }
 
-  async function ask() {
-    const q = input.trim();
+  async function ask(override?: string, checkpoint?: ChatSeed["checkpoint"]) {
+    const q = (override ?? input).trim();
     if (!q || busy) return;
-    setInput("");
+    if (!override) setInput("");
     setMsgs((m) => [...m, { role: "user", text: q }]);
     setBusy(true);
     try {
@@ -156,6 +185,7 @@ export function ChatPanel({
           current_page: currentPage,
           question: q,
           session_id: sessionId,
+          checkpoint: checkpoint ?? null,
         }),
       });
       const reader = resp.body?.getReader();
@@ -283,7 +313,7 @@ export function ChatPanel({
           onKeyDown={(e) => e.key === "Enter" && ask()}
           placeholder="例如:汽车类比再讲一遍"
         />
-        <Button onClick={ask} disabled={busy || !input.trim()} title="发送">
+        <Button onClick={() => void ask()} disabled={busy || !input.trim()} title="发送">
           <Send size={14} />
           发送
         </Button>

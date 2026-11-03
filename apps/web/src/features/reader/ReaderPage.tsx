@@ -9,7 +9,7 @@ import { PageError, PageLoading } from "../../components/PageState";
 import { cn } from "../../lib/utils";
 import { ChatPanel, type ProgressLike } from "../chat/ChatPanel";
 import { isV2, parseCourse, type CourseV2 } from "../../types/csl";
-import { Blocks } from "./Blocks";
+import { Blocks, type CheckpointAskPayload } from "./Blocks";
 
 /** 书页阅读器(P6·M2):节目录 + 正文块渲染 + 内嵌检查点/闪卡 + 答疑侧栏。
  *  断点=滚动位置(localStorage);深链 ?section=N(1 起算)落到第 N 节。 */
@@ -56,8 +56,19 @@ function Reader({ course }: { course: CourseV2 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const [invite, setInvite] = useState(false);
+  const [chatSeed, setChatSeed] = useState<
+    { text: string; checkpoint: CheckpointAskPayload } | null
+  >(null);
   const [searchParams] = useSearchParams();
   const restoredRef = useRef(false);
+
+  // 批改→答疑联动:复述没过,带着检查点全上下文去问 AI 老师
+  const onAskTutor = useCallback((p: CheckpointAskPayload) => {
+    setChatSeed({
+      text: `我在复述检查点没过:「${p.question}」。我的回答:「${p.answer}」。帮我搞懂薄弱点。`,
+      checkpoint: p,
+    });
+  }, []);
 
   /** 答疑侧栏的进度适配器:当前节 + 跳节(引用侧「第N页」按钮沿用) */
   const jumpToPage = useCallback((n: number) => {
@@ -195,7 +206,12 @@ function Reader({ course }: { course: CourseV2 }) {
                   <span className="font-mono text-sm text-primary">{String(i + 1).padStart(2, "0")}</span>
                   {s.heading}
                 </h2>
-                <Blocks blocks={s.blocks} courseId={course.id} sectionId={s.id} />
+                <Blocks
+                  blocks={s.blocks}
+                  courseId={course.id}
+                  sectionId={s.id}
+                  onAskTutor={onAskTutor}
+                />
               </section>
             ))}
             <footer className="mt-14 border-t border-border pt-8 text-center">
@@ -213,7 +229,12 @@ function Reader({ course }: { course: CourseV2 }) {
         <div className="flex justify-end border-b border-l border-border bg-secondary/50 px-3 py-2">
           <ThemeSwitcher />
         </div>
-        <ChatPanel course={course} playback={playback} />
+        <ChatPanel
+          course={course}
+          playback={playback}
+          seed={chatSeed}
+          onSeedConsumed={() => setChatSeed(null)}
+        />
       </div>
     </div>
   );
