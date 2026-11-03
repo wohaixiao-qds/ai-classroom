@@ -172,7 +172,7 @@
 .anim-progress {
   position: relative;
   overflow: hidden;
-  background: color-mix(in oklab, var(--accent) 12%, transparent);
+  background: color-mix(in oklab, var(--accent) 18%, transparent);
 }
 .anim-progress::after {
   content: "";
@@ -180,11 +180,11 @@
   top: 0;
   bottom: 0;
   left: 0;
-  width: 22%;
+  width: 28%;
   border-radius: 9999px;
   background: var(--accent);
-  opacity: 0.55;
-  animation: progress-sweep 1.4s var(--ease-out) infinite;
+  opacity: 0.85;
+  animation: progress-sweep 1.2s var(--ease-out) infinite;
 }
 
 /* 入场(配合内联 animationDelay 做 stagger)/ 弹现(状态切换成功瞬间)/ 顶部下落 */

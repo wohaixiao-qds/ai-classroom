@@ -27,7 +27,9 @@ def start_job(kind: str, target: str) -> str:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log = log_path.open("w", encoding="utf-8")
     subprocess.Popen(  # noqa: S603 固定参数调用自家模块
-        [sys.executable, "-m", "app.job_runner", kind, target],
+        # -u 必带:stdout 对文件是块缓冲,不加的话阶段 print 全憋在缓冲区,
+        # 页面 tail 到的全空,直到进程退出才一次性落地(实测踩过)
+        [sys.executable, "-u", "-m", "app.job_runner", kind, target],
         cwd=str(settings.courses_dir.parent),  # apps/api/
         stdout=log,
         stderr=subprocess.STDOUT,

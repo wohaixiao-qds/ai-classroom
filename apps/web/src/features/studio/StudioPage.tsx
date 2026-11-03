@@ -100,8 +100,8 @@ export function StudioPage() {
                   <span className="font-mono text-xs text-muted-foreground">{j.kind}</span>
                 </div>
                 {/* 不确定进度线:分钟级等待的「活着」信号 */}
-                <div className="anim-progress h-0.5" />
-                <JobFeed kind={j.apiKind} target={j.target} active className="mx-3 mb-2" />
+                <div className="anim-progress h-1" />
+                <JobFeed kind={j.apiKind} target={j.target} active className="mx-4 mb-3" />
               </li>
             ))}
           </ul>

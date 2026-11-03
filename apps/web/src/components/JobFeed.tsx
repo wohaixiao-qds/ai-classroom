@@ -1,3 +1,4 @@
+import { LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { cn } from "../lib/utils";
@@ -20,7 +21,7 @@ export function JobFeed({
 }) {
   const [lines, setLines] = useState<string[]>([]);
   const [freshFrom, setFreshFrom] = useState(0); // 本次刷新新到的行起点(做浮入动画)
-  const [exists, setExists] = useState(true);
+  const [elapsed, setElapsed] = useState(0); // 本轮任务已等待秒数(挂载起算,纯观感)
   const prevLenRef = useRef(0);
   const boxRef = useRef<HTMLDivElement>(null);
 
@@ -34,7 +35,6 @@ export function JobFeed({
           const next = d.lines ?? [];
           setFreshFrom(prevLenRef.current);
           prevLenRef.current = next.length;
-          setExists(d.exists ?? false);
           setLines(next);
         })
         .catch(() => {});
@@ -48,6 +48,15 @@ export function JobFeed({
     };
   }, [kind, target, active]);
 
+  // 等待计时:第一段 LLM 调用可能几分钟,让「没输出」也有时间感
+  useEffect(() => {
+    if (!active) return;
+    const t0 = Date.now();
+    setElapsed(0);
+    const t = window.setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 1000);
+    return () => window.clearInterval(t);
+  }, [active, target]);
+
   // 新输出滚到底部
   useEffect(() => {
     boxRef.current?.scrollTo({ top: boxRef.current.scrollHeight });
@@ -57,12 +66,20 @@ export function JobFeed({
     <div
       ref={boxRef}
       className={cn(
-        "max-h-44 overflow-y-auto rounded-lg border border-border bg-background/70 px-3 py-2 font-mono text-[11px] leading-5",
+        "max-h-56 min-h-[72px] overflow-y-auto rounded-lg border border-border bg-background/60 px-3 py-2 font-mono text-[11px] leading-5",
         className,
       )}
     >
       {lines.length === 0 ? (
-        <p className="text-muted-foreground">{exists ? "等第一行输出…" : "还没有这次任务的日志"}</p>
+        active ? (
+          <p className="flex items-center gap-1.5 text-muted-foreground">
+            <LoaderCircle size={12} className="shrink-0 animate-spin text-primary" />
+            模型思考中(规划/调研),第一批输出马上来
+            <span className="ml-auto tabular-nums">{elapsed}s</span>
+          </p>
+        ) : (
+          <p className="text-muted-foreground">还没有这次任务的日志</p>
+        )
       ) : (
         lines.map((l, i) => (
           <p key={`${i}-${l.slice(0, 12)}`} className={cn(lineTone(l), i >= freshFrom && "anim-rise")}>

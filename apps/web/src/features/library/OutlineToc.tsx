@@ -259,7 +259,7 @@ export function OutlineToc({ readyById }: { readyById: Map<string, boolean> }) {
                             </button>
                           )}
                           {/* 备课进行时:不确定进度线(详细输出在生成中心的大纲面板) */}
-                          {busy && <div className="anim-progress ml-8 mr-2 h-0.5 rounded-full" />}
+                          {busy && <div className="anim-progress ml-8 mr-2 h-1 rounded-full" />}
                         </li>
                       );
                     })}
