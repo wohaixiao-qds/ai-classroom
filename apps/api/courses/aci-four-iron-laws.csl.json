@@ -5,9 +5,9 @@
   "version": 2,
   "meta": {
     "source_notes": [
-      "Agent/01-harness/02-Scaffolding/ACI四铁律.md"
+      "Agent/01-harness/02-核心机制/ACI四铁律.md"
     ],
-    "topic": "Agent / harness / Scaffolding",
+    "topic": "Agent / harness / 核心机制",
     "sources": [],
     "depends_on": [
       {

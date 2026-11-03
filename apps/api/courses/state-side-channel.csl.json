@@ -7,7 +7,7 @@
     "source_notes": [
       "/Users/zhangyu/CodeDevelopment/ai-classroom/apps/api/data/research/Agent-Harness.state-侧信道-无状态模型的位置感.material.json"
     ],
-    "topic": "Agent / harness / Runtime",
+    "topic": "Agent / harness / 核心机制",
     "sources": [
       {
         "title": "Effective context engineering for AI agents(Anthropic 官方博客)",

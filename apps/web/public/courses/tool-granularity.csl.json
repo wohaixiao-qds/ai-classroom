@@ -5,7 +5,7 @@
   "version": 2,
   "meta": {
     "source_notes": [
-      "Agent/01-harness/02-Scaffolding/工具粒度.md"
+      "Agent/01-harness/02-核心机制/工具粒度.md"
     ],
     "sources": [],
     "duration_min": null,
@@ -15,7 +15,7 @@
         "reason": "先懂 function calling 机制本身,再谈工具该切多细"
       }
     ],
-    "topic": "Agent / harness / Scaffolding"
+    "topic": "Agent / harness / 核心机制"
   },
   "sections": [
     {

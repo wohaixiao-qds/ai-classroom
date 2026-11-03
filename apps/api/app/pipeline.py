@@ -89,12 +89,22 @@ def run_pipeline(
     material = (reuse and subtopic and cached_material(topic, subtopic)) or research_material(
         topic, subtopic
     )
-    # 知识版图归位:vault 层级优先于调研主题串
-    from app.services.catalog import find_todo_area
+    # 大纲→vault 目录同步(全自动跟随)+ 写回落点=大纲篇目录
+    from app.services.vault_sync import sync_outline, theme_area
 
-    area = find_todo_area(subtopic)
+    sync_outline(fw, topic=topic)
+    area = theme_area(fw)
     if area:
-        material["topic"] = area
+        entry = next((c for c in fw["courses"] if c["title"] == subtopic), None)
+        part = str((entry or {}).get("part") or "").strip()
+        material["topic"] = f"{area} / {part}" if part else area
+    else:
+        # 兜底:vault 不可用时退回待探行归位(老机制)
+        from app.services.catalog import find_todo_area
+
+        fallback = find_todo_area(subtopic)
+        if fallback:
+            material["topic"] = fallback
     n_pts = sum(len(g.get("points", [])) for g in material["groups"])
     print(f"原料:{n_pts} 条要点 / {len(material['sources'])} 个来源")
 

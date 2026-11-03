@@ -5,11 +5,11 @@
   "version": 2,
   "meta": {
     "source_notes": [
-      "Agent/harness/01-核心概念/harness是什么.md",
-      "Agent/harness/01-核心概念/三层架构.md"
+      "Agent/01-harness/01-起步/harness是什么.md",
+      "Agent/01-harness/01-起步/三层架构.md"
     ],
     "duration_min": 8,
-    "topic": "Agent / harness / 核心概念"
+    "topic": "Agent / harness / 起步"
   },
   "sections": [
     {

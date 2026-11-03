@@ -7,7 +7,7 @@
     "source_notes": [
       "/Users/zhangyu/CodeDevelopment/ai-classroom/apps/api/data/research/Agent-Harness.可观测与评测-harness-失败可诊断.material.json"
     ],
-    "topic": "Agent / harness / Eval",
+    "topic": "Agent / harness / 实战",
     "sources": [
       {
         "title": "OpenTelemetry 官方文档:GenAI Semantic Conventions(已迁移公告)",

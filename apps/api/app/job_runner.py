@@ -63,6 +63,10 @@ def _run() -> str:
         )
 
         fw = cached_framework(topic) or research_framework(topic)
+        # 大纲→vault 目录同步(全自动跟随):主题/篇目录 + 大纲.md 快照,绑定写回 framework
+        from app.services.vault_sync import sync_outline, theme_area
+
+        sync_outline(fw, topic=topic)
         outline_course = next(
             (c for c in fw["courses"] if c.get("title") == course_title), None
         )
@@ -71,12 +75,18 @@ def _run() -> str:
         material = cached_material(topic, course_title) or research_material(
             topic, course_title
         )
-        # 知识版图归位:主题串(如 Agent Harness)不进版图,vault 层级才进
-        from app.services.catalog import find_todo_area
-
-        area = find_todo_area(course_title)
+        # 写回落点=大纲篇目录:topic = 领域/主题/篇(归一后即 vault 真实目录)
+        area = theme_area(fw)
         if area:
-            material["topic"] = area
+            part = str(outline_course.get("part") or "").strip()
+            material["topic"] = f"{area} / {part}" if part else area
+        else:
+            # 兜底:vault 不可用时退回待探行归位(老机制)
+            from app.services.catalog import find_todo_area
+
+            fallback = find_todo_area(course_title)
+            if fallback:
+                material["topic"] = fallback
         # 取消/失败重发自动判续:同名课件已在盘上 → 续写模式(载已有节继续)
         resume_cid = None
         import json as _json
@@ -103,24 +113,31 @@ def _run() -> str:
         # 再自动备大纲第一门样课;其余课在大纲里逐课点单(生成中心)
         from app.agent.prep import run_prep
         from app.agent.research import research_framework, research_material
-        from app.services.catalog import find_todo_area
+        from app.services.vault_sync import sync_outline, theme_area
 
         fw = research_framework(target)
+        # 大纲→vault 目录同步(全自动跟随)
+        sync_outline(fw, topic=target)
         entry = fw["courses"][0]  # 大纲第一门 = 入口课(无前置)
         entry_title = str(entry.get("title", target))
         print(f"样课先行:大纲 {len(fw['courses'])} 门,先备入口课「{entry_title}」")
         material = research_material(target, entry_title)
-        # 知识版图归位:待探项源自 vault 某层级,查到就把层级写进 topic
-        # (否则「解析层」会被当独立主题挂在顶层,不进 harness/Runtime——实测踩过)
-        area = find_todo_area(entry_title) or find_todo_area(target)
-        if area and area != material.get("topic"):
-            material["topic"] = area
+        # 写回落点=大纲篇目录;vault 不可用时退回待探行归位(老机制)
+        area = theme_area(fw)
+        part = str(entry.get("part") or "").strip()
+        new_topic = f"{area} / {part}" if (area and part) else area
+        if not new_topic:
+            from app.services.catalog import find_todo_area
+
+            new_topic = find_todo_area(entry_title) or find_todo_area(target)
+        if new_topic and new_topic != material.get("topic"):
+            material["topic"] = new_topic
             import json as _json
             from pathlib import Path as _Path
 
             mp = _Path(str(material["_material_path"]))
             mp.write_text(_json.dumps(material, ensure_ascii=False, indent=2), encoding="utf-8")
-            print(f"topic 归位: {area}")
+            print(f"topic 归位: {new_topic}")
         result = run_prep(material)  # 入口课无前置,无位置感可承接
     else:
         return f"未知任务类型: {kind}"
@@ -150,7 +167,7 @@ def _run() -> str:
             for t in prereq_titles
             if t in by_title and by_title[t] != course["id"]
         ]
-        course["meta"]["outline_course_id"] = outline_course.get("id", "")
+        course["meta"]["outline_course_id"] = (outline_course or {}).get("id", "")
         if deps:
             course["meta"]["depends_on"] = deps
         cp = _course_path(str(course["id"]))

@@ -5,7 +5,7 @@
   "version": 2,
   "meta": {
     "source_notes": [
-      "Agent/01-harness/01-核心概念/自我学习闭环.md"
+      "Agent/01-harness/03-工程化/自我学习闭环.md"
     ],
     "sources": [],
     "duration_min": null,
@@ -15,7 +15,7 @@
         "reason": "元课程,建议 harness 主线走完再学"
       }
     ],
-    "topic": "Agent / harness / 核心概念"
+    "topic": "Agent / harness / 工程化"
   },
   "sections": [
     {

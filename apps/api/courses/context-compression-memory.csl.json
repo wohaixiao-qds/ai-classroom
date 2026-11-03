@@ -7,7 +7,7 @@
     "source_notes": [
       "data/research/Agent上下文工程.上下文压缩与记忆.material.json"
     ],
-    "topic": "Agent / harness / Runtime",
+    "topic": "Agent / harness / 核心机制",
     "sources": [
       {
         "title": "Anthropic Docs: Context windows",

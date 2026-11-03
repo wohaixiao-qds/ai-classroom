@@ -168,6 +168,10 @@ def save_outline(topic: str, body: OutlineEdit) -> dict[str, Any]:
     if errs:
         raise HTTPException(422, ";".join(errs[:5]))
     _outline_path(topic).write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 大纲→vault 目录同步(全自动跟随):调篇/改结构后目录与大纲.md 快照跟走
+    from app.services.vault_sync import sync_outline
+
+    sync_outline(d, topic=topic)
     return {"ok": True, "count": len(body.courses)}
 
 
