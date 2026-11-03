@@ -6,14 +6,16 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from app.core.progress import completion, mark_done
 from app.schemas.learning import ApplyResult, CompletionState, NoteDraft, ReviewDue, TodoEdit
 from app.services.mastery import due_reviews
-from app.services.note_writer import apply_draft, build_draft
+from app.services.note_writer import apply_draft, build_draft, draft_events
 
 router = APIRouter(prefix="/api/v1", tags=["learning"])
 
@@ -85,3 +87,33 @@ def note_apply(course_id: str) -> ApplyResult:
 def review_due() -> ReviewDue:
     """今日到期复习卡(进课堂重测,批改后自动排下一次)。"""
     return due_reviews()
+
+
+@router.get("/notes/draft-stream/{course_id}")
+def draft_stream(course_id: str) -> StreamingResponse:
+    """沉淀草稿生成(SSE,P7 补):逐阶段推真实进度,done 事件携带草稿全文。"""
+    st = completion(course_id)
+    if not st.ready:
+        missing = []
+        if not st.done:
+            missing.append("还没打卡(读到文末点「学完了,打卡」)")
+        if st.checkpoints_passed < st.checkpoints_total:
+            missing.append(f"检查点通过 {st.checkpoints_passed}/{st.checkpoints_total}")
+        raise HTTPException(409, "还没学完,暂不写回:" + ";".join(missing))
+
+    def gen():
+        eid = 0
+
+        def sse(event_type: str, data: dict) -> str:
+            nonlocal eid
+            eid += 1
+            payload = json.dumps(data, ensure_ascii=False)
+            return f"id: {eid}\nevent: {event_type}\ndata: {payload}\n\n"
+
+        yield sse("start", {"course_id": course_id})
+        for ev in draft_events(course_id):
+            eid += 1
+            payload = json.dumps(ev, ensure_ascii=False)
+            yield f"id: {eid}\nevent: {ev.get('stage', 'progress')}\ndata: {payload}\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream")

@@ -3,7 +3,7 @@
  *  topic 真源是后端 catalog 的实时推导(老课件文件里没有);此处拉取时合并进课程数据。 */
 import { BookOpen, LibraryBig, Play, CircleCheck, SquarePen, Route } from "lucide-react";
 import { OutlineToc } from "./OutlineToc";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { KindIcon } from "../../components/KindIcon";
@@ -78,6 +78,11 @@ export function CourseDetailPage() {
   const [draftBusy, setDraftBusy] = useState(false);
   const [draftErr, setDraftErr] = useState<string | null>(null);
   const [written, setWritten] = useState<string | null>(null);
+  // 蒸馏进度(P7):后端 SSE 真实阶段 + 已产出字数 + 已等待秒数
+  const [draftStage, setDraftStage] = useState<"connect" | "collect" | "distill" | null>(null);
+  const [distillChars, setDistillChars] = useState(0);
+  const [draftElapsed, setDraftElapsed] = useState(0);
+  const draftAbortRef = useRef<AbortController | null>(null);
   const [depTitles, setDepTitles] = useState<Record<string, string>>({});
   // 书内相邻(P7):本课所在大纲书里的上一课/下一课(取代全局拓扑路线)
   const [neighbors, setNeighbors] = useState<{
@@ -159,21 +164,83 @@ export function CourseDetailPage() {
     setDraft(null);
     setWritten(null);
     setDraftBusy(true);
-    void fetch(`/api/v1/notes/draft/${courseId}`, { method: "POST" })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(await errText(r));
-        return r.json() as Promise<NoteDraft>;
-      })
-      .then(setDraft)
-      .catch((e: unknown) => setDraftErr(String(e)))
-      .finally(() => setDraftBusy(false));
+    setDraftStage("connect");
+    setDistillChars(0);
+    setDraftElapsed(0);
+    const started = Date.now();
+    const ac = new AbortController();
+    draftAbortRef.current = ac;
+    // 计时器:弹层上实时走「已等待 N 秒」
+    const timer = window.setInterval(
+      () => setDraftElapsed(Math.round((Date.now() - started) / 1000)),
+      1000,
+    );
+
+    void (async () => {
+      try {
+        const resp = await fetch(`/api/v1/notes/draft-stream/${courseId}`, {
+          method: "GET",
+          signal: ac.signal,
+        });
+        if (!resp.ok || !resp.body) {
+          const detail = await resp.text().catch(() => "");
+          throw new Error(detail.slice(-200) || `HTTP ${resp.status}`);
+        }
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const blocks = buf.split("\n\n");
+          buf = blocks.pop() ?? "";
+          for (const block of blocks) {
+            let stage = "";
+            let dataRaw = "";
+            for (const line of block.split("\n")) {
+              if (line.startsWith("event: ")) stage = line.slice(7).trim();
+              else if (line.startsWith("data: ")) dataRaw = line.slice(6);
+            }
+            if (!dataRaw) continue;
+            const data = JSON.parse(dataRaw) as Record<string, unknown>;
+            if (stage === "collect") setDraftStage("collect");
+            else if (stage === "distill") {
+              setDraftStage("distill");
+              setDistillChars(Number(data.chars ?? 0));
+            } else if (stage === "done") {
+              window.clearInterval(timer);
+              setDraftBusy(false);
+              setDraftStage(null);
+              setDraft(data.draft as NoteDraft);
+              return;
+            } else if (stage === "error") {
+              window.clearInterval(timer);
+              setDraftBusy(false);
+              setDraftStage(null);
+              setDraftErr(String(data.message ?? "蒸馏失败"));
+              return;
+            }
+          }
+        }
+        throw new Error("流意外结束");
+      } catch (e: unknown) {
+        window.clearInterval(timer);
+        setDraftBusy(false);
+        setDraftStage(null);
+        setDraftErr(e instanceof Error ? e.message : String(e));
+      }
+    })();
   }
 
   function closeDraft() {
+    draftAbortRef.current?.abort();
     setDraft(null);
     setDraftBusy(false);
     setDraftErr(null);
     setWritten(null);
+    setDraftStage(null);
+    setDistillChars(0);
   }
 
   // 课堂学完邀请跳来(?sink=1)→ 自动开草稿
@@ -396,13 +463,39 @@ export function CourseDetailPage() {
                     {draft.mode === "append" ? "追加到" : "新建"}:{draft.note_path}
                   </DialogDescription>
                 )}
-                {draftBusy && (
-                  <DialogDescription className="text-xs">三源蒸馏中(LLM)…</DialogDescription>
-                )}
                 {draftErr && (
                   <DialogDescription className="text-destructive">{draftErr}</DialogDescription>
                 )}
               </DialogHeader>
+              {draftBusy && (
+                <div className="flex flex-col items-center gap-3 px-6 py-12">
+                  {/* 确定性进度条(同上传/下载):蒸馏字数 / 估算总量,上限 95% 留给收尾 */}
+                  {(() => {
+                    const pct =
+                      draftStage === "collect"
+                        ? 5
+                        : Math.min(95, Math.round((distillChars / 3200) * 100));
+                    return (
+                      <>
+                        <div className="h-1.5 w-72 overflow-hidden rounded-full bg-secondary">
+                          <div
+                            className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <p className="text-sm font-medium">
+                          {draftStage === "collect"
+                            ? "汇总三源材料(课件 / 批改纠偏 / 答疑对话)…"
+                            : `AI 蒸馏中 · 已产出 ${distillChars} 字`}
+                        </p>
+                        <p className="font-mono text-xs text-muted-foreground">
+                          {pct}% · 已等待 {draftElapsed} 秒 · 预计还需几分钟,请勿关闭
+                        </p>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
               {draft && (
                 <div className="flex-1 overflow-y-auto px-6 py-4">
                   {draft.todo_edit && (

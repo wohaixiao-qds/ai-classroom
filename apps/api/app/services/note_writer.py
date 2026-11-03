@@ -190,6 +190,95 @@ _APPEND_PROMPT = """你是笔记整理员。学员已有笔记《{title}》,今�
 """
 
 
+def draft_events(course_id: str):
+    """沉淀草稿生成器:collect→distill→done 三阶段;异常翻转为 error 事件。"""
+    try:
+        yield {"stage": "collect"}
+        yield from _draft_events_inner(course_id)
+    except Exception as e:  # noqa: BLE001
+        yield {"stage": "error", "message": str(e)[:200]}
+
+
+def _draft_events_inner(course_id: str):
+    """build_draft 的流式生成器版:yield 进度事件,末尾 yield 草稿(dict)。"""
+    import time
+
+    from app.services.catalog import course_topic
+
+    course = _course_of(course_id)
+    title = course["title"].split("(")[0].strip() or course["title"]
+    topic = course_topic(course_id) or "未分组"
+    domain = topic.split(" / ")[0]
+    today = time.strftime("%Y-%m-%d")
+
+    existing = _existing_note(title)
+    course_txt = _render_course(course)
+    dialogs = _render_dialogs(course_id)
+    grades = _render_grades(course_id)
+
+    client = get_llm_client().with_options(timeout=240.0)
+    if existing:
+        prompt = _APPEND_PROMPT.format(
+            title=title,
+            existing=existing.read_text(encoding="utf-8")[:4000],
+            course=course_txt[:6000],
+            dialogs=dialogs[:3000],
+            grades=grades[:1500],
+            date=today,
+            course_id=course_id,
+        )
+        note_path = existing
+        mode = "append"
+    else:
+        d, found = _dir_for_topic(topic)
+        prompt = _NEW_PROMPT.format(
+            course=course_txt[:6000],
+            dialogs=dialogs[:3000],
+            grades=grades[:1500],
+            title=title,
+            topic=topic,
+            domain=domain,
+            course_id=course_id,
+            date=today,
+        )
+        note_path = d / f"{title}.md"
+        mode = "new" if found else "new-root"
+
+    chars = 0
+    last_report = 0
+    with client.messages.stream(
+        model=settings.llm_model,
+        max_tokens=16384,
+        messages=[{"role": "user", "content": prompt}],
+    ) as stream:
+        for text in stream.text_stream:
+            chars += len(text)
+            if chars - last_report >= 200:
+                last_report = chars
+                yield {"stage": "distill", "chars": chars}
+        final = stream.get_final_message()
+
+    content = "".join(b.text for b in final.content if b.type == "text").strip()
+    if not content:
+        raise RuntimeError(
+            f"笔记蒸馏零文本输出(stop={final.stop_reason}, "
+            f"blocks={[b.type for b in final.content]})——多为思考块吃尽预算"
+        )
+    if content.startswith("```"):
+        content = content.strip("`").removeprefix("markdown").strip()
+    content = re.sub(r"\n## [^\n]+\n+\(无\)\n?", "\n", content)
+    yield {
+        "stage": "done",
+        "draft": {
+            "mode": mode,
+            "title": title,
+            "note_path": str(note_path),
+            "content": content,
+            "todo_edit": _todo_edit(course["title"]),
+        },
+    }
+
+
 def build_draft(course_id: str) -> dict[str, Any]:
     """生成写回草稿(不落盘)。返回 {mode, note_path, content, todo_edit}。"""
     import time
