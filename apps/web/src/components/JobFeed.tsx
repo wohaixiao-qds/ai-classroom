@@ -1,14 +1,13 @@
 import { LoaderCircle } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { cn } from "../lib/utils";
 
 type JobKind = "request_prep" | "request_research" | "outline_prep";
 
-/** 后台任务实时 feed:一个盒子装下模型全程干活的过程——
- *  顶部不确定进度光条(进行中)+「思考中」等待态(带秒数)+阶段消息逐行浮入
- *  (submit_plan 规划 / init_course 建骨架 / write_section 逐节写 / validate_csl 终验)。
- *  2s 轮询 /api/v1/jobs/log;active=false 停轮询保留末屏(失败回看原因用)。 */
+/** 后台任务状态条:单行动态替换——最新事件即当前状态(模型心跳/工具在飞/阶段完成),
+ *  像终端的状态行一样原地改写,不堆历史。2s 轮询 /api/v1/jobs/log 尾部取最新行。
+ *  active=false 停轮询保留末屏(失败回看原因用)。 */
 export function JobFeed({
   kind,
   target,
@@ -21,10 +20,7 @@ export function JobFeed({
   className?: string;
 }) {
   const [lines, setLines] = useState<string[]>([]);
-  const [freshFrom, setFreshFrom] = useState(0); // 本次刷新新到的行起点(做浮入动画)
   const [elapsed, setElapsed] = useState(0); // 本轮任务已等待秒数(挂载起算,纯观感)
-  const prevLenRef = useRef(0);
-  const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -32,11 +28,7 @@ export function JobFeed({
       void fetch(`/api/v1/jobs/log?kind=${kind}&target=${encodeURIComponent(target)}`)
         .then((r) => r.json())
         .then((d: { exists?: boolean; lines?: string[] }) => {
-          if (!alive) return;
-          const next = d.lines ?? [];
-          setFreshFrom(prevLenRef.current);
-          prevLenRef.current = next.length;
-          setLines(next);
+          if (alive) setLines(d.lines ?? []);
         })
         .catch(() => {});
     };
@@ -58,56 +50,41 @@ export function JobFeed({
     return () => window.clearInterval(t);
   }, [active, target]);
 
-  // 新输出滚到底部
-  useEffect(() => {
-    boxRef.current?.scrollTo({ top: boxRef.current.scrollHeight });
-  }, [lines]);
+  // 当前状态 = 最新一行(⋯ 模型调用在飞 / ↳ 工具在飞 / 阶段完成 / DONE / FAILED)
+  const current = lines.length ? lines[lines.length - 1] : null;
 
   return (
-    /* 单一表面:进度光条贴在盒顶,滚动区在下——进度/思考/输出不散在卡片各处 */
     <div className={cn("overflow-hidden rounded-lg border border-border", className)}>
       {active && <div className="anim-progress h-1 rounded-t-lg" />}
-      <div
-        ref={boxRef}
-        className="max-h-56 min-h-[72px] overflow-y-auto bg-background/60 pl-3 pr-5 py-2 font-mono text-[11px] leading-5"
-      >
-        {lines.length === 0 ? (
-          active ? (
-            <p className="flex items-center gap-1.5 text-muted-foreground">
-              <LoaderCircle size={12} className="shrink-0 animate-spin text-primary" />
-              模型思考中(规划/调研),第一批输出马上来
-              <span className="ml-auto tabular-nums">{elapsed}s</span>
-            </p>
-          ) : (
-            <p className="text-muted-foreground">还没有这次任务的日志</p>
-          )
-        ) : (
-          lines.map((l, i) => (
-            <p
-              key={`${i}-${l.slice(0, 12)}`}
-              className={cn(
-                lineTone(l),
-                i >= freshFrom && "anim-rise",
-                // 尾行 ⋯ = 这一次模型调用还在路上,脉冲示意进行中
-                i === lines.length - 1 && l.startsWith("⋯") && "animate-pulse",
-              )}
-            >
-              {l}
-            </p>
-          ))
+      <div className="flex min-h-[34px] items-center gap-2 bg-background/60 py-2 pl-3 pr-3 font-mono text-[11px]">
+        {active && <LoaderCircle size={12} className="shrink-0 animate-spin text-primary" />}
+        {/* 单行动态替换:key 随内容变,新状态淡入-rise 原地改写 */}
+        <p
+          key={current ?? "empty"}
+          title={current ?? undefined}
+          className={cn(
+            "min-w-0 flex-1 truncate",
+            current ? lineTone(current) : "text-muted-foreground",
+            "anim-rise",
+          )}
+        >
+          {current ?? (active ? "模型思考中(规划/调研),第一批输出马上来" : "还没有这次任务的日志")}
+        </p>
+        {active && (
+          <span className="shrink-0 tabular-nums text-muted-foreground">{elapsed}s</span>
         )}
       </div>
     </div>
   );
 }
 
-/** 阶段标记着色:规划/建骨架/终验=品牌色,逐节写=正文色,在飞工具=白,失败=红,警告=黄 */
+/** 状态行着色:规划/建骨架/终验=品牌色,逐节写/在飞工具=正文色,失败=红,警告=黄,心跳=微亮 */
 function lineTone(line: string): string {
   if (line.includes("FAILED") || line.includes("Traceback")) return "text-destructive";
   if (/^\s*\[(submit_plan|init_course|validate_csl)\]/.test(line) || line.includes("✅"))
     return "text-primary";
-  if (/^\s*\[(write_section|research)/.test(line)) return "text-foreground/90";
-  if (line.trim().startsWith("↳")) return "text-foreground/90";
+  if (/^\s*\[(write_section|research)/.test(line) || line.trim().startsWith("↳"))
+    return "text-foreground/90";
   if (line.startsWith("✓ 模型调用")) return "text-foreground/70";
   if (line.trim().startsWith("⚠")) return "text-warning";
   return "text-muted-foreground";
