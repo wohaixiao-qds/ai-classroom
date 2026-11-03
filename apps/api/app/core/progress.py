@@ -8,12 +8,12 @@ CLI/网页/未来自动建议都要同一真相;浏览器数据太易失。
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import time
 
 from app.core.config import settings
 from app.core.trace import read_traces
-from app.schemas.csl import Course
 from app.schemas.learning import CompletionState
 
 _DB = settings.data_dir / "classroom.db"
@@ -45,14 +45,21 @@ def mark_done(course_id: str) -> None:
 
 
 def completion(course_id: str) -> CompletionState:
-    """完成态:done + 检查点全过 → ready(写回闸门)。"""
+    """完成态:done + 检查点全过 → ready(写回闸门)。v2 书页:quiz 块即检查点。"""
     p = settings.courses_dir / f"{course_id}.csl.json"
     try:
-        course = Course.model_validate_json(p.read_text(encoding="utf-8"))
+        d = json.loads(p.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001 课件不存在/损坏 → 一律未就绪
         return CompletionState(done=False, checkpoints_total=0, checkpoints_passed=0, ready=False)
-
-    cp_ids = [pg.id for pg in course.pages if pg.checkpoint is not None]
+    if d.get("version") == 2:
+        cp_ids = [
+            b["id"]
+            for s in d.get("sections", [])
+            for b in s.get("blocks", [])
+            if b.get("type") == "quiz"
+        ]
+    else:
+        cp_ids = [pg["id"] for pg in d.get("pages", []) if pg.get("checkpoint")]
     passed = {
         g.get("page_id")
         for g in read_traces("grade.jsonl", limit=500)

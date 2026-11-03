@@ -31,9 +31,25 @@ def _course_of(course_id: str) -> dict[str, Any]:
 
 
 def _render_course(course: dict[str, Any]) -> str:
-    """课件骨架给 LLM:页题 + 讲稿全文(讲过的话就是「讲了什么」的第一手事实)。"""
+    """课件骨架给 LLM:讲过的话就是「讲了什么」的第一手事实。v2 节→块,v1 页兼容。"""
     lines = [f"# {course['title']}(场景:{course['scenario']})"]
-    for i, page in enumerate(course["pages"], 1):
+    if course.get("version") == 2:
+        for i, sec in enumerate(course.get("sections", []), 1):
+            lines.append(f"\n[第{i}节] {sec.get('heading', '')}")
+            for b in sec.get("blocks", []):
+                bt = b.get("type")
+                if bt in ("p", "callout"):
+                    lines.append(f"  {b.get('text', '')}")
+                elif bt == "quiz":
+                    rule = b.get("pass_rule") or "—"
+                    lines.append(f"  ◆检查点:{b.get('question', '')}(标准:{rule})")
+                elif bt == "flashcards":
+                    lines.extend(
+                        f"  ▫闪卡:{card.get('front', '')} → {card.get('back', '')}"
+                        for card in b.get("cards", [])
+                    )
+        return "\n".join(lines)
+    for i, page in enumerate(course.get("pages", []), 1):
         lines.append(f"\n[第{i}页] {page.get('title') or page.get('eyebrow') or page['id']}")
         for s in page["script"]:
             lines.append(f"  {s['text']}")

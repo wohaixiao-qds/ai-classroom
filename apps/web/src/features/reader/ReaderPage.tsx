@@ -7,6 +7,9 @@ import { ThemeSwitcher } from "../../components/ThemeSwitcher";
 import { Button } from "../../components/ui/button";
 import { PageError, PageLoading } from "../../components/PageState";
 import { cn } from "../../lib/utils";
+import type { components } from "../../types/api.gen";
+
+type CompletionState = components["schemas"]["CompletionState"];
 import { ChatPanel, type ProgressLike } from "../chat/ChatPanel";
 import { isV2, parseCourse, type CourseV2 } from "../../types/csl";
 import { Blocks, type CheckpointAskPayload } from "./Blocks";
@@ -56,6 +59,7 @@ function Reader({ course }: { course: CourseV2 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const [invite, setInvite] = useState(false);
+  const [doneState, setDoneState] = useState<CompletionState | null>(null);
   const [chatSeed, setChatSeed] = useState<
     { text: string; checkpoint: CheckpointAskPayload } | null
   >(null);
@@ -133,7 +137,8 @@ function Reader({ course }: { course: CourseV2 }) {
   const onDone = useCallback(() => {
     void fetch(`/api/v1/progress/${course.id}/done`, { method: "POST" })
       .then((r) => r.json())
-      .then((d: { ready: boolean }) => {
+      .then((d: CompletionState) => {
+        setDoneState(d);
         if (d.ready) setInvite(true);
       })
       .catch(() => {});
@@ -216,9 +221,18 @@ function Reader({ course }: { course: CourseV2 }) {
             ))}
             <footer className="mt-14 border-t border-border pt-8 text-center">
               <Button onClick={onDone}>✅ 学完了,打卡</Button>
-              <p className="mt-3 text-[13px] text-muted-foreground">
-                打卡会邀请你把这节课沉淀为 vault 笔记(P3 闭环)
-              </p>
+              {doneState && (
+                <p
+                  className={cn(
+                    "mt-3 text-[13px]",
+                    doneState.ready ? "text-success" : "text-muted-foreground",
+                  )}
+                >
+                  ✓ 已打卡 · 检查点通过 {doneState.checkpoints_passed}/
+                  {doneState.checkpoints_total}
+                  {!doneState.ready && " — 通过全部检查点后,这里会邀请你沉淀为 vault 笔记"}
+                </p>
+              )}
             </footer>
           </article>
         </div>
