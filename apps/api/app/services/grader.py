@@ -86,11 +86,23 @@ def grade_recitation(course_id: str, page_id: str, answer: str) -> dict[str, Any
         answer=answer,
     )
     t0 = time.perf_counter()
-    resp = client.messages.create(
-        model=settings.llm_model,
-        max_tokens=1024,  # 512 会截断长「精准版」导致 JSON 不完整
-        messages=[{"role": "user", "content": prompt}],
-    )
+    resp = None
+    last_err: Exception | None = None
+    for attempt in range(3):
+        # 中转间歇 502 常见:同步批改场景最多试 3 次(1.5s 退避)——
+        # 学员正坐在弹层里等,一次坏响应就 502 太脆
+        try:
+            resp = client.messages.create(
+                model=settings.llm_model,
+                max_tokens=1024,  # 512 会截断长「精准版」导致 JSON 不完整
+                messages=[{"role": "user", "content": prompt}],
+            )
+            break
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+            time.sleep(1.5 * (attempt + 1))
+    if resp is None:
+        raise RuntimeError(f"批改 LLM 三次均失败: {last_err}")
     text = "".join(b.text for b in resp.content if b.type == "text").strip()
     # 模型偶尔裹 ```json```,剥掉
     if text.startswith("```"):
