@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routes.catalog import router as catalog_router
 from app.routes.chat import router as chat_router
 from app.routes.eval import router as eval_router
+from app.routes.jobs import router as jobs_router
 from app.routes.learning import router as learning_router
 from app.routes.outline import router as outline_router
 
@@ -26,3 +27,4 @@ app.include_router(eval_router)
 app.include_router(catalog_router)
 app.include_router(learning_router)
 app.include_router(outline_router)
+app.include_router(jobs_router)

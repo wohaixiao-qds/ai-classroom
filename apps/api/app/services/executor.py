@@ -14,12 +14,17 @@ from pathlib import Path
 from app.core.config import settings
 
 
+def log_path_for(kind: str, target: str) -> Path:
+    """任务日志路径(单一事实源):routes/jobs.py 的 tail 端点与 start_job 共用,杜绝漂移。"""
+    log_dir: Path = settings.data_dir / "logs"
+    safe = re.sub(r"[^\w-]+", "-", target)[:40] or "job"
+    return log_dir / f"{kind}-{safe}.log"
+
+
 def start_job(kind: str, target: str) -> str:
     """派一个后台子进程跑备课/调研,返回日志路径。"""
-    log_dir: Path = settings.data_dir / "logs"
-    log_dir.mkdir(parents=True, exist_ok=True)
-    safe = re.sub(r"[^\w-]+", "-", target)[:40] or "job"
-    log_path = log_dir / f"{kind}-{safe}.log"
+    log_path = log_path_for(kind, target)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     log = log_path.open("w", encoding="utf-8")
     subprocess.Popen(  # noqa: S603 固定参数调用自家模块
         [sys.executable, "-m", "app.job_runner", kind, target],
