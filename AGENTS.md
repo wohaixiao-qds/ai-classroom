@@ -152,6 +152,7 @@
   - 书架视图(并行 `04c1098` 去学习路线重构)动效重铺:每本书进度线(done/total width 过渡)+深链 viewTransition+下一步学卡浮起;原「路线游标」随步骤条功能退役自然消失
   - 验证:端到端真跑命中——恰逢并行会话派的「编排循环:harness 的心跳」备课运行中,页面实时看到逐节写入→终验✅→大纲挂接→发布→归位→DONE 全生命周期,任务完成卡片自动退场;ruff 零错,mypy 与存量基线一致(37 处历史漂移非本次),oxlint/build 零错
 - ✅ **追加(同日)·大纲层「已出课件」标记(`4da4e0a`)**:用户要求「给个标记已经有课件的」。出课判定(course_refs∪course_ref∪outline_course_id 链∪课名兜底)从详情端点抽成 `_course_file_ids` 共用(列表/详情单源,顺带修 mypy 基线 1 处);`GET /outlines` 列表带 `prepared` 计数(索引扫描一次);生成中心大纲 chips 已出 N>0 时 success 色标注(如 Agent Harness(8) 已出 6),课程库目录卡头「已出 N · 已学 M / 总」——出了课≠学了,两口径分开。浏览器实测两处渲染 ✓
+- ✅ **追加(同日)·挂接课手风琴(`94b3eb2`)**:用户拍板「课程库挂了课的用手风琴展示」。目录里挂多门旧课的行原本常驻平铺 chips(撑乱目录节奏),改为「已挂 N 门」展开钮(chevron 翻转+aria-expanded)+复用动效体系的 Collapse 缩进列表(左边线+FileText,点行去读,新行 viewTransition);单挂行保持直达;reduced-motion 自动降级
 - ✅ 收尾已清(2026-08-24):gen-types 管线接上(catalog `59f15bc` + sessions `89b8ac1`;csl.ts 经决策保持手写——稳定的作者态契约,理由注记在文件头)、A4 多页可点(`5349427`)、B2 显示自评瞎编率(`6ecd5be`)、traces/ 移出 git(`05a0c2d`)。**P1/P1.5 收口完成**
 - ⚠️ 长期记账(不阻塞 P2):①A4/ChatPanel 的 typescript-reviewer 屡被中转挡,恢复后补(现以 §3.1 自查+浏览器实测代替);②A6 局限:伪造「课件第N页」假引用会绕过自评 → `self_eval_fabricated` 是下限;③dev 服务器(API :8100 / web :5273,原 5173 与他项目冲突已改)会话结束需重启
 
