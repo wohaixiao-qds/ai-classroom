@@ -1,4 +1,5 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { MotionConfig } from "motion/react";
 import { Shell } from "./app/Shell";
 import { EvalPage } from "./features/eval/EvalPage";
 import { HomePage } from "./features/home/HomePage";
@@ -25,5 +26,10 @@ const router = createBrowserRouter([
 ]);
 
 export default function App() {
-  return <RouterProvider router={router} />;
+  return (
+    /* 动效全局开关:用户系统开了「减少动态效果」时,motion 自动跳过非必要动画 */
+    <MotionConfig reducedMotion="user">
+      <RouterProvider router={router} />
+    </MotionConfig>
+  );
 }

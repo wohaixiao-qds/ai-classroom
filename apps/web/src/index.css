@@ -7,7 +7,12 @@
    三主题(B 默认;A/C 由 html[data-theme] 切换,ThemeSwitcher 写 dataset)
    色彩唯一事实源 = 下面三块裸 CSS 变量;@theme inline 只做 shadcn 命名映射。
    字体由 main.tsx 引入 @fontsource-variable(自托管,离线可用)。
-   z-index 约定:nav=30 / subtitle=40 / dialog=50 / tooltip=60,勿用魔数。
+   z-index 约定:nav=30 / 悬浮条=40 / dialog=50 / tooltip=60,勿用魔数。
+
+   运动纪律(P4 第五轮,借 Prompt Motion 的 direction 语法):
+   springs、最多一点点 overshoot;只动 transform/opacity/color。
+   Banned:弹跳缓动、粒子、发光、视差、模板感动效。
+   全站动效必须过 prefers-reduced-motion(见文件底部全局归零块)。
    ===================================================================== */
 :root,
 [data-theme="b"] {
@@ -25,6 +30,12 @@
   --warning: #fbbf24;
   --danger: #f87171;
   --overlay: rgba(4, 8, 20, 0.72);
+  /* 动效 token:三档时长 + 两枚缓动(--ease-out 继承 deck 时代旧曲线) */
+  --dur-fast: 150ms;
+  --dur-med: 300ms;
+  --dur-slow: 550ms;
+  --ease-out: cubic-bezier(0.22, 0.9, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 [data-theme="a"] {
@@ -96,6 +107,10 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* 动效:缓动暴露为 Tailwind 工具类(ease-out / ease-spring) */
+  --ease-out: var(--ease-out);
+  --ease-spring: var(--ease-spring);
 }
 
 @layer base {
@@ -110,6 +125,114 @@
   body {
     @apply bg-background text-foreground font-sans;
     overflow: hidden;
+  }
+}
+
+/* =====================================================================
+   动效体系(CSS 打底):入场/弹现/扫光三枚 keyframes + 路由 View Transition
+   ===================================================================== */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* 入场(配合内联 animationDelay 做 stagger)/ 弹现(状态切换成功瞬间)/ 顶部下落 */
+.anim-rise {
+  animation: fade-up var(--dur-med) var(--ease-out) both;
+}
+.anim-pop {
+  animation: pop var(--dur-med) var(--ease-spring) both;
+}
+.anim-drop {
+  animation: fade-drop var(--dur-med) var(--ease-out) both;
+}
+@keyframes fade-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 骨架屏扫光(替代 animate-pulse,配 .anim-shimmer 用的底色) */
+.anim-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.anim-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--muted) 22%, transparent),
+    transparent
+  );
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* 路由切换过渡(react-router viewTransition 触发;不支持的浏览器自动硬切) */
+::view-transition-old(root) {
+  animation: var(--dur-fast) var(--ease-out) both vt-out;
+}
+::view-transition-new(root) {
+  animation: var(--dur-med) var(--ease-out) both vt-in;
+}
+@keyframes vt-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes vt-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* 全局 reduced-motion 归零:动画/过渡/平滑滚动/视图过渡一并关闭 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }
 

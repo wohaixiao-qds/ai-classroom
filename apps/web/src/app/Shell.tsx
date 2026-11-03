@@ -31,7 +31,7 @@ export function Shell() {
         </span>
         <nav className="flex gap-1">
           {NAV.map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} className={link} end={end}>
+            <NavLink key={to} to={to} className={link} end={end} viewTransition>
               <Icon size={14} />
               {label}
             </NavLink>

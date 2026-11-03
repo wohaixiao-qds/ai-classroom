@@ -24,6 +24,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.33.0",
     "mermaid": "^12.2.0",
+    "motion": "^14.9.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
