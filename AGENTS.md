@@ -139,6 +139,12 @@
   - 体系化:遮罩统一 `--overlay`(字幕/检查点/Dialog/总览,替代写死 bg-black/70)、z-index 约定(nav=30/subtitle=40/dialog=50/tooltip=60)、focus-visible 全局 ring、emoji→lucide
   - 顺手修:ControlsBar 禁用态写成裸 JSX 属性的真 bug、播放钮补 aria-label、删 App.css 死代码
   - 验证:oxlint+tsc build 零错(6 个 warning 均既有模式/shadcn 标准导出);浏览器实测五页×主题切换持久化、播放/句级滑杆/重讲/o 总览/检查点批改弹层全过;与同日插队任务(学习顺序+复习闭环)同工作区并行,其页面层叠于本重构之上随 `8bfe4be` 一并入库,合并后路线条/今日复习复验正常
+- ✅ **P4 第五轮·全站动效体系:CSS 打底+motion 管 FLIP(2026-11-03,`804cbb8`+`37fce43`+`faa18fc`)**:用户看过 Collect UI/Prompt Motion 两个设计站后拍板「全站再借鉴+加动效」。引擎分工经确认:**混合**——CSS 体系打底(绝大多数场景)+`motion` 库只管 4 处 FLIP/Presence;范围=全量三批:
+  - 地基:index.css 运动纪律注释(借 Prompt Motion direction 语法:springs 微过冲/只动 transform-opacity/Banned 清单)+`--ease-out`(继承 deck 旧曲线)/`--ease-spring` 双缓动+anim-rise/pop/drop/shimmer 工具类+`::view-transition` 路由过渡样式+**全局 prefers-reduced-motion 归零块**(P6 删 deck 时随 .step 丢失,重建);App 加 `MotionConfig reducedMotion="user"`;Shell NavLink 加 viewTransition(原生路由过渡,不支持的浏览器自动硬切);新依赖仅 `motion`
+  - 断层修复:检查点弹层裸条件渲染零动画→AnimatePresence 进出场;闪卡文本瞬换→CSS 3D rotateY 翻面(隐藏面 aria-hidden);quiz 通过色 transition-colors+勾 anim-pop;EvalPage 两处折叠硬弹→新共享组件 Collapse(grid-rows 0fr→1fr);mermaid SVG 硬替换→anim-rise 淡入
+  - 阅读器精修:TOC 高亮硬切→motion layoutId 滑动指示 pill;打卡邀请横幅 anim-drop 顶部落下;**刻意不做**正文滚动触发的逐块浮现(阅读面保持安静)
+  - 数据动效:EvalPage Metric 纯数字 useCountUp 滚动(rAF,读系统减少动态);学习路线▶游标/OutlinePanel 大纲 chips 选中底色 layoutId 滑动;OutlinePanel 课程条目 motion layout,↑↓ 重排 FLIP 不再硬跳;OutlineToc 状态图标轮换 anim-pop;hover 补齐(想学的行/火花卡/下一步学卡/写回成功勾)
+  - 验证:oxlint+tsc 零错(9 warning 均既有模式同类);浏览器实测路由过渡/TOC 滑动/闪卡翻面/弹层进出/折叠/C 主题观感,`set media reduced-motion` 模拟降级后功能全过
 - ✅ 收尾已清(2026-08-24):gen-types 管线接上(catalog `59f15bc` + sessions `89b8ac1`;csl.ts 经决策保持手写——稳定的作者态契约,理由注记在文件头)、A4 多页可点(`5349427`)、B2 显示自评瞎编率(`6ecd5be`)、traces/ 移出 git(`05a0c2d`)。**P1/P1.5 收口完成**
 - ⚠️ 长期记账(不阻塞 P2):①A4/ChatPanel 的 typescript-reviewer 屡被中转挡,恢复后补(现以 §3.1 自查+浏览器实测代替);②A6 局限:伪造「课件第N页」假引用会绕过自评 → `self_eval_fabricated` 是下限;③dev 服务器(API :8100 / web :5273,原 5173 与他项目冲突已改)会话结束需重启
 
