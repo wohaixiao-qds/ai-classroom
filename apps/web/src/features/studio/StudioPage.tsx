@@ -25,10 +25,16 @@ export function StudioPage() {
   const [topic, setTopic] = useState("");
   const [outlineJobs, setOutlineJobs] = useState<OutlineJob[]>([]);
   useEffect(() => {
-    void fetch("/api/v1/outline-jobs")
-      .then((r) => r.json())
-      .then(setOutlineJobs)
-      .catch(() => {});
+    // 8s 轮询:任务只在进页时拉一次的话,后台跑完了页面还挂着旧的「正在造」(实测踩过)
+    const load = () => {
+      void fetch("/api/v1/outline-jobs")
+        .then((r) => r.json())
+        .then(setOutlineJobs)
+        .catch(() => {});
+    };
+    load();
+    const t = window.setInterval(load, 8000);
+    return () => window.clearInterval(t);
   }, []);
 
   if (err) return <PageError message={`加载失败:${err}`} />;
