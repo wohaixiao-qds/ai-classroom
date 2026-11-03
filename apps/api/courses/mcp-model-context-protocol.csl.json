@@ -49,7 +49,7 @@
         "url": "https://github.com/advisories/GHSA-gxw4-4fc5-9gr5"
       }
     ],
-    "topic": "MCP",
+    "topic": "Agent / MCP",
     "duration_min": null,
     "depends_on": [
       {

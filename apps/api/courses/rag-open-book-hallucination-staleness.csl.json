@@ -1,0 +1,280 @@
+{
+  "id": "rag-open-book-hallucination-staleness",
+  "title": "开卷考试:RAG 解决 LLM 的幻觉与知识过时",
+  "scenario": "自学",
+  "version": 2,
+  "meta": {
+    "source_notes": [
+      "/Users/zhangyu/CodeDevelopment/ai-classroom/apps/api/data/research/RAG-检索增强.开卷考试-RAG-解决-LLM-的幻觉与知识过时.material.json"
+    ],
+    "topic": "Agent / RAG",
+    "sources": [
+      {
+        "title": "AWS – What is Retrieval-Augmented Generation?",
+        "url": "https://aws.amazon.com/what-is/retrieval-augmented-generation/"
+      },
+      {
+        "title": "Google Cloud – What are AI hallucinations?",
+        "url": "https://cloud.google.com/discover/what-are-ai-hallucinations"
+      },
+      {
+        "title": "Google Cloud – What is Retrieval-Augmented Generation (RAG)?",
+        "url": "https://cloud.google.com/use-cases/retrieval-augmented-generation"
+      },
+      {
+        "title": "Lewis et al. (2020), Retrieval-Augmented Generation for Knowledge-Intensive NLP ",
+        "url": "https://arxiv.org/abs/2005.11401"
+      },
+      {
+        "title": "Anthropic – Introducing Contextual Retrieval(工程博客)",
+        "url": "https://www.anthropic.com/news/contextual-retrieval"
+      },
+      {
+        "title": "LangChain 官方文档 – RAG Tutorial(Deep Agents)",
+        "url": "https://python.langchain.com/docs/tutorials/rag/"
+      },
+      {
+        "title": "LlamaIndex 官方文档 – Introduction to RAG",
+        "url": "https://docs.llamaindex.ai/en/stable/understanding/rag/"
+      },
+      {
+        "title": "NVIDIA 术语表 – 什么是检索增强生成(RAG)",
+        "url": "https://www.nvidia.cn/glossary/retrieval-augmented-generation/"
+      },
+      {
+        "title": "Cohere 官方 Changelog – Announcing Cohere's Rerank 5 Models(2026-10-21)",
+        "url": "https://docs.cohere.com/v2/changelog/rerank-v5"
+      },
+      {
+        "title": "RAGFlow GitHub README(infiniflow/ragflow,Apache-2.0)",
+        "url": "https://github.com/infiniflow/ragflow"
+      },
+      {
+        "title": "RAGFlow 官方 Release Notes(v1.0.0-rc1/rc2/rc3)",
+        "url": "https://ragflow.io/docs/dev/release_notes"
+      },
+      {
+        "title": "Microsoft GraphRAG GitHub README",
+        "url": "https://github.com/microsoft/graphrag"
+      }
+    ],
+    "depends_on": [],
+    "duration_min": null
+  },
+  "sections": [
+    {
+      "blocks": [
+        {
+          "text": "大语言模型作答时只带「脑子」进考场:所有知识在训练那一刻压进模型参数,考试时不翻任何资料。AWS 官方把这种闭卷模式的已知缺陷总结为四类——没有答案时编造信息、给出过时或泛化的回答、引用非权威来源、术语混淆导致答错(源[1])。这四类不是偶发 bug,而是闭卷设定本身的结构性产物。",
+          "type": "p"
+        },
+        {
+          "text": "知识过时的根源在于**快照**:训练数据是静态的,天然存在知识截止日期(cut-off date,即训练语料收集停止的那一天)(源[1])。参数里的世界停在那一天,真实世界继续向前。任何发生在截止日期之后的变更——价格、政策、API 版本——模型都只能拿旧快照外推,于是「过时或泛化」的回答几乎无法避免。",
+          "type": "p"
+        },
+        {
+          "text": "幻觉(hallucination,指模型生成的不正确或误导性结果)的成因被 Google 官方归结为两条:训练数据本身有缺陷,以及缺乏对真实世界事实的 grounding(接地,即把输出锚定在可核验的事实上)(源[2])。两条都指向同一个事实:模型的生成机制只负责「说得通」,不负责「说得对」,因此输出常常看似合理、实则错误——越流畅,越有迷惑性。",
+          "type": "p"
+        },
+        {
+          "text": "LangChain 官方教程对闭卷作答的刻画更直白:用训练数据回答近期变更的问题,答案「往往看似可信、有时是错的、且永远不基于你的事实源」(源[6])。企业内部文档、个人笔记这类私域事实从未进入任何模型的训练集,闭卷模式下答对它们不是「难」,而是「不可能」。",
+          "type": "p"
+        },
+        {
+          "kind": "warn",
+          "text": "幻觉不是模型在「说谎」,而是没有锚点时的自信补全;知识过时不是模型「忘得快」,而是快照天然停在截止日期。两者都治不了于「更好的模型」,只能治于「换一种考试方式」。",
+          "type": "callout"
+        },
+        {
+          "cards": [
+            {
+              "back": "无答案时编造信息;过时或泛化的回答;引用非权威来源;术语混淆答错(源[1])",
+              "front": "AWS 列出的 LLM 四大闭卷缺陷是哪四类?"
+            },
+            {
+              "back": "训练数据本身有缺陷;缺乏对真实世界事实的 grounding(源[2])",
+              "front": "Google 官方给出幻觉的两大成因是什么?"
+            }
+          ],
+          "type": "flashcards"
+        },
+        {
+          "id": "s1-closed-book-flaws-cp",
+          "pass_rule": "答出两条根因——「训练数据是静态快照、有截止日期」导致过时,「训练数据缺陷 + 缺乏 grounding」导致幻觉;并点明共同前提:闭卷模式下知识只来自参数、与事实源无连接,因此是结构性的而非偶然 bug",
+          "question": "用自己的话说明:LLM 的幻觉与知识过时分别源于什么结构性原因?为什么说两者都不是偶然 bug?",
+          "type": "quiz"
+        }
+      ],
+      "heading": "病根:闭卷作答为什么必然幻觉与知识过时",
+      "id": "s1-closed-book-flaws"
+    },
+    {
+      "blocks": [
+        {
+          "text": "检索增强生成(Retrieval-Augmented Generation,RAG)的标准定义是:让 LLM 在生成回答前,先引用训练数据之外的权威知识库——AWS 的官方说法就是给大模型一场**开卷考试**(源[1])。开卷并不让模型变聪明,它只做一件事:考试时把书递进去。回答基于当场翻到的内容,而不是凭记忆。",
+          "type": "p"
+        },
+        {
+          "text": "这套机制的源头是 2020 年 Meta(Facebook AI)发表于 NeurIPS 的论文:RAG 模型由**参数记忆**(预训练的 seq2seq 模型)加上**非参数记忆**(Wikipedia 的稠密向量索引,经神经检索器访问)构成(源[4])。论文明言,「更新世界知识」正是纯参数模型悬而未决的开放难题——换句话说,开卷不是工程技巧,而是对闭卷结构缺陷的正面回应。原论文的实验结论也直接回答了「有没有用」:RAG 生成的语言比纯参数基线更具体、更多样、更符合事实,并减少了生成中的事实错误(源[4])。",
+          "type": "p"
+        },
+        {
+          "text": "工程视角下,开卷考试是一条流水线。NVIDIA 官方把 RAG 工作流分为三阶段:**提取**(数据清洗、嵌入、索引入向量库)、**检索**(向量加关键词混合、加重排)、**生成**(把检索内容拼入提示词,生成有据回答)(源[8])。LlamaIndex 则拆得更细,给出 Loading、Indexing、Storing、Querying、Evaluation 五阶段,并特别强调评估(准确、忠实、快速)是流程中的一环,而非可选项(源[7])。",
+          "type": "p"
+        },
+        {
+          "text": "Google 官方对开卷价值的表述可以合并成一句:预训练数据的局限让回答过时,RAG 用最新信息补足;把「事实」作为输入提供给 LLM,可以缓解生成式 AI 的幻觉(源[3])。对照第 1 节的两条病根——过时与幻觉——开卷恰好分别拆掉:知识库可以随时更新,事实直接摆在模型的输入里。",
+          "type": "p"
+        },
+        {
+          "code": "graph LR\n  知识库文档 --> 数据清洗与分块\n  数据清洗与分块 --> 向量化并索引\n  向量化并索引 --> 向量库\n  用户提问 --> 混合检索加重排\n  向量库 --> 混合检索加重排\n  混合检索加重排 --> 拼入提示词\n  拼入提示词 --> LLM生成\n  LLM生成 --> 有据回答",
+          "caption": "图 1:RAG 三段式流程——提取、检索、生成(依据源[8])",
+          "lang": "mermaid",
+          "type": "diagram"
+        },
+        {
+          "id": "s2-open-book-pipeline-cp",
+          "pass_rule": "依次说出提取→检索→生成三阶段,每个阶段至少配一个具体动作(如嵌入索引/向量加关键词检索/拼入提示词);并能指出幻觉靠「事实作为输入」缓解、过时靠「知识库可随时更新」缓解",
+          "question": "复述 RAG 的三段式流程及各阶段动作,并解释为什么开卷能同时缓解幻觉与知识过时这两个病根?",
+          "type": "quiz"
+        }
+      ],
+      "heading": "开卷机制:RAG 的定义、起源与三段式流程",
+      "id": "s2-open-book-pipeline"
+    },
+    {
+      "blocks": [
+        {
+          "text": "开卷不是保险箱。Google 官方明确给出开卷的命门:若检索回来的信息不相关,生成可能「有据但跑题或错误」(源[3])。生成器只会忠实使用摆在面前的证据;证据本身错了,引经据典反而让错误显得更有说服力。因此**检索质量决定 RAG 的上限**,生成模型再强也救不回一次失败的检索。",
+          "type": "p"
+        },
+        {
+          "text": "检索失败的最大单点在**分块**。Anthropic 的工程实践指出传统 RAG 的核心痛点:文档切成 chunk(块)后逐块单独编码,脱离原文语境的片段在向量空间里「不知道自己在说什么」——一份财报里孤零零的「下降了 15%」,既不知道是哪个指标,也不知道是哪一年,检索自然命不中(源[5])。",
+          "type": "p"
+        },
+        {
+          "text": "对应的解法叫**上下文检索**:在嵌入和 BM25 建索引之前,先用 Claude 为每个 chunk 生成一小段解释性上下文,把「这个片段讲的是什么、来自哪里」写进片段本身,再编码入库(源[5])。量化效果由 Anthropic 官方给出:检索失败率降低 49%;叠加重排模型后降低 67%。补命门的方式不是更聪明的生成,而是让每条证据自带出处说明。",
+          "type": "p"
+        },
+        {
+          "kind": "note",
+          "text": "RAG 系统的故障排查次序应当倒过来:看起来是「答错了」,先查是不是「没检回对的东西」。失败大多长着检索失败的样子,而非生成失败的样子。",
+          "type": "callout"
+        }
+      ],
+      "heading": "命门:检索质量决定 RAG 的上限",
+      "id": "s3-retrieval-quality"
+    },
+    {
+      "blocks": [
+        {
+          "text": "生产环境的第一问不是「怎么做 RAG」,而是「要不要做」。Anthropic 的选型提醒:知识库小于 200k token(约 500 页)时,不必上 RAG,直接把整库塞进提示词即可,配合提示词缓存(prompt caching)成本最多可降 90%(源[5])。开卷的价值在书太大翻不完时才出现,小书直接摊开在桌上。",
+          "type": "p"
+        },
+        {
+          "text": "上了 RAG 之后,检索侧有两条官方验证过的抓手。其一是**混合检索**:嵌入擅长语义相似,抓不住精确字符串,「错误码 TS-999」这类唯一标识符查询要靠 BM25 词法匹配命中,两者并用才能覆盖两类问法(源[5])。其二是**重排与调参**:NVIDIA 给出的提质路径包括重排模型(以少量延迟换大幅准确率提升)、调 RAG 的「超参数」(chunk 大小、重叠、嵌入维度)、查询改写、微调嵌入模型(源[8])。",
+          "type": "p"
+        },
+        {
+          "text": "「有据可查」也可以做成产品机制。开源引擎 RAGFlow 的落地做法是:分块过程可视化、允许人工干预分块结果,回答附带可追溯引用(grounded citations),从机制上保证每个答案都能点回原文(源[10])。这把上一节的命门从「调参问题」升级成「可审计的设计约束」。",
+          "type": "p"
+        },
+        {
+          "text": "开卷的另一面是运维代价。RAGFlow 官方 release notes 记录了真实风险:v1.0.0-rc1 用 Go 全面重写后资源占用大幅下降(Redis 换成 NATS、缓存换成 Kvrocks),但数据升级**不可逆**,官方要求升级前必须全量备份(源[11])。生产级 RAG 的成本不只算检索质量,还算上数据迁移与版本锁定这类写在公告里的账。",
+          "type": "p"
+        },
+        {
+          "header": [
+            "工程抓手",
+            "做法",
+            "代价与收益"
+          ],
+          "rows": [
+            [
+              "不上 RAG",
+              "小于 200k token 整库塞 prompt + 缓存",
+              "成本最多降 90%(源[5])"
+            ],
+            [
+              "混合检索",
+              "BM25 词法 + 向量语义并行",
+              "命中 TS-999 类精确标识符(源[5])"
+            ],
+            [
+              "上下文检索",
+              "索引前为每个 chunk 生成上下文",
+              "检索失败率 -49%,叠加重排 -67%(源[5])"
+            ],
+            [
+              "重排与调参",
+              "重排模型、chunk 大小/重叠/嵌入维度、查询改写",
+              "少量延迟换准确率提升(源[8])"
+            ],
+            [
+              "可追溯引用",
+              "分块可视化 + 人工干预 + grounded citations",
+              "答案可审计(源[10])"
+            ]
+          ],
+          "caption": "表 1:生产级 RAG 的五类工程抓手与量化收益",
+          "type": "table"
+        },
+        {
+          "id": "s4-production-playbook-cp",
+          "pass_rule": "至少答出三条并带理由,例如:①小于 200k token/500 页可先整库塞 prompt 加缓存再考虑 RAG;②检索侧需混合 BM25 与向量以覆盖精确标识符;③检索质量优先,可用上下文检索(-49%/叠加重排 -67%)或重排、调 chunk 超参;④可追溯引用与升级前全量备份等审计运维纪律",
+          "question": "你接手一个约 300 页的内部知识库问答系统,基于本节官方经验列出至少三条生产决策及其依据?",
+          "type": "quiz"
+        }
+      ],
+      "heading": "生产级经验:分块、混合检索与量化收益",
+      "id": "s4-production-playbook"
+    },
+    {
+      "blocks": [
+        {
+          "text": "过去一年最明显的动向是:头部 RAG 引擎正从线性管道转向代理式闭环。RAGFlow 在近一个月连发 v1.0.0-rc1(09-29)、rc2(10-16)、rc3(10-30,官方称最终 RC);rc2 起用 Agentic mode 取代 Low/Medium/High/Ultra 分级思考,并把「证据是否充分」的判断做成决策模型,放进 agentic 工具循环(源[11])。其 README 已把 Agentic 检索列为核心能力:对复杂问题做分解、多轮检索、验证证据,按问题复杂度控制检索与推理深度(源[10])。",
+          "type": "p"
+        },
+        {
+          "text": "LangChain 官方 RAG 教程同步转向代理式编排,给出四种模式:技能引导检索、**评分卡核查接地**(rubric-checked grounding,由子代理校验回答是否落在检索证据内)、todo 驱动调查、检索后卸载给子代理(源[6])。这与第 3 节的命门直接呼应:线性管道一次检索完就生成,证据够不够没人管;代理式闭环把证据核验变成了流程内的显式步骤。",
+          "type": "p"
+        },
+        {
+          "text": "重排侧也有实质更新。Cohere 于 2026-10-21 发布 Rerank 5(Pro/Fast 双版本):新增 Context Focus,在同一次调用内返回文档内最相关片段及字符区间,减少喂给 LLM 的 token;提供跨查询域校准的相关性分数,可设统一阈值过滤;支持 32k 上下文与 100+ 语言,且升级只需改 model 参数、无需重建索引(源[9])。对存量系统而言,这是低成本的检索质量红利。",
+          "type": "p"
+        },
+        {
+          "text": "反方向的信号同样值得记录:微软 GraphRAG 官方 README 宣布项目「大体处于维护模式」,不再接收新 PR 或新功能,只修 bug 和 CVE(源[12])。RAG 技术栈迭代极快,同一份清单里既有连发三个 RC 的激进引擎,也有头部公司项目转入维护——选型时盯紧项目活跃度,本身就是一项生产纪律。",
+          "type": "p"
+        },
+        {
+          "code": "graph LR\n  复杂提问 --> 问题分解\n  问题分解 --> 多轮检索\n  多轮检索 --> 证据充分性判断\n  证据充分性判断 -->|不充分| 问题分解\n  证据充分性判断 -->|充分| 生成回答\n  生成回答 --> 接地核查\n  接地核查 --> 有据回答",
+          "caption": "图 2:从线性管道到代理式闭环——证据判断与接地核查成为流程内步骤(依据源[10][11][6])",
+          "lang": "mermaid",
+          "type": "diagram"
+        },
+        {
+          "cards": [
+            {
+              "back": "RAGFlow rc2 起用 Agentic mode 取代四档分级,并把证据充分性判断做成决策模型放进工具循环(源[11])",
+              "front": "RAGFlow 用什么取代了 Low/Medium/High/Ultra 分级思考?"
+            },
+            {
+              "back": "维护模式:不再接收新 PR 或新功能,只修 bug 和 CVE(源[12])",
+              "front": "微软 GraphRAG 官方 README 宣布了什么状态?"
+            }
+          ],
+          "type": "flashcards"
+        },
+        {
+          "id": "s5-frontier-signals-cp",
+          "pass_rule": "说清对比关系:线性管道一次检索即生成、无证据核验环节;代理式闭环加入问题分解、多轮检索、证据充分性判断/接地核查;至少举一个官方佐证(RAGFlow Agentic mode 或 LangChain 评分卡核查接地);并提到 GraphRAG 转入维护模式提示选型需盯项目活跃度",
+          "question": "为什么头部 RAG 引擎从线性管道走向代理式闭环?用两个官方证据支撑你的解释,并说明 GraphRAG 的信号对选型意味着什么?",
+          "type": "quiz"
+        }
+      ],
+      "heading": "最新动向:代理式检索、重排升级与选型信号",
+      "id": "s5-frontier-signals"
+    }
+  ]
+}
