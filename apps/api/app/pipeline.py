@@ -18,6 +18,8 @@ import argparse
 import time
 from typing import Any
 
+from app.services.estimate import estimate_pipeline
+
 BUDGET_MIN = 30  # 验收红线:30 分钟内变课件
 
 
@@ -40,6 +42,12 @@ def pick_subtopic(framework: dict[str, Any], auto: bool) -> tuple[str, str | Non
     chosen = subs[idx]
     prev = subs[idx - 1]["title"] if idx > 0 else None  # 位置感:框架里的上一课
     print(f"\n→ 本次备课:「{chosen['title']}」(前置:{prev or '无,第一课'})")
+    est = estimate_pipeline()
+    print(
+        f"⏱ 预计:原料调研 ≈{est['research']['min']} 分钟 / {int(est['research']['calls'])} 轮"
+        f" · 备课 ≈{est['prep']['min']} 分钟 / {int(est['prep']['calls'])} 轮"
+        f" · 合计 ≈{est['total_min']} 分钟({est['source']};红线 {BUDGET_MIN})"
+    )
     return chosen["title"], prev
 
 

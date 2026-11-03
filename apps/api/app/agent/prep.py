@@ -96,6 +96,19 @@ def _course_path(course_id: str) -> Path:
     return settings.courses_dir / f"{course_id}.csl.json"
 
 
+def _op_log(course_id: str, op: str, message: str) -> None:
+    """课件操作日志(P5·T4,#27):append-only 一行一操作,人审可见「课件经历了什么」。"""
+    if not course_id:
+        return
+    p = settings.data_dir / "research" / f"{course_id}.log.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if not p.exists():
+        p.write_text(f"# {course_id} 课件操作日志\n", encoding="utf-8")
+    ts = time.strftime("%H:%M:%S")
+    with p.open("a", encoding="utf-8") as f:
+        f.write(f"- `{ts}` **{op}** — {message[:160]}\n")
+
+
 def _load(path: Path) -> dict[str, Any] | None:
     try:
         d = json.loads(path.read_text(encoding="utf-8"))
@@ -294,6 +307,7 @@ def _make_tools(
         dep_msg = (
             "、".join(f"{d['id']}({d['reason'][:20]})" for d in deps) if deps else "无先修"
         )
+        _op_log(id, "init", f"建骨架,先修:{dep_msg},计划 {len(state['plan'])} 节")
         return f"课件骨架已建:{p.name}。先修:{dep_msg}。现在按计划 write_section 逐节写。"
 
     def write_section(section: dict[str, Any]) -> str:
@@ -325,9 +339,11 @@ def _make_tools(
                 f"已写入第{len(course['sections'])}节({sid}),"
                 f"计划 {len(state['plan'])} 节,已有 {n_quiz} 个检查点。"
             )
+            _op_log(cid, "write", f"{sid} {str(section.get('heading', ''))[:24]}({msg[:40]})")
         else:
             course["sections"][idx] = section
             msg = f"已替换第{idx + 1}节({sid})。"
+            _op_log(cid, "replace", f"{sid} {str(section.get('heading', ''))[:24]}")
         p.write_text(json.dumps(course, ensure_ascii=False, indent=2), encoding="utf-8")
         return msg
 
@@ -347,6 +363,8 @@ def _make_tools(
             n_more = len(warns) - 5
             warns = warns[:5] + [f"(其余 {n_more} 条 warning 略)"]
         body += "".join(f"\n  ⚠ {w}" for w in warns)
+        verdict = r["summary"][:120] + ("" if r["ok"] else f"(err {len(r['errors'])})")
+        _op_log(cid, "validate", verdict)
         return str(head + body)
 
     tools = [
@@ -589,6 +607,10 @@ def run_prep(material: dict[str, Any], prev_subtopic: str | None = None) -> dict
                         tool_calls=tool_calls,
                         usage=usage,
                     )
+                    _op_log(
+                        state["course_id"], "deliver",
+                        f"终验通过:{len(course.get('sections', []))} 节交付",
+                    )
                     return {"ok": True, "course": course, "report": text_out, "usage": usage}
                 errs = ["课件文件读不回"]  # 校验过了文件却没了,罕见,打回重建
             validate_failures += 1
@@ -635,7 +657,7 @@ def run_prep(material: dict[str, Any], prev_subtopic: str | None = None) -> dict
         elapsed_s=time.perf_counter() - t0,
         tool_calls=tool_calls,
         usage=usage,
-        error="MAX_TURNS 耗尽(软着陆,已写页都在盘上)",
+        error="MAX_TURNS 耗尽(软着陆,已写节都在盘上)",
     )
     return {"ok": False, "course": course, "report": text_out, "usage": usage}
 
