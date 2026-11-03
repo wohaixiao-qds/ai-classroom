@@ -78,6 +78,7 @@ export function CourseDetailPage() {
   const [draftBusy, setDraftBusy] = useState(false);
   const [draftErr, setDraftErr] = useState<string | null>(null);
   const [written, setWritten] = useState<string | null>(null);
+  const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   // 蒸馏进度(P7):后端 SSE 真实阶段 + 已产出字数 + 已等待秒数
   const [draftStage, setDraftStage] = useState<"connect" | "collect" | "distill" | null>(null);
   const [distillChars, setDistillChars] = useState(0);
@@ -160,9 +161,19 @@ export function CourseDetailPage() {
   }, [courseId]);
 
   function openDraft() {
+    // 生成中/已有草稿 → 仅重开弹窗接上(进度/草稿都还在);都没有 → 启动蒸馏
+    if (draftBusy || draft) {
+      setDraftDialogOpen(true);
+      return;
+    }
     setDraftErr(null);
-    setDraft(null);
     setWritten(null);
+    setDraftDialogOpen(true);
+    startDraftSSE();
+  }
+
+  function startDraftSSE() {
+    setDraft(null);
     setDraftBusy(true);
     setDraftStage("connect");
     setDistillChars(0);
@@ -233,16 +244,6 @@ export function CourseDetailPage() {
     })();
   }
 
-  function closeDraft() {
-    draftAbortRef.current?.abort();
-    setDraft(null);
-    setDraftBusy(false);
-    setDraftErr(null);
-    setWritten(null);
-    setDraftStage(null);
-    setDistillChars(0);
-  }
-
   // 课堂学完邀请跳来(?sink=1)→ 自动开草稿
   useEffect(() => {
     if (searchParams.get("sink") === "1" && prog?.ready) {
@@ -285,7 +286,24 @@ export function CourseDetailPage() {
         .filter(Boolean)
         .join(";")})`
     : "生成笔记草稿,预览确认后写入知识库";
-  const draftOpen = Boolean(draft || draftBusy || draftErr || written);
+  function closeDraftDialog() {
+    // 只关弹层:蒸馏继续跑,重开弹窗能接上进度/草稿(P7)
+    setDraftDialogOpen(false);
+  }
+
+  function cancelDraftGen() {
+    draftAbortRef.current?.abort();
+    setDraftBusy(false);
+    setDraftStage(null);
+    setDraftDialogOpen(false);
+    setDraftErr("已取消生成");
+  }
+
+  function regenerateDraft() {
+    setDraft(null);
+    setDraftErr(null);
+    startDraftSSE();
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
@@ -442,7 +460,7 @@ export function CourseDetailPage() {
       ) : null}
 
       {/* 写回确认闸:预览(路径+待探勾选+全文)→ 人确认 → 才落盘 vault */}
-      <Dialog open={draftOpen} onOpenChange={(o) => !o && closeDraft()}>
+      <Dialog open={draftDialogOpen} onOpenChange={(o) => !o && closeDraftDialog()}>
         <DialogContent className="flex max-h-[85vh] flex-col gap-0 p-0 sm:max-w-2xl">
           {written ? (
             <div className="p-8 text-center">
@@ -489,8 +507,11 @@ export function CourseDetailPage() {
                             : `AI 蒸馏中 · 已产出 ${distillChars} 字`}
                         </p>
                         <p className="font-mono text-xs text-muted-foreground">
-                          {pct}% · 已等待 {draftElapsed} 秒 · 预计还需几分钟,请勿关闭
+                          {pct}% · 已等待 {draftElapsed} 秒 · 预计还需几分钟
                         </p>
+                        <Button variant="ghost" size="sm" onClick={cancelDraftGen}>
+                          取消生成
+                        </Button>
                       </>
                     );
                   })()}
@@ -513,7 +534,8 @@ export function CourseDetailPage() {
                   <Button variant="ghost" onClick={() => setDraft(null)}>
                     取消
                   </Button>
-                  <Button onClick={confirmWrite}>确认写回</Button>
+                  <Button variant="outline" onClick={regenerateDraft}>↺ 重新生成</Button>
+              <Button onClick={confirmWrite}>确认写回</Button>
                 </DialogFooter>
               )}
             </>

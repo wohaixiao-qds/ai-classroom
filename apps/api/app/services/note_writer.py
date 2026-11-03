@@ -40,6 +40,23 @@ def _render_course(course: dict[str, Any]) -> str:
                 bt = b.get("type")
                 if bt in ("p", "callout"):
                     lines.append(f"  {b.get('text', '')}")
+                elif bt == "diagram":
+                    # mermaid 全文进蒸馏源:Obsidian 原生渲染,笔记里图不缺
+                    cap = b.get("caption") or "—"
+                    lines.append(
+                        f"  ```mermaid\n  {b.get('code', '')}\n  ```\n  (图题:{cap})"
+                    )
+                elif bt == "code":
+                    lines.append(
+                        f"  ```{b.get('language', '')}\n  {b.get('code', '')}\n  ```"
+                    )
+                elif bt == "table":
+                    header = b.get("header", [])
+                    if header:
+                        lines.append("  | " + " | ".join(map(str, header)) + " |")
+                        lines.append("  |" + "---|" * len(header))
+                    for row in b.get("rows", []):
+                        lines.append("  | " + " | ".join(map(str, row)) + " |")
                 elif bt == "quiz":
                     rule = b.get("pass_rule") or "—"
                     lines.append(f"  ◆检查点:{b.get('question', '')}(标准:{rule})")
