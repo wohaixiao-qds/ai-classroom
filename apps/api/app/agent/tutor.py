@@ -196,10 +196,28 @@ def run_tutor(
 
 
 def course_text_of(course_id: str) -> str:
-    """课件全文(答疑底料):标题+每页 eyebrow/title/讲稿。"""
+    """课件全文(答疑底料)。v2 书页:标题+每节 heading+各块文本;v1 旧格式兼容。"""
     p: Path = settings.courses_dir / f"{course_id}.csl.json"
     d = json.loads(p.read_text(encoding="utf-8"))
     lines = [f"# {d['title']}"]
+    if d.get("version") == 2:
+        for i, sec in enumerate(d.get("sections", []), 1):
+            lines.append(f"\n[第{i}节] {sec.get('heading', '')}")
+            for b in sec.get("blocks", []):
+                bt = b.get("type")
+                if bt in ("p", "callout"):
+                    lines.append(f"  {b.get('text', '')}")
+                elif bt == "diagram":
+                    lines.append(f"  [示意图] {b.get('caption') or ''}: {b.get('code', '')[:200]}")
+                elif bt == "code":
+                    lines.append(f"  [代码 {b.get('language', '')}]\n  {b.get('code', '')}")
+                elif bt == "table":
+                    rows = [b.get("header", []), *b.get("rows", [])]
+                    lines.extend(f"  | {'|'.join(map(str, row))}" for row in rows)
+                elif bt == "quiz":
+                    rule = b.get("pass_rule") or "核心概念说清"
+                    lines.append(f"  [检查点] {b.get('question', '')}(标准:{rule})")
+        return "\n".join(lines)
     for i, page in enumerate(d["pages"], 1):
         lines.append(f"\n[第{i}页] {page.get('eyebrow') or ''} {page.get('title') or ''}")
         for s in page["script"]:

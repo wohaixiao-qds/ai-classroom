@@ -188,6 +188,19 @@ export function ChatPanel({
           checkpoint: checkpoint ?? null,
         }),
       });
+      if (!resp.ok || !resp.body) {
+        // 后端 4xx/5xx 不再静默空泡——把错误亮给学员
+        const detail = await resp.text().catch(() => "");
+        setMsgs((m) => [
+          ...m,
+          {
+            role: "assistant",
+            text: "⚠️ 答疑服务异常(HTTP " + resp.status + "): " + (detail.slice(-200) || "请稍后重试"),
+          },
+        ]);
+        setBusy(false);
+        return;
+      }
       const reader = resp.body?.getReader();
       const decoder = new TextDecoder();
       let buf = "";
