@@ -210,7 +210,13 @@ function QuizCard({
   onAskTutor?: (payload: CheckpointAskPayload) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [passed, setPassed] = useState(false);
+  const [passedResult, setPassedResult] = useState<{
+    score: number;
+    comment: string;
+    precise?: string;
+    answer: string;
+  } | null>(null);
+  const passed = passedResult !== null;
   return (
     <div
       className={`rounded-xl border px-4 py-3.5 transition-colors duration-300 ease-out ${passed ? "border-success/50 bg-success/5" : "border-primary/40 bg-primary/5"}`}
@@ -221,7 +227,7 @@ function QuizCard({
       <div className="mt-3">
         {passed ? (
           <span className="anim-pop inline-flex items-center gap-1.5 text-sm text-success">
-            <CheckCircle2 size={15} /> 已通过
+            <CheckCircle2 size={15} /> 已通过 · {passedResult.score} 分
           </span>
         ) : (
           <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
@@ -229,6 +235,20 @@ function QuizCard({
           </Button>
         )}
       </div>
+      {passedResult && (
+        <div className="mt-2 space-y-1 text-[13px] leading-6">
+          <p>
+            <span className="font-medium text-foreground/80">我的回答:</span>
+            <span className="text-muted-foreground">{passedResult.answer}</span>
+          </p>
+          {passedResult.precise && (
+            <p>
+              <span className="font-medium text-foreground/80">标准表述:</span>
+              <span className="text-muted-foreground">{passedResult.precise}</span>
+            </p>
+          )}
+        </div>
+      )}
       <AnimatePresence>
         {open && (
           <CheckpointOverlay
@@ -236,8 +256,13 @@ function QuizCard({
             hint={block.hint}
             courseId={courseId}
             pageId={block.id}
-            onPass={() => {
-              setPassed(true);
+            onPass={(r) => {
+              setPassedResult({
+                score: r.score,
+                comment: r.comment,
+                precise: r.precise,
+                answer: r.answer,
+              });
               setOpen(false);
             }}
             onClose={() => setOpen(false)}

@@ -26,7 +26,7 @@ export function CheckpointOverlay({
   hint: string | null;
   courseId: string;
   pageId: string;
-  onPass: () => void;
+  onPass: (result: { score: number; comment: string; precise?: string; answer: string }) => void;
   /** 可选退出口:阅读器是用户手点的,要能反悔 */
   onClose?: () => void;
   /** 批改→答疑联动(P7 补):没过时把「我的回答+判定」带给答疑面板 */
@@ -169,8 +169,19 @@ export function CheckpointOverlay({
                   ↺ 重新复述
                 </Button>
               )}
-              <Button onClick={onPass} disabled={!passed}>
-                {passed ? "通过后继续 →" : "通过后继续"}
+              <Button
+                onClick={() =>
+                  passed &&
+                  onPass({
+                    score: result.score,
+                    comment: result.comment,
+                    precise: result.precise,
+                    answer,
+                  })
+                }
+                disabled={!passed}
+              >
+                通过后继续 →
               </Button>
             </div>
             {!passed && (
