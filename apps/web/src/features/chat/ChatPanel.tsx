@@ -37,6 +37,40 @@ interface Msg {
 type SessionInfo = components["schemas"]["SessionInfo"];
 type SessionTurn = components["schemas"]["SessionTurn"];
 
+/** 裸 URL → 可点链接(模型常直接甩地址而不写 markdown 链接语法)。
+ *  字符集排除 CJK 与全角标点——「详情见 https://a.b/x。」止于 x,中文不粘进链接;
+ *  尾部 ASCII 右括号仅在不成对时修剪(Wikipedia 路径括号是合法 URL 字符)。 */
+const URL_RE = /https?:\/\/[^\s<>`"\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]+/gi;
+
+function linkifyUrls(text: string, keyBase: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  let last = 0;
+  let i = 0;
+  for (const m of text.matchAll(URL_RE)) {
+    let url = m[0];
+    while (/[.,;:!?]$/.test(url)) url = url.slice(0, -1);
+    const opens = (url.match(/\(/g) ?? []).length;
+    const closes = (url.match(/\)/g) ?? []).length;
+    while (closes > opens && url.endsWith(")")) url = url.slice(0, -1);
+    if (m.index > last) out.push(text.slice(last, m.index));
+    out.push(
+      <a
+        key={`${keyBase}-u${i}`}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={url}
+      >
+        {url}
+      </a>,
+    );
+    last = m.index + url.length;
+    i += 1;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
 /** 右侧答疑对话区。
  *  记忆归后端(SQLite):本组件只持 session_id,不再自己攒历史递给后端。
  *  与播放解耦:只读 currentPage 让回答贴进度,不控制暂停/续播。 */
@@ -91,7 +125,7 @@ export function ChatPanel({
       }
       node.split(CITE_CLUSTER).forEach((seg, j) => {
         if (!/^课件第\s*\d+\s*页/.test(seg)) {
-          if (seg) out.push(seg);
+          if (seg) out.push(...linkifyUrls(seg, `${k}-${j}`));
           return;
         }
         // seg 是引用簇(可能含多页):每个「第N页」切成按钮,「课件」「和」「、」留作文字
@@ -129,6 +163,11 @@ export function ChatPanel({
     ),
     li: ({ children }: { children?: ReactNode }) => (
       <li>{linkifyCitations(Array.isArray(children) ? children : [children])}</li>
+    ),
+    a: ({ children, href }: { children?: ReactNode; href?: string }) => (
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        {children}
+      </a>
     ),
   };
 
@@ -292,7 +331,7 @@ export function ChatPanel({
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto py-4 pl-4 pr-5">
+      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto overflow-x-hidden py-4 pl-4 pr-5">
         {msgs.length === 0 && (
           <p className="text-sm leading-relaxed text-muted-foreground">
             随时提问——课件内的直接讲,课件外的会联网查,学过的会翻你笔记。
@@ -308,13 +347,13 @@ export function ChatPanel({
                   {m.tools.map((t, j) => (
                     <p key={j} className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
                       <Search size={11} className="shrink-0" />
-                      正在查:{String(Object.values(t.args)[0])}
+                      <span className="min-w-0 break-words">正在查:{String(Object.values(t.args)[0])}</span>
                     </p>
                   ))}
                 </div>
               )}
               {m.role === "user" ? (
-                <p className="inline-block max-w-[85%] rounded-lg rounded-br-sm bg-primary/15 px-3 py-2 text-left text-sm">
+                <p className="inline-block max-w-[85%] rounded-lg rounded-br-sm bg-primary/15 px-3 py-2 text-left text-sm break-words">
                   {m.text}
                 </p>
               ) : (
