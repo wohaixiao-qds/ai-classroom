@@ -44,6 +44,13 @@ def mark_done(course_id: str) -> None:
         )
 
 
+def done_map() -> dict[str, bool]:
+    """全库完成标记,一次查询(聚合场景用;逐课查走 completion())。"""
+    with _conn() as c:
+        rows = c.execute("SELECT course_id, done FROM course_progress").fetchall()
+    return {r[0]: bool(r[1]) for r in rows}
+
+
 def completion(course_id: str) -> CompletionState:
     """完成态:done + 检查点全过 → ready(写回闸门)。v2 书页:quiz 块即检查点。"""
     p = settings.courses_dir / f"{course_id}.csl.json"

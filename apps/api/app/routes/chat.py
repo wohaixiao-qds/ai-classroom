@@ -24,6 +24,7 @@ from app.schemas.chat import (
     SessionDetailResponse,
     SessionListResponse,
 )
+from app.services.catalog import student_course_map
 from app.services.grader import grade_recitation
 from app.services.self_eval import evaluate_answer
 
@@ -41,6 +42,8 @@ def chat(req: ChatRequest) -> StreamingResponse:
         course_text = course_text_of(req.course_id)
     except FileNotFoundError:
         raise HTTPException(404, f"课件不存在: {req.course_id}") from None
+    # 课程地图与 course_text 同分工:路由层算好传入,agent 层不自己读盘
+    course_map = student_course_map()
 
     session_id = ensure_session(req.session_id, req.course_id)
 
@@ -57,6 +60,7 @@ def chat(req: ChatRequest) -> StreamingResponse:
                 session_id=session_id,
                 course_id=req.course_id,
                 checkpoint=req.checkpoint.model_dump() if req.checkpoint else None,
+                course_map=course_map,
             ):
                 eid += 1
                 if ev["type"] == "tool_call":

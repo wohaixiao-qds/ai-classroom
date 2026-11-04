@@ -19,7 +19,7 @@ from pathlib import Path
 
 from app.core.catalog_store import action_index
 from app.core.config import settings
-from app.core.progress import completion
+from app.core.progress import completion, done_map
 from app.core.trace import read_traces
 from app.schemas.catalog import Catalog, CourseItem, NoteItem, SparkItem, TodoItem
 from app.schemas.csl import parse_course
@@ -110,6 +110,58 @@ def _load_courses() -> tuple[list[CourseItem], set[str]]:
     # 分组序稳定:有主题的按主题排(与 vault 编号天然对齐),未分组垫底
     items.sort(key=lambda c: (c.topic is None, c.topic or "", c.title))
     return items, covered
+
+
+def student_course_map() -> str:
+    """学员课程地图(注入答疑 system,跨课融通用):一门一行 id | 标题 | 主题 | 状态 | 大纲。
+
+    轻量读法(与逐课 completion() 的区别:它每次重读 grade.jsonl,17 门=17 次):
+    课件裸 json 逐个(只要 id/标题/主题/节标题,不走 parse_course)、
+    grade.jsonl 一次(全库检查点通过集)、course_progress 一次(done 集)。
+    状态三档与 completion() 的 ready 语义对齐:done 且检查点全过=已学完。
+    """
+    passed: dict[str, set[str]] = {}
+    for g in read_traces("grade.jsonl", limit=500):
+        if g.get("verdict") == "pass":
+            passed.setdefault(str(g.get("course_id", "")), set()).add(str(g.get("page_id")))
+    done = done_map()
+    lines: list[str] = []
+    for p in sorted(settings.courses_dir.glob("*.csl.json")):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 单个坏课件不拖垮整张地图
+            continue
+        cid = str(d.get("id", p.stem))
+        units = d.get("sections") or d.get("pages") or []
+        outline = "/".join(
+            str(u.get("heading") or u.get("title") or u.get("eyebrow") or u.get("id", ""))[:16]
+            for u in units[:6]
+        )
+        if d.get("version") == 2:
+            cp_ids = [
+                b["id"] for s in units for b in s.get("blocks", []) if b.get("type") == "quiz"
+            ]
+        else:
+            cp_ids = [pg["id"] for pg in units if pg.get("checkpoint")]
+        n_pass = sum(1 for i in cp_ids if i in passed.get(cid, set()))
+        is_done = done.get(cid, False)
+        if is_done and n_pass >= len(cp_ids):
+            status = "已学完"
+        elif is_done or n_pass:
+            status = "学习中"
+        else:
+            status = "未开始"
+        if cp_ids:
+            status += f"·检查点 {n_pass}/{len(cp_ids)}"
+        topic = (d.get("meta") or {}).get("topic")
+        lines.append(
+            f"- {cid} | {d.get('title', '')} | 主题:{topic or '未归位'}"
+            f" | {status} | 大纲:{outline or '(空)'}"
+        )
+        if len(lines) >= 40:
+            lines.append("- (其余课程略)")
+            break
+    return "\n".join(lines) if lines else "(系统里还没有课程)"
 
 
 def _scan_notes(covered: set[str], prep: set[str], status_of: dict[str, str]) -> list[NoteItem]:

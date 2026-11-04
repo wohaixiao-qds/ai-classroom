@@ -32,22 +32,28 @@ SYSTEM_PROMPT = """你是「AI 老师」,在学员学习课件时提供答疑。
 2. **课件之外**:涉及最新实践/版本/课件没讲的知识,用 web_search 查,
 回答时用 [1][2] 标注来源,末尾列来源链接。
 3. **学员学过的**:判断问题可能与学员已有笔记相关时,可用 read_notes 检索其知识库,衔接旧知识讲解。
-4. **教学风格**:小步讲解、类比优先、宁少勿多;学员问概念时先给一句话核心,再按需展开,不一次灌完。
-5. **回答显示在窄对话框**:少用标题和多级列表;短问题 1-3 句直接答;
+4. **跨课融通**:system 里给了学员的课程地图(系统里有哪些课、各学到什么程度)。
+答案与已学课程的概念相通时,明确搭桥(如「你在《X》课学的 Y,就是这边的 Z」);
+问题在其他课系统讲过时,指路去复习(报课名);
+涉及没学过的前置概念,一句话提醒可先学哪门,不展开代讲。
+5. **教学风格**:小步讲解、类比优先、宁少勿多;学员问概念时先给一句话核心,再按需展开,不一次灌完。
+6. **回答显示在窄对话框**:少用标题和多级列表;短问题 1-3 句直接答;
 确需分点用单层短横线列表,不嵌套;加粗只标关键词。像口头答疑,不是写文档。
-6. **不瞎编**:查不到就说查不到,不编造来源。
+7. **不瞎编**:查不到就说查不到,不编造来源;课程地图里没有的课不要编。
 """
 
 MAX_TURNS = 6  # 终止条件之二:防工具调用风暴
 
 
-def build_system(course_text: str) -> list[dict]:
+def build_system(course_text: str, course_map: str = "") -> list[dict]:
     """system 拆成多个 block,固定内容在前并打 cache_control 缓存标记。
 
     只放「每轮都不变」的:身份规范 + 课件全文。动态的当前页不进这里
     (它跟着对话走,见 run_tutor),否则前缀一变缓存全失效。
+    课程地图会随学习缓慢变化,放在打了缓存标记的课件全文块**之后**:
+    缓存前缀(规范+课件全文)不受其变化影响,地图更新不击穿缓存。
     """
-    return [
+    blocks: list[dict[str, Any]] = [
         {"type": "text", "text": SYSTEM_PROMPT},
         {
             "type": "text",
@@ -55,6 +61,9 @@ def build_system(course_text: str) -> list[dict]:
             "cache_control": {"type": "ephemeral"},  # 智谱不支持则被忽略,不报错
         },
     ]
+    if course_map:
+        blocks.append({"type": "text", "text": f"## 学员的课程地图\n{course_map}"})
+    return blocks
 
 
 def trace(question: str, tool_calls: list[dict], answer: str, elapsed: float) -> None:
@@ -80,6 +89,7 @@ def run_tutor(
     session_id: str,
     course_id: str,
     checkpoint: dict[str, Any] | None = None,
+    course_map: str = "",
 ) -> Iterator[dict]:
     """跑一轮答疑,以事件流产出(生成器)。
 
@@ -136,7 +146,7 @@ def run_tutor(
                 # 5.3 起思考常开且与答案共吃预算:1024 会被思考烧光→答案必残缺,
                 # 8192=单轮思考+完整作答的余量(交互护栏靠 MAX_TURNS,不靠这里)
                 max_tokens=8192,
-                system=build_system(course_text),
+                system=build_system(course_text, course_map),
                 messages=messages,
                 tools=[] if last_turn else TOOLS,
             ) as stream:
