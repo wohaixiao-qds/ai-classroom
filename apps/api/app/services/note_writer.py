@@ -165,6 +165,12 @@ _NEW_PROMPT = """你是笔记整理员,把一节 AI 课的学习过程蒸馏成�
 
 主题:{title} · 所属层级:{topic}
 
+课件源里的骨架元素必须原样保留(逐字照抄,不许省略或改写):
+- ```mermaid 代码块:原样搬进笔记(这是笔记的插图,Obsidian 会渲染成图)
+- 表格:用 markdown 表格逐字还原
+- 代码块:原样保留
+蒸馏只发生在「文字段落」上——图/表/代码是骨架,动了就是丢内容。
+
 只输出 Markdown 笔记本体(从 --- frontmatter 开始,不要额外说明),结构:
 ---
 领域: {domain}
@@ -238,7 +244,7 @@ def _draft_events_inner(course_id: str):
         prompt = _APPEND_PROMPT.format(
             title=title,
             existing=existing.read_text(encoding="utf-8")[:4000],
-            course=course_txt[:6000],
+            course=course_txt[:8000],
             dialogs=dialogs[:3000],
             grades=grades[:1500],
             date=today,
@@ -249,7 +255,7 @@ def _draft_events_inner(course_id: str):
     else:
         d, found = _dir_for_topic(topic)
         prompt = _NEW_PROMPT.format(
-            course=course_txt[:6000],
+            course=course_txt[:8000],
             dialogs=dialogs[:3000],
             grades=grades[:1500],
             title=title,
@@ -321,7 +327,7 @@ def build_draft(course_id: str) -> dict[str, Any]:
         prompt = _APPEND_PROMPT.format(
             title=title,
             existing=existing.read_text(encoding="utf-8")[:4000],
-            course=course_txt[:6000],
+            course=course_txt[:8000],
             dialogs=dialogs[:3000],
             grades=grades[:1500],
             date=today,
@@ -332,7 +338,7 @@ def build_draft(course_id: str) -> dict[str, Any]:
     else:
         d, found = _dir_for_topic(topic)
         prompt = _NEW_PROMPT.format(
-            course=course_txt[:6000],
+            course=course_txt[:8000],
             dialogs=dialogs[:3000],
             grades=grades[:1500],
             title=title,
