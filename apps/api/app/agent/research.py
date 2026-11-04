@@ -274,7 +274,7 @@ def _require_search() -> None:
     p = search_provider()
     if not p:
         msg = (
-            "无可用搜索 provider:请在 apps/api/.env 配 SEARCH_API_KEY(博查)"
+            "无可用搜索 provider:请在 config/secrets.env 配 SEARCH_API_KEY(博查)"
             "或 TAVILY_API_KEY;AnySearch 匿名亦可,请检查网络"
         )
         raise RuntimeError(msg)

@@ -14,6 +14,9 @@ dist/
 .env
 *.mp3
 
+# 密钥统一放 config/(模板 secrets.env.example 入库,真实文件不入)
+config/secrets.env
+
 # 运行时数据
 apps/api/data/
 apps/api/traces/

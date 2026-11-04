@@ -1,9 +1,10 @@
-"""运行配置:从环境变量 / .env 文件读,缺省给本地开发的合理值。
+"""运行配置:从环境变量 / 密钥文件读,缺省给本地开发的合理值。
 
-.env 放在 apps/api/.env(已 gitignore),格式:
+全项目密钥统一放仓库根 config/secrets.env(已 gitignore),格式:
     ZHIPU_API_KEY=xxx
     SEARCH_API_KEY=xxx
     # KB_DIR=/path/to/vault  # 可选,默认指向学习知识库
+模板见 config/secrets.env.example。
 """
 
 from __future__ import annotations
@@ -13,11 +14,12 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _API_ROOT = Path(__file__).resolve().parent.parent.parent  # apps/api/
+_REPO_ROOT = _API_ROOT.parent.parent  # 仓库根(config/ 密钥目录所在)
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=_API_ROOT / ".env",
+        env_file=_REPO_ROOT / "config" / "secrets.env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
