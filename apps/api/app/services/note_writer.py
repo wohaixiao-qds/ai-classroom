@@ -239,7 +239,7 @@ def _draft_events_inner(course_id: str):
     dialogs = _render_dialogs(course_id)
     grades = _render_grades(course_id)
 
-    client = get_llm_client().with_options(timeout=240.0)
+    client = get_llm_client().with_options(timeout=600.0)  # 5.3 思考马拉松,同 build_draft
     if existing:
         prompt = _APPEND_PROMPT.format(
             title=title,
@@ -271,7 +271,7 @@ def _draft_events_inner(course_id: str):
     last_report = 0
     with client.messages.stream(
         model=settings.llm_model,
-        max_tokens=16384,
+        max_tokens=32768,  # 5.3 思考马拉松:16384 曾全烧光零文本(同 build_draft)
         messages=[{"role": "user", "content": prompt}],
     ) as stream:
         for text in stream.text_stream:
@@ -320,9 +320,9 @@ def build_draft(course_id: str) -> dict[str, Any]:
     dialogs = _render_dialogs(course_id)
     grades = _render_grades(course_id)
 
-    # 离线蒸馏放宽单次超时(同 prep/research):三源蒸馏要写整篇笔记,
-    # 中转慢速时 60s 必掐死(实测 ReadTimeout);chat 的 60s 交互护栏不受影响
-    client = get_llm_client().with_options(timeout=240.0)
+    # 离线蒸馏放宽单次超时(同 prep/research);5.3 思考马拉松:16384 曾全烧光零文本
+    # (stop=max_tokens, blocks=['thinking']),官方上限 128K、示例用 65536,这档给 32768
+    client = get_llm_client().with_options(timeout=600.0)
     if existing:
         prompt = _APPEND_PROMPT.format(
             title=title,
@@ -352,8 +352,7 @@ def build_draft(course_id: str) -> dict[str, Any]:
 
     resp = client.messages.create(
         model=settings.llm_model,
-        max_tokens=16384,  # 思考模型的思考块也吃预算:蒸馏整课笔记思考很重,
-        # 实测 8192 被全烧光零文本(同 grader,这里更深)
+        max_tokens=32768,  # 5.3 思考马拉松:16384 曾被全烧光零文本(官方上限 128K)
         messages=[{"role": "user", "content": prompt}],
     )
     content = "".join(b.text for b in resp.content if b.type == "text").strip()
@@ -413,10 +412,10 @@ def build_recheck(note_rel: str, material_path: str) -> dict[str, Any]:
             sid = f"(源[{p.get('source_id')}])" if p.get("source_id") else ""
             mat_lines += f"\n- {p['text']}{sid}"
 
-    client = get_llm_client().with_options(timeout=240.0)
+    client = get_llm_client().with_options(timeout=600.0)
     resp = client.messages.create(
         model=settings.llm_model,
-        max_tokens=16384,  # 思考模型的思考块也吃预算(同 grader/note 蒸馏,见上)
+        max_tokens=32768,  # 思考模型的思考块也吃预算(5.3 思考马拉松,同蒸馏)
         messages=[
             {
                 "role": "user",

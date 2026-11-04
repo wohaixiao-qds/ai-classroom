@@ -78,6 +78,7 @@ export function CourseDetailPage() {
   const [draftBusy, setDraftBusy] = useState(false);
   const [draftErr, setDraftErr] = useState<string | null>(null);
   const [written, setWritten] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   // 蒸馏进度(P7):后端 SSE 真实阶段 + 已产出字数 + 已等待秒数
   const [draftStage, setDraftStage] = useState<"connect" | "collect" | "distill" | null>(null);
@@ -255,6 +256,7 @@ export function CourseDetailPage() {
   }, [prog?.ready]);
 
   function confirmWrite() {
+    setApplying(true); // 正常应是缓存命中秒回;409=缓存失效,红字提示重新生成
     void fetch(`/api/v1/notes/apply/${courseId}`, { method: "POST" })
       .then(async (r) => {
         if (!r.ok) throw new Error(await errText(r));
@@ -264,7 +266,8 @@ export function CourseDetailPage() {
         setWritten(r.note_path);
         setDraft(null);
       })
-      .catch((e: unknown) => setDraftErr(String(e)));
+      .catch((e: unknown) => setDraftErr(String(e)))
+      .finally(() => setApplying(false));
   }
 
   if (error) return <PageError message={`课件加载失败:${error}`} back={<Button asChild variant="secondary" size="sm"><Link to="/courses">← 课程库</Link></Button>} />;
@@ -531,11 +534,13 @@ export function CourseDetailPage() {
               )}
               {draft && (
                 <DialogFooter className="border-t border-border px-6 py-4">
-                  <Button variant="ghost" onClick={() => setDraft(null)}>
+                  <Button variant="ghost" disabled={applying} onClick={() => setDraft(null)}>
                     取消
                   </Button>
-                  <Button variant="outline" onClick={regenerateDraft}>↺ 重新生成</Button>
-              <Button onClick={confirmWrite}>确认写回</Button>
+                  <Button variant="outline" disabled={applying} onClick={regenerateDraft}>↺ 重新生成</Button>
+              <Button onClick={confirmWrite} disabled={applying}>
+                {applying ? "写入中…" : "确认写回"}
+              </Button>
                 </DialogFooter>
               )}
             </>

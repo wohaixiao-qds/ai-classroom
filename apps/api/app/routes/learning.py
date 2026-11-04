@@ -70,14 +70,18 @@ def note_draft(course_id: str) -> NoteDraft:
 
 @router.post("/notes/apply/{course_id}", response_model=ApplyResult)
 def note_apply(course_id: str) -> ApplyResult:
-    """确认落盘——写的是缓存里预览过的那份;没有缓存(过期/重启)则现生成。"""
+    """确认落盘——写的是缓存里预览过的那份。缓存失效(API 重启/过期)必须重新预览,
+    绝不静默重生成:SSE 重构曾漏缓存回填,此路每次确认都重新蒸馏 2~3 分钟
+    (无反馈的「没反应」假死)且落盘的是用户没预览过的新草稿。"""
     _require_ready(course_id)
+    d = _DRAFT_CACHE.get(course_id)
+    if d is None:
+        raise HTTPException(
+            409, "草稿缓存已失效(服务重启或生成太久),请重新打开预览生成后再确认"
+        )
     try:
-        d = _DRAFT_CACHE.get(course_id)
-        if d is None:
-            d = build_draft(course_id)
         apply_draft(d)
-    except Exception as e:  # noqa: BLE001 LLM/文件系统等,给可读信息(同 /grade)
+    except Exception as e:  # noqa: BLE001 文件系统等,给可读信息(同 /grade)
         raise HTTPException(502, f"笔记写盘失败,请稍后重试: {e}") from None
     _DRAFT_CACHE.pop(course_id, None)
     return ApplyResult(written=True, note_path=d["note_path"])
@@ -112,6 +116,10 @@ def draft_stream(course_id: str) -> StreamingResponse:
 
         yield sse("start", {"course_id": course_id})
         for ev in draft_events(course_id):
+            if ev.get("stage") == "done":
+                # 预览过的那份进缓存:确认落盘必须是同一份(SSE 重构曾漏此回填,
+                # apply 每次都缓存未命中→静默重蒸馏 2~3 分钟)
+                _DRAFT_CACHE[course_id] = ev["draft"]
             eid += 1
             payload = json.dumps(ev, ensure_ascii=False)
             yield f"id: {eid}\nevent: {ev.get('stage', 'progress')}\ndata: {payload}\n\n"
