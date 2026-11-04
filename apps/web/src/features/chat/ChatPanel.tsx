@@ -93,6 +93,7 @@ export function ChatPanel({
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [showList, setShowList] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const stickRef = useRef(true); // 用户在底部附近才自动跟随;主动上翻阅读时不拽人
 
   const units = "pages" in course ? course.pages : course.sections;
   const currentPage = units[playback.state.page]?.id ?? null;
@@ -171,6 +172,12 @@ export function ChatPanel({
     ),
   };
 
+  // 贴底跟随:在渲染提交后滚(DOM 已含最新流式文本)。之前在 SSE 读循环里 scrollTo,
+  // React 还没提交新 DOM,滚的是旧高度,永远慢一拍(用户报:发完要手动再滚一次)
+  useEffect(() => {
+    if (stickRef.current) scrollRef.current?.scrollTo({ top: 1e9 });
+  }, [msgs]);
+
   // 恢复上次会话(刷新不丢对话)
   useEffect(() => {
     const saved = localStorage.getItem(sessionKey);
@@ -179,6 +186,7 @@ export function ChatPanel({
     void fetch(`/api/v1/sessions/${saved}`)
       .then((r) => r.json())
       .then((d: { turns: SessionTurn[] }) => {
+        stickRef.current = true;
         setMsgs(
           (d.turns ?? []).map((t) => ({ role: t.role as Msg["role"], text: t.content })),
         );
@@ -200,6 +208,7 @@ export function ChatPanel({
     const d = (await fetch(`/api/v1/sessions/${id}`).then((r) => r.json())) as {
       turns: SessionTurn[];
     };
+    stickRef.current = true;
     setMsgs((d.turns ?? []).map((t) => ({ role: t.role as Msg["role"], text: t.content })));
   }
 
@@ -207,6 +216,7 @@ export function ChatPanel({
     setShowList(false);
     setSessionId(null);
     localStorage.removeItem(sessionKey);
+    stickRef.current = true;
     setMsgs([]);
   }
 
@@ -280,7 +290,6 @@ export function ChatPanel({
             setMsgs((m) => [...m]);
           }
         }
-        scrollRef.current?.scrollTo({ top: 1e9 });
       }
     } catch (e) {
       setMsgs((m) => [...m, { role: "assistant", text: `⚠️ 连接失败: ${e}` }]);
@@ -331,7 +340,14 @@ export function ChatPanel({
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto overflow-x-hidden py-4 pl-4 pr-5">
+      <div
+        ref={scrollRef}
+        onScroll={() => {
+          const el = scrollRef.current;
+          stickRef.current = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+        }}
+        className="flex-1 space-y-3 overflow-y-auto overflow-x-hidden py-4 pl-4 pr-5"
+      >
         {msgs.length === 0 && (
           <p className="text-sm leading-relaxed text-muted-foreground">
             随时提问——课件内的直接讲,课件外的会联网查,学过的会翻你笔记。
