@@ -21,3 +21,7 @@ config/secrets.env
 apps/api/data/
 apps/api/traces/
 .run/
+
+# 学习内容与产物(课件/发布副本不上库——个人学习数据不外传)
+apps/api/courses/
+apps/web/public/courses/
