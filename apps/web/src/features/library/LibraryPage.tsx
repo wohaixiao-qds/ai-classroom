@@ -294,6 +294,14 @@ export function CourseDetailPage() {
     setDraftDialogOpen(false);
   }
 
+  function finishWritten() {
+    // 写回已成功,没有可续的流:全重置+关闭,不留空壳弹窗
+    setWritten(null);
+    setDraft(null);
+    setDraftErr(null);
+    setDraftDialogOpen(false);
+  }
+
   function cancelDraftGen() {
     draftAbortRef.current?.abort();
     setDraftBusy(false);
@@ -463,7 +471,7 @@ export function CourseDetailPage() {
       ) : null}
 
       {/* 写回确认闸:预览(路径+待探勾选+全文)→ 人确认 → 才落盘 vault */}
-      <Dialog open={draftDialogOpen} onOpenChange={(o) => !o && closeDraftDialog()}>
+      <Dialog open={draftDialogOpen} onOpenChange={(o) => !o && (written ? finishWritten() : closeDraftDialog())}>
         <DialogContent className="flex max-h-[85vh] flex-col gap-0 p-0 sm:max-w-2xl">
           {written ? (
             <div className="p-8 text-center">
@@ -471,7 +479,7 @@ export function CourseDetailPage() {
               <p className="mb-1 font-medium">已写回知识库</p>
               <p className="mb-4 font-mono text-xs break-all text-muted-foreground">{written}</p>
               <p className="text-xs text-muted-foreground">巩固区已留空——去 Obsidian 亲手填完它。</p>
-              <Button className="mt-5" onClick={() => setWritten(null)}>
+              <Button className="mt-5" onClick={finishWritten}>
                 完成
               </Button>
             </div>
