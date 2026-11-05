@@ -10,7 +10,6 @@ import { SectionHeader } from "../../components/SectionHeader";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
-import { Input } from "../../components/ui/input";
 import { useCatalog } from "../../hooks/useCatalog";
 import type { components } from "../../types/api.gen";
 
@@ -44,7 +43,6 @@ function progressOf(courseId: string): { sec: number } | null {
 
 export function HomePage() {
   const { cat, err, act } = useCatalog();
-  const [topic, setTopic] = useState("");
   const [due, setDue] = useState<ReviewDue | null>(null);
   const [books, setBooks] = useState<Book[] | null>(null);
 
@@ -107,29 +105,8 @@ export function HomePage() {
     <div className="mx-auto max-w-4xl space-y-8 px-6 py-8">
       <h1 className="text-2xl font-bold">学习台</h1>
 
-      {/* 快捷开课:新主题一句话 → 生成中心接手(出大纲→备样课一条龙) */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const t = topic.trim();
-          if (!t) return;
-          setTopic("");
-          void act("request_research", t, t);
-        }}
-        className="flex gap-2"
-      >
-        <Input
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          placeholder="我想学…(新主题,如 MCP / RAG / 编译原理)"
-          className="h-10"
-        />
-        <Button type="submit" size="lg" disabled={!topic.trim()}>
-          开课
-        </Button>
-      </form>
-
-      {/* 我的书架:每本大纲一行——篇章节里的进度与当前课,直答「学到哪、读哪本」 */}
+      {/* 我的书架:每本大纲一行——篇章节里的进度与当前课,直答「学到哪、读哪本」。
+          开课入口统一在生成中心(我想学),这里不再放重复输入框(IA 五区制:学习台只管续学) */}
       <section>
         <SectionHeader
           icon={LibraryBig}
@@ -143,7 +120,7 @@ export function HomePage() {
           <EmptyState
             icon={LibraryBig}
             title="书架还是空的"
-            hint="上面输入新主题开课,或去生成中心看看"
+            hint="去生成中心一句话开课,或从课程库挑一本读"
           />
         ) : (
           <div className="space-y-2">
@@ -258,7 +235,7 @@ export function HomePage() {
           <EmptyState
             icon={BookOpen}
             title="还没有进行中的课"
-            hint="书架里挑一本开始读,或上面输入新主题直接开课"
+            hint="书架里挑一本开始读,想开新课去生成中心"
           >
             <Button asChild variant="secondary" size="sm">
               <Link to="/courses">去课程库</Link>
