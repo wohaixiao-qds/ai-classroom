@@ -21,6 +21,7 @@ interface BookCourse {
   title: string;
   goal?: string;
   course_file_id?: string | null;
+  course_file_ids?: string[];
 }
 
 interface Book {
@@ -83,13 +84,17 @@ export function HomePage() {
   const continuing = learning.filter((c) => c.prog !== null);
   const ready = new Map(learning.map((c) => [c.id, c.ready]));
 
-  // 书架派生:每本书的已学数与书内游标(第一门已出而未学完的课)
+  // 书架派生:每本书的已学数与书内游标(第一门还没碰过的课)。
+  // 行级语义:任一附件学完=该行已学(只看主附件会漏计多挂行,实测少 1);
+  // 游标跳过已碰过的行——归位堆叠旧行(如认识 Harness 挂 3 门)若按「未全学完」算,
+  // 游标会永远卡在早就读过的行上;「下一步学」的自然答案=第一门没碰过的
+  const rowDone = (c: BookCourse) => (c.course_file_ids ?? []).some((id) => ready.get(id));
+  const cursorTarget = (c: BookCourse | null) =>
+    c?.course_file_ids?.find((id) => !ready.get(id)) ?? c?.course_file_id ?? null;
   const shelves = (books ?? []).map((b) => {
-    const done = b.courses.filter(
-      (c) => c.course_file_id && ready.get(c.course_file_id),
-    ).length;
+    const done = b.courses.filter(rowDone).length;
     const cursor =
-      b.courses.find((c) => c.course_file_id && !ready.get(c.course_file_id)) ?? null;
+      b.courses.find((c) => (c.course_file_ids ?? []).length > 0 && !rowDone(c)) ?? null;
     const cursorNo = cursor ? b.courses.findIndex((c) => c.id === cursor.id) + 1 : 0;
     return { ...b, done, total: b.courses.length, cursor, cursorNo };
   });
@@ -164,9 +169,9 @@ export function HomePage() {
                         <p className="mt-1 text-xs text-success">✓ 全部学完</p>
                       )}
                     </div>
-                    {b.cursor && (
+                    {b.cursor && cursorTarget(b.cursor) && (
                       <Button size="sm" variant="secondary" asChild className="shrink-0">
-                        <Link to={`/read/${b.cursor.course_file_id}`} viewTransition>
+                        <Link to={`/read/${cursorTarget(b.cursor)}`} viewTransition>
                           <Play size={13} /> {b.done > 0 ? "继续读" : "开始读"}
                         </Link>
                       </Button>
@@ -276,13 +281,13 @@ export function HomePage() {
               </p>
               <h3 className="mb-1 text-lg font-medium">{nextBook.cursor.title}</h3>
               <p className="font-mono text-xs text-muted-foreground">
-                {nextPrev?.course_file_id && ready.get(nextPrev.course_file_id)
+                {nextPrev && rowDone(nextPrev)
                   ? `承接:你刚学完「${nextPrev.title}」✓`
                   : "这本书的当前课,直接开读"}
               </p>
             </div>
             <Button size="lg" asChild className="shrink-0">
-              <Link to={`/read/${nextBook.cursor.course_file_id}`} viewTransition>
+              <Link to={`/read/${cursorTarget(nextBook.cursor)}`} viewTransition>
                 <Play size={15} /> 开始学
               </Link>
             </Button>
