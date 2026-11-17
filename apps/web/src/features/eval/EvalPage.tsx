@@ -196,7 +196,7 @@ export function EvalPage() {
                       {r.history.map((h, j) => (
                         <div key={j} className="text-sm">
                           <p className="mb-1 font-mono text-xs text-muted-foreground">
-                            {h.ts?.slice(5, 16)} · {h.answer_len ?? "?"}字 · {h.grounded ? "有据" : "无据"} · {h.elapsed_s}s
+                            {h.ts?.slice(5, 16).replace("T", " ")} · {h.answer_len ?? "?"}字 · {h.grounded ? "有据" : "无据"} · {h.elapsed_s}s
                             {h.cited_pages.length > 0 && ` · 引第${h.cited_pages.join(",")}页`}
                           </p>
                           <p className="leading-relaxed whitespace-pre-wrap">{h.answer}</p>
@@ -229,7 +229,7 @@ export function EvalPage() {
                   </p>
                   <p className="mt-1 pl-6 font-mono text-xs text-muted-foreground">
                     {m?.text} · {g.detail}
-                    {g.ts && ` · ${g.ts.slice(5, 16)}`}
+                    {g.ts && ` · ${g.ts.slice(5, 16).replace("T", " ")}`}
                   </p>
                 </li>
               );
