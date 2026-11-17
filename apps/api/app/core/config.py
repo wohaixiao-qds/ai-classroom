@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # 国际站: https://api.z.ai/api/anthropic
     llm_base_url: str = "https://open.bigmodel.cn/api/anthropic"
     zhipu_api_key: str = ""  # 环境变量/.env 里的 ZHIPU_API_KEY 自动注入
+    zhipu_api_key_backup: str = ""  # 备用 key(ZHIPU_API_KEY_BACKUP):主 key 认证/配额失败时自动切换
     # 2026-11-03 用户拍板全站 glm-5.3(对照实验:备课质量代差明显,时长 +22% 可接受)。
     # 5.3 特性:思考常开不可关,经 anthropic 兼容端点 reasoning_effort/budget 均无效,
     # 思考块与文本共吃 max_tokens 预算——各调用点预算见各文件(重思考任务 16384 起)
