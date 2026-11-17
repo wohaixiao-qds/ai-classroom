@@ -1,17 +1,16 @@
-import { Activity, BookOpen, GraduationCap, LibraryBig, Wand2 } from "lucide-react";
+import { Activity, GraduationCap, Wand2 } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { ThemeSwitcher } from "../components/ThemeSwitcher";
 import { cn } from "../lib/utils";
 
+/** 学习台与课程库合二为一(2026-11-17 拍板):课程库升级为学习主页(今日横条+封面继续读),
+ *  学习台退役(/ 重定向 /courses)。导航三项:学习/生成中心/观测。 */
 const NAV = [
-  { to: "/", label: "学习台", icon: BookOpen, end: true },
-  { to: "/courses", label: "课程库", icon: LibraryBig, end: false },
+  { to: "/courses", label: "学习", icon: GraduationCap, end: false },
   { to: "/studio", label: "生成中心", icon: Wand2, end: false },
   { to: "/eval", label: "观测", icon: Activity, end: false },
 ];
-
-/** 全局壳(甲方案·五区制):顶栏导航 学习台/课程库/生成中心/观测;课堂页沉浸不套这层 */
 export function Shell() {
   const link = ({ isActive }: { isActive: boolean }) =>
     cn(

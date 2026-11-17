@@ -1,22 +1,22 @@
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { Shell } from "./app/Shell";
 import { EvalPage } from "./features/eval/EvalPage";
-import { HomePage } from "./features/home/HomePage";
 import { ReaderPage } from "./features/reader/ReaderPage";
-import { CourseDetailPage, LibraryPage } from "./features/library";
+import { BookPage, CourseDetailPage, LibraryPage } from "./features/library";
 import { StudioPage } from "./features/studio/StudioPage";
 
-/** 路由(甲方案·五区制):列表页有壳(Shell),阅读器沉浸(不套壳)
- *  / 学习台(继续学+推荐) /courses 课程库+详情 /studio 生成中心 /eval 观测
- *  /read/:id 书页阅读器(P6 起为唯一课堂形态,幻灯片已退役) */
+/** 路由(IA 合一 2026-11-17):学习台退役,/ 重定向到学习页(/courses)。
+ *  /courses 学习(书架+今日横条) /books/:topic 书页目录 /courses/:id 详情
+ *  /studio 生成中心 /eval 观测;/read/:id 书页阅读器沉浸不套壳 */
 const router = createBrowserRouter([
   {
     path: "/",
     element: <Shell />,
     children: [
-      { index: true, element: <HomePage /> },
+      { index: true, element: <Navigate to="/courses" replace /> },
       { path: "courses", element: <LibraryPage /> },
+      { path: "books/:topic", element: <BookPage /> },
       { path: "courses/:courseId", element: <CourseDetailPage /> },
       { path: "studio", element: <StudioPage /> },
       { path: "eval", element: <EvalPage /> },

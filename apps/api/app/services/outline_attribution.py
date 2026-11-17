@@ -170,6 +170,21 @@ def attribute_all() -> dict[str, Any]:
         target = next((c for c in d["courses"] if str(c.get("id")) == oid), None)
         if target is None:
             continue
+        # 一书一行一片(2026-11-17 内容归一):已有挂接的行不再堆新片——
+        # 多挂堆叠会造出「一章 N 片」的进度语义混乱与先修倒挂(实测踩过),候选转未归位
+        occupied = bool(target.get("course_refs") or target.get("course_ref")) or any(
+            p["outline_course_id"] == oid and p["outline_topic"] == topic
+            for p in placements
+        )
+        if occupied:
+            unplaceable.append(
+                {
+                    "course_id": cid,
+                    "reason": f"《{topic}》{target.get('title', '')[:24]} 已有课件,不堆叠",
+                }
+            )
+            used_files.add(cid)
+            continue
         used_files.add(cid)
         refs_by_outline.setdefault(topic, {}).setdefault(oid, []).append(cid)
         placements.append(
@@ -192,8 +207,10 @@ def attribute_all() -> dict[str, Any]:
         for c in d["courses"]:
             refs = by_course.get(str(c.get("id")), [])
             if refs:
-                c["course_refs"] = refs
-                c["course_ref"] = refs[0]
+                # 合并而非覆盖:行内既有挂接(手工挂/此前归位)不因本轮归位丢失
+                merged = list(dict.fromkeys([*(c.get("course_refs") or []), *refs]))
+                c["course_refs"] = merged
+                c["course_ref"] = merged[0]
         errs = validate_framework(d)
         if errs:
             # 逐大纲把关:一本不过不连坐其他本(legacy 大纲可能超新大纲的课数闸)
