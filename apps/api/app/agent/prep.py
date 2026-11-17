@@ -30,6 +30,7 @@ from typing import Any
 from app.agent.tools import emit_call, read_notes
 from app.core.config import settings
 from app.core.llm import get_llm_client
+from app.core.prompts import DEV_LANDING_RULE, OFF_THE_SHELF_RULE, PITFALL_RULE
 from app.core.trace import trace_prep
 from app.schemas.csl import Section
 from app.services.csl_validator import validate_course
@@ -92,7 +93,7 @@ quiz 的 question 问「关系/区别/步骤/为什么」这类要动脑复述�
 pass_rule 写具体判定标准(例:「答出四层名称和顺序」),批改 agent 靠它判;
 id 固定用「<节id>-cp」。
 
-"""
+""" + PITFALL_RULE + "\n\n" + DEV_LANDING_RULE + "\n\n" + OFF_THE_SHELF_RULE + "\n"
 
 
 # ---------- 工具实现(闭包持有课件路径与材料来源) ----------
