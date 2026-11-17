@@ -18,7 +18,12 @@ export function normalizeBold(md: string): string {
   });
   // 0.5) GLM 招牌句式「**标签:**内容」:冒号留在粗体内破坏右 flanking,
   //      CommonMark 判废整对→字面星号(实测 react-markdown 渲染复现)。冒号挪出粗体即可解析。
-  t = t.replace(/\*\*([^*\n]*?):(\s*)\*\*/g, (_m, inner: string, sp: string) => `**${inner}**:${sp}`);
+  //      ⚠️ inner 必须限 30 字且禁内嵌冒号——曾用 [^*\n]*? 贪心回溯吞掉跨段长文
+  //      (「名字:**ACI…定义:**新型软件」被误配对挪位,整段粗体全错→字面 ** 漏出)。
+  t = t.replace(/\*\*([^*\n:]{0,30}?):\s*\*\*/g, (_m, inner: string) => `**${inner}**:`);
+  // 0.6) 冒号后开粗体、句末标点后闭的形态(「：**中文句子。**」)micromark 判废
+  //      (实测 4/4 字面,全角半角冒号皆然)——closer 挪到句末标点前,flanking 最稳
+  t = t.replace(/([:：]\*\*)([^*\n]+?)([。？！])(\*\*)/g, (_m, open: string, inner: string, punct: string, closer: string) => open + inner + closer + punct);
   // 1) 嵌套拍扁(最多三层迭代):**A␣**B** C** → **A␣B** C
   //    特征:X 尾随空白(嵌套误写的痕迹)、Y 两端无空白(真·紧贴的内层粗体)
   const nested =
