@@ -188,6 +188,8 @@ def _write_outline_doc(fw: dict[str, Any], theme: Path) -> None:
             mark = "✅" if _course_published(c) else "⬜"
             preqs = "、".join(f"「{p}」" for p in c.get("prereqs", [])) or "—"
             lines.append(f"{idx}. {mark} **{c.get('title')}** — {c.get('goal')}")
+            if c.get("why"):
+                lines.append(f"   弱点归因:{c.get('why')}")
             lines.append(f"   先修:{preqs}")
         lines.append("")
     if not parts:
@@ -196,6 +198,8 @@ def _write_outline_doc(fw: dict[str, Any], theme: Path) -> None:
         for i, c in enumerate(fw.get("courses", []), 1):
             mark = "✅" if _course_published(c) else "⬜"
             lines.append(f"{i}. {mark} **{c.get('title')}** — {c.get('goal')}")
+            if c.get("why"):
+                lines.append(f"   弱点归因:{c.get('why')}")
         lines.append("")
     (theme / "大纲.md").write_text("\n".join(lines), encoding="utf-8")
 
