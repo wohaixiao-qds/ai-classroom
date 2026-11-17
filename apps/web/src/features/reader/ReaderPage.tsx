@@ -65,6 +65,29 @@ function Reader({ course }: { course: CourseV2 }) {
   >(null);
   const [searchParams] = useSearchParams();
   const restoredRef = useRef(false);
+  // 三栏占比:左右栏宽全局持久化(跨课一致);中栏 flex-1 自适应
+  const [panels, setPanels] = useState(() => {
+    try {
+      const raw = localStorage.getItem(PANELS_KEY);
+      if (raw) {
+        const p = JSON.parse(raw) as { toc?: number; chat?: number };
+        return {
+          toc: clampW(Number(p.toc) || DEFAULT_PANELS.toc, 160, 400),
+          chat: clampW(Number(p.chat) || DEFAULT_PANELS.chat, 260, 560),
+        };
+      }
+    } catch {
+      /* 存不进就用默认 */
+    }
+    return DEFAULT_PANELS;
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(PANELS_KEY, JSON.stringify(panels));
+    } catch {
+      /* 同上 */
+    }
+  }, [panels]);
 
   // 批改→答疑联动:复述没过,带着检查点全上下文去问 AI 老师
   const onAskTutor = useCallback((p: CheckpointAskPayload) => {
@@ -155,7 +178,10 @@ function Reader({ course }: { course: CourseV2 }) {
   return (
     <div className="flex h-full">
       {/* 节目录 */}
-      <nav className="hidden w-56 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-secondary/30 pl-3 pr-4 py-4 md:flex">
+      <nav
+        style={{ width: panels.toc }}
+        className="hidden shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-secondary/30 pl-3 pr-4 py-4 md:flex"
+      >
         <p className="mb-2 px-2 font-mono text-[11px] tracking-widest text-muted-foreground">目录</p>
         {course.sections.map((s, i) => (
           <button
@@ -182,6 +208,15 @@ function Reader({ course }: { course: CourseV2 }) {
           </button>
         ))}
       </nav>
+
+      {/* 左手柄:拖拽调目录宽,双击复位 */}
+      <ColResizeHandle
+        label="目录栏宽"
+        onDelta={(dx) =>
+          setPanels((p) => ({ ...p, toc: clampW(p.toc + dx, 160, 400) }))
+        }
+        onReset={() => setPanels((p) => ({ ...p, toc: DEFAULT_PANELS.toc }))}
+      />
 
       {/* 正文 */}
       <div className="relative min-w-0 flex-1">
@@ -272,8 +307,17 @@ function Reader({ course }: { course: CourseV2 }) {
         </div>
       </div>
 
+      {/* 右手柄:拖拽调答疑宽(向左拖=变宽),双击复位 */}
+      <ColResizeHandle
+        label="答疑栏宽"
+        onDelta={(dx) =>
+          setPanels((p) => ({ ...p, chat: clampW(p.chat - dx, 260, 560) }))
+        }
+        onReset={() => setPanels((p) => ({ ...p, chat: DEFAULT_PANELS.chat }))}
+      />
+
       {/* 答疑 */}
-      <div className="flex w-80 shrink-0 flex-col">
+      <div style={{ width: panels.chat }} className="flex shrink-0 flex-col">
         <div className="flex justify-end border-b border-l border-border bg-secondary/50 px-3 py-2">
           <ThemeSwitcher />
         </div>
@@ -290,4 +334,61 @@ function Reader({ course }: { course: CourseV2 }) {
 
 function posKey(courseId: string) {
   return `reader-pos-${courseId}`;
+}
+
+/** 三栏手动占比(2026-11-17):左右两栏可拖拽调宽,全局持久化(跨课一致),双击手柄复位。
+ *  中栏 flex-1 自适应;正文本身保持 max-w-2xl 居中(阅读宽度是刻意设计)。 */
+const DEFAULT_PANELS = { toc: 224, chat: 320 };
+const PANELS_KEY = "reader-panels";
+const clampW = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+function ColResizeHandle({
+  onDelta,
+  onReset,
+  label,
+}: {
+  onDelta: (dx: number) => void;
+  onReset: () => void;
+  label: string;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const start = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setDragging(true);
+    let last = e.clientX;
+    const move = (ev: MouseEvent) => {
+      onDelta(ev.clientX - last);
+      last = ev.clientX;
+    };
+    const up = () => {
+      setDragging(false);
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      document.body.classList.remove("select-none", "cursor-col-resize");
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    document.body.classList.add("select-none", "cursor-col-resize");
+  };
+  return (
+    <div
+      onMouseDown={start}
+      onDoubleClick={onReset}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={label}
+      title={`${label}:拖拽调宽,双击复位`}
+      className={cn(
+        "hidden w-2 shrink-0 cursor-col-resize md:flex md:justify-center",
+        dragging ? "bg-primary/25" : "hover:bg-primary/20",
+      )}
+    >
+      <span
+        className={cn(
+          "my-auto h-full w-px",
+          dragging ? "bg-primary/60" : "bg-border",
+        )}
+      />
+    </div>
+  );
 }
