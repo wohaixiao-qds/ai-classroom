@@ -24,23 +24,28 @@ from app.agent.tools import TOOLS, execute_tool
 from app.core.config import settings
 from app.core.llm import get_llm_client
 from app.core.memory import append_turn, load_messages
+from app.core.prompts import CHAT_NARROW_RULE, CITE_COURSE_RULE, CITE_WEB_RULE
 from app.core.trace import trace_tutor
 
-SYSTEM_PROMPT = """你是「AI 老师」,在学员学习课件时提供答疑。规则:
-
-1. **课件优先**:问题能从课件内容回答的,基于课件答,注明「课件第N页」。
-2. **课件之外**:涉及最新实践/版本/课件没讲的知识,用 web_search 查,
-回答时用 [1][2] 标注来源,末尾列来源链接。
-3. **学员学过的**:判断问题可能与学员已有笔记相关时,可用 read_notes 检索其知识库,衔接旧知识讲解。
-4. **跨课融通**:system 里给了学员的课程地图(系统里有哪些课、各学到什么程度)。
-答案与已学课程的概念相通时,明确搭桥(如「你在《X》课学的 Y,就是这边的 Z」);
-问题在其他课系统讲过时,指路去复习(报课名);
-涉及没学过的前置概念,一句话提醒可先学哪门,不展开代讲。
-5. **教学风格**:小步讲解、类比优先、宁少勿多;学员问概念时先给一句话核心,再按需展开,不一次灌完。
-6. **回答显示在窄对话框**:少用标题和多级列表;短问题 1-3 句直接答;
-确需分点用单层短横线列表,不嵌套;加粗只标关键词。像口头答疑,不是写文档。
-7. **不瞎编**:查不到就说查不到,不编造来源;课程地图里没有的课不要编。
-"""
+# 排版/引用规范(规则 1/2/6)从 core.prompts 点单;教学风格(5)与身份是答疑私有,留本地
+SYSTEM_PROMPT = (
+    "你是「AI 老师」,在学员学习课件时提供答疑。规则:\n\n"
+    + "\n".join([
+        CITE_COURSE_RULE,
+        CITE_WEB_RULE,
+        "3. **学员学过的**:判断问题可能与学员已有笔记相关时,"
+        "可用 read_notes 检索其知识库,衔接旧知识讲解。",
+        "4. **跨课融通**:system 里给了学员的课程地图(系统里有哪些课、各学到什么程度)。\n"
+        "答案与已学课程的概念相通时,明确搭桥(如「你在《X》课学的 Y,就是这边的 Z」);\n"
+        "问题在其他课系统讲过时,指路去复习(报课名);\n"
+        "涉及没学过的前置概念,一句话提醒可先学哪门,不展开代讲。",
+        "5. **教学风格**:小步讲解、类比优先、宁少勿多;"
+        "学员问概念时先给一句话核心,再按需展开,不一次灌完。",
+        CHAT_NARROW_RULE,
+        "7. **不瞎编**:查不到就说查不到,不编造来源;课程地图里没有的课不要编。",
+    ])
+    + "\n"
+)
 
 MAX_TURNS = 6  # 终止条件之二:防工具调用风暴
 
@@ -99,9 +104,10 @@ def run_tutor(
 
     产出事件:
       {"type":"tool_call", ...}                     工具执行了(实时告诉前端在查)
+      {"type":"thinking","text":..}                 思考片段(5.3 思考常开,每轮都有;
+                                                    实时给前端展示,不落会话历史)
       {"type":"delta","text":..}                    最终答案的一段 token(流式)
       {"type":"final","answer":..,"tool_calls":[..]} 收尾(给落轨迹用)
-    工具轮的 token 不外发(那是模型思考要不要用工具);仅最终答案轮的文本逐段流式。
     """
     client = get_llm_client()
     # 动态状态(当前页/检查点联动)放进首条 user 消息,不污染可缓存的 system 前缀
@@ -141,6 +147,8 @@ def run_tutor(
 
             # 流式调用:边收 token 边 yield,结束后取完整消息判 stop_reason
             answer_parts = []
+            if turn > 0:  # 与上一轮思考之间留空行,前端思考块连成可读的段
+                yield {"type": "thinking", "text": "\n\n"}
             with client.messages.stream(
                 model=settings.llm_model,
                 # 5.3 起思考常开且与答案共吃预算:1024 会被思考烧光→答案必残缺,
@@ -150,9 +158,18 @@ def run_tutor(
                 messages=messages,
                 tools=[] if last_turn else TOOLS,
             ) as stream:
-                for text in stream.text_stream:
-                    answer_parts.append(text)
-                    yield {"type": "delta", "text": text}
+                # 原始事件流:text_stream 只是 text_delta 的滤片;思考(每轮都有,
+                # 含调工具前的「要不要查」推理)走 thinking_delta,要展示就得从
+                # 原始流接。循环结构与终止条件零改动,只是多暴露一条观测事件。
+                for event in stream:
+                    if event.type != "content_block_delta":
+                        continue
+                    d = event.delta
+                    if d.type == "text_delta":
+                        answer_parts.append(d.text)
+                        yield {"type": "delta", "text": d.text}
+                    elif d.type == "thinking_delta":
+                        yield {"type": "thinking", "text": d.thinking}
                 final = stream.get_final_message()
 
             # 累计 token 用量(观测:每问成本 + 缓存是否真命中)
@@ -175,7 +192,7 @@ def run_tutor(
                 }
                 return
 
-            # 工具轮:解析+执行+回填(此轮的 delta 是模型的思考文字,前端可忽略)
+            # 工具轮:解析+执行+回填(此轮思考已作为 thinking 事件外发,文本通常为空)
             assistant_blocks = [b.model_dump() for b in final.content]
             messages.append({"role": "assistant", "content": assistant_blocks})
             append_turn(session_id, course_id, "assistant", assistant_blocks, kind="tool_use")

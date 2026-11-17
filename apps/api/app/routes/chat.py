@@ -2,16 +2,19 @@
 
 SSE 约定(按项目规范):事件信封 {type,data,id};心跳;前置校验(校验失败
 返回普通 404,不进入流)。
-事件类型: tool_call(老师正在查) / delta(答案流式片段) / done(收尾) / error。
+事件类型: thinking(思考片段) / tool_call(老师正在查) / delta(答案流式片段) / done(收尾) / error。
 """
 
 from __future__ import annotations
 
 import json
 import time
+import traceback
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
 
 from app.agent.tutor import course_text_of, run_tutor
 from app.core.memory import ensure_session, list_sessions, new_session, session_history
@@ -47,6 +50,35 @@ def chat(req: ChatRequest) -> StreamingResponse:
 
     session_id = ensure_session(req.session_id, req.course_id)
 
+    # A6 答案自评 + 落 trace 是「事后账」:done 先发、裁判流结束后后台跑。
+    # 之前裁判挡在 done 之前——5.3 思考常开后裁判一次动辄几十秒,前端答案已
+    # 流完却收不到 done、流不关 → 按钮一直停在「停止」(没输出但像还在生成)。
+    trace_job: dict[str, Any] = {}
+
+    def _after_stream() -> None:
+        ev = trace_job
+        if not ev:
+            return  # 流内报错没到 final:与旧行为一致,不落 trace
+        try:
+            verdict = evaluate_answer(
+                ev["question"], ev["answer"], ev["tool_calls"], ev["course_text"]
+            )
+            trace_tutor(
+                course_id=req.course_id,
+                page_id=req.current_page,
+                question=ev["question"],
+                answer=ev["answer"],
+                tool_calls=ev["tool_calls"],
+                elapsed_s=ev["elapsed_s"],
+                usage=ev.get("usage"),
+                soft_landed=ev.get("soft_landed", False),
+                truncated=ev.get("truncated", False),
+                source=req.source,
+                self_eval=verdict,
+            )
+        except Exception:  # noqa: BLE001 后台账失败只留日志,不影响已交付的答案
+            print(f"[chat] 自评/trace 后台任务失败:\n{traceback.format_exc()}", flush=True)
+
     def gen():
         eid = 0
         yield ": heartbeat-setup\n\n"
@@ -65,17 +97,14 @@ def chat(req: ChatRequest) -> StreamingResponse:
                 eid += 1
                 if ev["type"] == "tool_call":
                     yield _sse("tool_call", {"name": ev["name"], "args": ev["args"]}, eid)
+                elif ev["type"] == "thinking":
+                    yield _sse("thinking", {"text": ev["text"]}, eid)
                 elif ev["type"] == "delta":
                     yield _sse("delta", {"text": ev["text"]}, eid)
                 elif ev["type"] == "final":
-                    # A6 答案自评:仅可疑答案(长答+没引页+没调工具)才跑裁判,
-                    # 结果进 trace。跑在流结束后 → 不挡学员(答案已 delta 流完)。
-                    verdict = evaluate_answer(
-                        req.question, ev["answer"], ev["tool_calls"], course_text
-                    )
-                    trace_tutor(
-                        course_id=req.course_id,
-                        page_id=req.current_page,
+                    yield _sse("done", {"tool_calls": len(ev["tool_calls"])}, eid)
+                    # 裁判数据留给后台任务;elapsed 在 final 时刻取,tutor 耗时不含裁判时长
+                    trace_job.update(
                         question=req.question,
                         answer=ev["answer"],
                         tool_calls=ev["tool_calls"],
@@ -83,15 +112,15 @@ def chat(req: ChatRequest) -> StreamingResponse:
                         usage=ev.get("usage"),
                         soft_landed=ev.get("soft_landed", False),
                         truncated=ev.get("truncated", False),
-                        source=req.source,
-                        self_eval=verdict,
+                        course_text=course_text,
                     )
-                    yield _sse("done", {"tool_calls": len(ev["tool_calls"])}, eid)
         except Exception as e:  # noqa: BLE001 流内错误用 error 事件(头已发出,无法再改状态码)
             eid += 1
             yield _sse("error", {"message": str(e)}, eid)
 
-    return StreamingResponse(gen(), media_type="text/event-stream")
+    return StreamingResponse(
+        gen(), media_type="text/event-stream", background=BackgroundTask(_after_stream)
+    )
 
 
 @router.get("/sessions", response_model=SessionListResponse)

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Markdown from "react-markdown";
-import { History, Plus, Search, Send } from "lucide-react";
+import { Brain, ChevronRight, History, Plus, Search, Send } from "lucide-react";
 import type { components } from "../../types/api.gen";
 import type { Course, CourseV2 } from "../../types/csl";
 import { normalizeBold } from "../../utils/md";
@@ -30,6 +30,7 @@ export interface ChatSeed {
 interface Msg {
   role: "user" | "assistant";
   text: string;
+  thinking?: string; // 思考过程(流式实时拼;不落会话历史,刷新后不回放)
   tools?: { name: string; args: Record<string, unknown> }[];
 }
 
@@ -69,6 +70,44 @@ function linkifyUrls(text: string, keyBase: string): ReactNode[] {
   }
   if (last < text.length) out.push(text.slice(last));
   return out;
+}
+
+/** 思考过程块(仿 ZCode):思考流式期间自动展开跟着长,答案文本开始落就自动
+ *  折叠成一行,随时点开回看。仅当轮可看——不落会话历史,与工具调用同待遇。
+ *  open 态用 manual ?? !settled 派生(不走 effect 折叠),用户手动开合优先于自动。 */
+function ThinkingBlock({ text, settled }: { text: string; settled: boolean }) {
+  const [manual, setManual] = useState<boolean | null>(null);
+  const open = manual ?? !settled;
+  const boxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open) boxRef.current?.scrollTo({ top: 1e9 }); // 思考跟着流滚底
+  }, [text, open]);
+  return (
+    <div className="mb-1">
+      <button
+        type="button"
+        onClick={() => setManual(!open)}
+        aria-expanded={open}
+        className="flex items-center gap-1 text-xs text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+      >
+        {settled ? (
+          <Brain size={12} />
+        ) : (
+          <span className="size-1.5 animate-pulse rounded-full bg-muted-foreground" />
+        )}
+        {settled ? "思考过程" : "思考中"}
+        <ChevronRight size={12} className={cn("transition-transform", open && "rotate-90")} />
+      </button>
+      {open && (
+        <div
+          ref={boxRef}
+          className="mt-1 max-h-44 overflow-y-auto whitespace-pre-wrap break-words border-border border-l-2 pl-2 text-xs leading-relaxed text-muted-foreground"
+        >
+          {text}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** 右侧答疑对话区。
@@ -265,9 +304,10 @@ export function ChatPanel({
       const reader = resp.body?.getReader();
       const decoder = new TextDecoder();
       let buf = "";
+      let ended = false; // 收到 done 即完成——自评/落 trace 是服务端后台账,不等关流
       const assistant: Msg = { role: "assistant", text: "", tools: [] };
       setMsgs((m) => [...m, assistant]);
-      while (reader) {
+      while (reader && !ended) {
         const { done, value } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
@@ -279,6 +319,9 @@ export function ChatPanel({
           if (type === "session") {
             setSessionId(data.session_id);
             localStorage.setItem(sessionKey, data.session_id);
+          } else if (type === "thinking") {
+            assistant.thinking = (assistant.thinking ?? "") + data.text;
+            setMsgs((m) => [...m]);
           } else if (type === "tool_call") {
             assistant.tools?.push({ name: data.name, args: data.args });
             setMsgs((m) => [...m]);
@@ -288,11 +331,18 @@ export function ChatPanel({
           } else if (type === "error") {
             assistant.text = `⚠️ ${data.message}`;
             setMsgs((m) => [...m]);
+          } else if (type === "done") {
+            ended = true;
+            break;
           }
         }
       }
+      if (ended) void reader?.cancel().catch(() => {}); // 主动收尾:释放连接,不再读服务端余量
     } catch (e) {
-      setMsgs((m) => [...m, { role: "assistant", text: `⚠️ 连接失败: ${e}` }]);
+      // 点停止的主动中止不算连接失败(stop 已给过提示),真网络错误才亮 ⚠️
+      if ((e as Error)?.name !== "AbortError") {
+        setMsgs((m) => [...m, { role: "assistant", text: `⚠️ 连接失败: ${e}` }]);
+      }
     }
     setBusy(false);
   }
@@ -357,7 +407,10 @@ export function ChatPanel({
           const isLive = busy && i === msgs.length - 1; // 仅"正在生成中"的这条
           return (
             <div key={i} className={m.role === "user" ? "text-right" : ""}>
-              {/* 工具调用只在生成中作为"思考过程"实时展示,答完即隐藏,不留档 */}
+              {m.role === "assistant" && m.thinking && (
+                <ThinkingBlock text={m.thinking} settled={!isLive || m.text.length > 0} />
+              )}
+              {/* 工具调用只在生成中实时展示,答完即隐藏,不留档 */}
               {isLive && m.tools && m.tools.length > 0 && (
                 <div className="mb-1 space-y-0.5">
                   {m.tools.map((t, j) => (
@@ -376,7 +429,7 @@ export function ChatPanel({
                 <div className="chat-md text-sm leading-relaxed">
                   {m.text ? (
                     <Markdown components={mdComponents}>{normalizeBold(m.text)}</Markdown>
-                  ) : isLive ? (
+                  ) : isLive && !m.thinking ? (
                     <span className="text-muted-foreground">思考中…</span>
                   ) : null}
                 </div>

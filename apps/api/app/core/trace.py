@@ -18,7 +18,9 @@ from typing import Any
 
 from app.core.config import settings
 
-_CITE_RE = re.compile(r"课件第\s*(\d+)\s*页")
+# v2 书页化后课件单位是「节」,模型实际引用「课件第N节」(SYSTEM_PROMPT 的「第N页」措辞
+# 已跟不上)——只认「页」会让自评豁免与观测 cited_rate 对 v2 课全部落空
+_CITE_RE = re.compile(r"课件第\s*(\d+)\s*[页节]")
 
 
 def cited_pages(answer: str) -> list[int]:
