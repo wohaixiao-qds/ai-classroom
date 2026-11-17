@@ -1,13 +1,64 @@
 import { useState } from "react";
 import Markdown from "react-markdown";
-import { Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, ChevronDown, CircleAlert, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
 
 
 import { Button } from "../../components/ui/button";
 import { Textarea } from "../../components/ui/textarea";
+import { Collapse } from "../../components/Collapse";
+import { useCountUp } from "../../hooks/useCountUp";
 import { normalizeBold } from "../../utils/md";
 import { cn } from "../../lib/utils";
+
+/** 结算环(A 案核心):分数环 + 数字滚上,useCountUp 同帧驱动弧线与数字
+ *  (reduced-motion 直达终值);pass=success 色,未过=warning 色。 */
+function ScoreRing({ score, passed }: { score: number; passed: boolean }) {
+  const shown = useCountUp(score);
+  const r = 30;
+  const c = 2 * Math.PI * r;
+  const pct = Math.max(0, Math.min(100, shown ?? score));
+  return (
+    <div className="relative size-20 shrink-0" role="img" aria-label={`得分 ${score} 分`}>
+      <svg viewBox="0 0 72 72" className="size-20 -rotate-90">
+        <circle cx="36" cy="36" r={r} fill="none" stroke="var(--line)" strokeWidth="6" />
+        <circle
+          cx="36"
+          cy="36"
+          r={r}
+          fill="none"
+          stroke={passed ? "var(--success)" : "var(--warning)"}
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - pct / 100)}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl font-bold leading-none">{Math.round(pct)}</span>
+        <span className={cn("mt-0.5 text-[10px]", passed ? "text-success" : "text-warning")}>
+          {passed ? "通过" : "未过"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** 三段反馈行(✓对/✗缺/→下一步,配 GRADE_OUTPUT_SPEC 三行制)。
+ *  无标记行(旧 trace 回放/服务异常路径)→ 返回 null,调用方回退整段 markdown。 */
+function parseFeedback(comment: string): { icon: "good" | "gap" | "next"; text: string }[] | null {
+  const rows = comment
+    .split("\n")
+    .map((l) => l.trim())
+    .map((l) => {
+      if (l.startsWith("✓")) return { icon: "good" as const, text: l.replace(/^✓\s*/, "") };
+      if (l.startsWith("✗")) return { icon: "gap" as const, text: l.replace(/^✗\s*/, "") };
+      if (l.startsWith("→")) return { icon: "next" as const, text: l.replace(/^→\s*/, "") };
+      return null;
+    })
+    .filter((r): r is { icon: "good" | "gap" | "next"; text: string } => r !== null);
+  return rows.length > 0 ? rows : null;
+}
 
 /** 复述检查点弹层:复述文本 → POST /grade 百分制批改。
  *  score≥70 判 pass(答案+精准版都保留进笔记);<70 判 fail——重新复述,
@@ -48,6 +99,7 @@ export function CheckpointOverlay({
     precise?: string;
   } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(true); // B 案:对照区默认展开,可折叠
 
   async function submit() {
     if (!answer.trim() || busy) return;
@@ -77,6 +129,7 @@ export function CheckpointOverlay({
   }
 
   const passed = result?.verdict === "pass";
+  const feedbackRows = result ? parseFeedback(result.comment) : null;
   const askTutor = (verdict: string) => {
     onAskTutor?.(answer, verdict);
     setTutored(true); // 问过老师:下一次复述保底 70(答疑学过一轮)
@@ -95,7 +148,10 @@ export function CheckpointOverlay({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97, y: 6 }}
         transition={{ duration: 0.25, ease: [0.22, 0.9, 0.3, 1] }}
-        className="mx-8 max-h-[85vh] max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-8 shadow-2xl"
+        className={cn(
+          "mx-8 max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card p-8 shadow-2xl",
+          result ? "max-w-2xl" : "max-w-lg", // 结果态放宽:左右对照需要宽度
+        )}
       >
         <p className="mb-3 font-mono text-xs tracking-widest text-primary">◆ 复述检查点</p>
         <h3 className="mb-2 text-lg leading-relaxed">{question}</h3>
@@ -137,36 +193,70 @@ export function CheckpointOverlay({
           </>
         ) : (
           <>
-            <div className="mb-4 rounded-lg border border-border bg-background p-4">
-              <div className="flex items-start gap-3">
-                <div
-                  className={cn(
-                    "flex w-14 shrink-0 flex-col items-center rounded-lg py-2",
-                    passed ? "bg-success/15 text-success" : "bg-warning/15 text-warning",
-                  )}
-                >
-                  <span className="text-xl font-bold leading-none">{result.score}</span>
-                  <span className="mt-0.5 text-[10px]">得分</span>
+            {/* A:结算环 + 三段反馈(✓对在哪/✗缺在哪/→下一步);无标记行回退整段 markdown */}
+            <div className="mb-4 flex items-center gap-4">
+              <ScoreRing score={result.score} passed={passed} />
+              {feedbackRows ? (
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  {feedbackRows.map((r) => (
+                    <p key={r.icon} className="flex items-start gap-1.5 text-sm leading-relaxed">
+                      {r.icon === "good" && (
+                        <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-success" />
+                      )}
+                      {r.icon === "gap" && (
+                        <CircleAlert size={15} className="mt-0.5 shrink-0 text-warning" />
+                      )}
+                      {r.icon === "next" && (
+                        <ArrowRight size={15} className="mt-0.5 shrink-0 text-primary" />
+                      )}
+                      <span className="min-w-0 break-words">{r.text}</span>
+                    </p>
+                  ))}
                 </div>
-                <span className="chat-md text-sm leading-relaxed">
+              ) : (
+                <span className="chat-md min-w-0 flex-1 text-sm leading-relaxed">
                   <Markdown>{normalizeBold(result.comment)}</Markdown>
                 </span>
-              </div>
-              {result.precise && (
-                <div className="mt-2 flex items-start gap-1.5 text-sm leading-relaxed text-primary">
-                  <Sparkles size={13} className="mt-1 shrink-0" />
-                  <span>
-                    精准版:
-                    <span className="chat-md block">
-                      {/* grader 偶尔把「🎯精准版:」标签抄进字段,UI 已有标签,剥掉防重复 */}
-                      <Markdown>
-                        {normalizeBold(result.precise.replace(/^\s*🎯?\s*精准版\s*[:：]?\s*/, ""))}
-                      </Markdown>
-                    </span>
-                  </span>
-                </div>
               )}
             </div>
+            {/* B:复述对照——左右分栏(窄屏自动堆叠),可折叠 */}
+            {result.precise && (
+              <div className="mb-4">
+                <button
+                  type="button"
+                  onClick={() => setCompareOpen(!compareOpen)}
+                  aria-expanded={compareOpen}
+                  className="flex items-center gap-1 text-xs text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+                >
+                  <ChevronDown
+                    size={13}
+                    className={cn("transition-transform", compareOpen && "rotate-180")}
+                  />
+                  复述对照{compareOpen ? "" : "（已折叠）"}
+                </button>
+                <Collapse open={compareOpen} className="mt-2">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-lg border border-border bg-background p-3">
+                      <p className="mb-1 text-[11px] font-medium text-muted-foreground">你的复述</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                        {answer}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                      <p className="mb-1 flex items-center gap-1 text-[11px] font-medium text-primary">
+                        <Sparkles size={11} /> 标准表述
+                      </p>
+                      <span className="chat-md block text-sm leading-relaxed">
+                        {/* grader 偶尔把「🎯精准版:」标签抄进字段,UI 已有标签,剥掉防重复 */}
+                        <Markdown>
+                          {normalizeBold(result.precise.replace(/^\s*🎯?\s*精准版\s*[:：]?\s*/, ""))}
+                        </Markdown>
+                      </span>
+                    </div>
+                  </div>
+                </Collapse>
+              </div>
+            )}
             <div className="flex flex-wrap justify-end gap-2">
               {!passed && onAskTutor && (
                 <Button variant="secondary" size="sm" onClick={() => askTutor(result.verdict)}>

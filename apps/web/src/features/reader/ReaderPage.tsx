@@ -144,6 +144,14 @@ function Reader({ course }: { course: CourseV2 }) {
       .catch(() => {});
   }, [course.id]);
 
+  // 浏览器标签页标题跟课名(P1 时代写死「harness 是什么」的遗留修复);离开恢复站名
+  useEffect(() => {
+    document.title = `${course.title} · AI 课堂`;
+    return () => {
+      document.title = "AI 课堂";
+    };
+  }, [course.title]);
+
   return (
     <div className="flex h-full">
       {/* 节目录 */}
@@ -219,6 +227,32 @@ function Reader({ course }: { course: CourseV2 }) {
                 />
               </section>
             ))}
+            {/* 来源清单(溯源):备课管线 meta.sources 的硬闸来源;正文「源[N]」锚点跳到这里。
+                不进 sections 数组——TOC/学完进度/深链语义全部不受影响 */}
+            {(course.meta.sources?.length ?? 0) > 0 && (
+              <section id="sources" data-sec className="mb-12 scroll-mt-6">
+                <h2 className="mb-4 border-b border-border pb-2 text-lg font-medium tracking-tight text-muted-foreground">
+                  来源
+                </h2>
+                <ol className="space-y-2">
+                  {course.meta.sources!.map((s, i) => (
+                    <li key={i} id={`src-${i + 1}`} className="scroll-mt-16 rounded-lg p-1.5">
+                      <span className="mr-1.5 font-mono text-sm text-primary">[{i + 1}]</span>
+                      <a
+                        href={s.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[15px] text-primary underline decoration-dotted hover:decoration-solid"
+                        title={s.url}
+                      >
+                        {s.title}
+                      </a>
+                      <span className="block truncate pl-7 text-xs text-muted-foreground">{s.url}</span>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            )}
             <footer className="mt-14 border-t border-border pt-8 text-center">
               <Button onClick={onDone}>✅ 学完了,打卡</Button>
               {doneState && (

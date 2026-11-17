@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { Children, cloneElement, isValidElement, useEffect, useRef, useState } from "react";
+import type { ReactElement, ReactNode } from "react";
 import Markdown from "react-markdown";
 import { AlertTriangle, CheckCircle2, Info, Lightbulb, RotateCw } from "lucide-react";
 import { AnimatePresence } from "motion/react";
@@ -16,6 +17,68 @@ export interface CheckpointAskPayload {
   answer: string;
   verdict: string;
 }
+
+/** 「源[N]」→ 页尾来源清单锚点(溯源):备课管线的调研来源硬闸在课件 meta.sources
+ *  落了清单,正文标记链化后点击平滑滚到对应条目并高亮闪一下(直接 DOM 注类,
+ *  1.6s 后摘除,不走 React 状态)。目标条目不存在(坏生成)则原地不动。 */
+const SRC_RE = /源\s*\[?(\d+)\]?/g;
+
+function jumpToSource(n: string, e: React.MouseEvent) {
+  e.preventDefault();
+  const el = document.getElementById(`src-${n}`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.add("rounded", "bg-primary/10", "ring-2", "ring-primary/40");
+  window.setTimeout(() => {
+    el.classList.remove("rounded", "bg-primary/10", "ring-2", "ring-primary/40");
+  }, 1600);
+}
+
+function linkifySources(children: ReactNode): ReactNode {
+  const walk = (node: ReactNode, keyBase: string): ReactNode[] => {
+    if (typeof node === "string") {
+      const out: ReactNode[] = [];
+      let last = 0;
+      let i = 0;
+      for (const m of node.matchAll(SRC_RE)) {
+        if (m.index > last) out.push(node.slice(last, m.index));
+        out.push(
+          <a
+            key={`${keyBase}-${i++}`}
+            href={`#src-${m[1]}`}
+            className="font-mono text-[13px] text-primary underline decoration-dotted outline-none hover:decoration-solid"
+            title="跳到来源清单"
+            onClick={(e) => jumpToSource(m[1], e)}
+          >
+            {m[0]}
+          </a>,
+        );
+        last = m.index + m[0].length;
+      }
+      if (last < node.length) out.push(node.slice(last));
+      return out;
+    }
+    // 容器(strong/em/code…)递归:源标记偶尔嵌在强调里
+    const el = node as ReactElement<{ children?: ReactNode }>;
+    if (isValidElement(node) && el.props.children != null) {
+      return [
+        cloneElement(
+          el,
+          el.props,
+          ...Children.toArray(el.props.children).flatMap((c, j) => walk(c, `${keyBase}-${j}`)),
+        ),
+      ];
+    }
+    return [node];
+  };
+  return <>{Children.toArray(children).flatMap((c, j) => walk(c, `s${j}`))}</>;
+}
+
+/** p/callout 共用:markdown 渲染 + 源标记链化 */
+const sourceMdComponents = {
+  p: ({ children }: { children?: ReactNode }) => <p>{linkifySources(children)}</p>,
+  li: ({ children }: { children?: ReactNode }) => <li>{linkifySources(children)}</li>,
+};
 
 /** v2 块渲染:节内块按序即版式(P6 书页形态)。quiz 内嵌复述卡,闪卡点按翻面+自评。 */
 export function Blocks({
@@ -66,7 +129,7 @@ function BlockView({
       // 两端对齐、中西文间距(text-autospace,Chrome 123+)、避免孤字(text-wrap pretty)
       return (
         <div className="prose max-w-none text-[15.5px] prose-p:my-0 prose-p:leading-[1.9] prose-p:text-justify prose-p:text-foreground/90 prose-p:[text-wrap:pretty] prose-strong:text-foreground prose-code:rounded prose-code:bg-secondary prose-code:px-1 prose-code:font-mono prose-code:text-[13px] prose-code:text-primary prose-code:before:content-[''] prose-code:after:content-['']">
-          <Markdown>{normalizeBold(block.text)}</Markdown>
+          <Markdown components={sourceMdComponents}>{normalizeBold(block.text)}</Markdown>
         </div>
       );
     case "diagram":
@@ -133,7 +196,7 @@ function BlockView({
           <Icon size={16} className="mt-1.5 shrink-0 text-primary" />
           <div>
             <span className="mr-1.5 font-medium">{cfg.label}:</span>
-            {block.text}
+            {linkifySources(block.text)}
           </div>
         </div>
       );
