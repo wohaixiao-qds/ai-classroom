@@ -12,14 +12,15 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from app.core.config import settings
 from app.core.llm import get_llm_client
+from app.core.prompts import JSON_OUTPUT_RULE, parse_json_reply
 from app.core.trace import cited_pages
 
-SELF_EVAL_PROMPT = """你在审查「AI 老师」对学员问题的回答是否**有据**:
+SELF_EVAL_PROMPT = (
+    """你在审查「AI 老师」对学员问题的回答是否**有据**:
 即回答内容是否被下列课件材料支撑,还是超出材料、像模型自己编的。
 
 学员问题:
@@ -31,14 +32,19 @@ SELF_EVAL_PROMPT = """你在审查「AI 老师」对学员问题的回答是否*
 老师的回答:
 {answer}
 
-只按 JSON 输出(不要输出别的):
-{{"verdict": "grounded|partial|fabricated", "reason": "一句话:哪部分有据 / 哪部分超出材料"}}
+"""
+    + JSON_OUTPUT_RULE
+    + "\n"
+    + '{{"verdict": "grounded|partial|fabricated", '
+    + '"reason": "一句话:哪部分有据 / 哪部分超出材料"}}'
+    + """
 
 判定尺度:
 - grounded: 回答都能在课件材料里找到依据(措辞不同不扣)
 - partial: 大体有据,但夹带了材料里没有的具体断言
 - fabricated: 主要内容在材料里找不到依据,像凭空生成
 注:老师若坦诚说「课件没讲 / 查不到」这类免责,属诚实,不算编造。"""
+)
 
 _VERDICTS = ("grounded", "partial", "fabricated")
 
@@ -54,11 +60,9 @@ def _judge(question: str, answer: str, materials: str) -> dict[str, str]:
     text = "".join(b.text for b in resp.content if b.type == "text").strip()
     if not text:  # 零文本(多为思考吃尽预算)→ 不炸 json,按未评处理(同 grader 判别)
         return {"verdict": "skipped", "reason": "裁判零文本输出(思考吃尽预算?)"}
-    if text.startswith("```"):  # 模型偶尔裹 ```json```,剥掉(同 grader)
-        text = text.strip("`").removeprefix("json").strip()
-    result = json.loads(text)
-    if not isinstance(result, dict):  # 裁判偶尔返回裸数组/字符串 → 视为未评(审查跟进)
-        return {"verdict": "skipped", "reason": "裁判返回非对象"}
+    result = parse_json_reply(text)
+    if result is None:  # 坏 JSON/非对象 → 未评(不再上抛给 evaluate_answer 兜)
+        return {"verdict": "skipped", "reason": "裁判返回不可解析(坏 JSON 或非对象)"}
     verdict = str(result.get("verdict", ""))
     if verdict not in _VERDICTS:
         verdict = "skipped"

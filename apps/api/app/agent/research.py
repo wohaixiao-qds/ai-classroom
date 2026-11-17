@@ -29,6 +29,7 @@ from app.agent.tools import (  # noqa: F401  # web_search 供 _require_search �
 )
 from app.core.config import settings
 from app.core.llm import get_llm_client
+from app.core.prompts import parse_json_reply
 from app.core.trace import trace_research
 
 MAX_TURNS = 16
@@ -132,6 +133,12 @@ def validate_framework(d: dict[str, Any], fetched: set[str] | None = None) -> li
     courses = d.get("courses")
     if not isinstance(courses, list) or not courses:
         return ["courses 缺失或为空"]
+    # 3~8 的依据(2026-11-17 互联网考据,数字不变):与在线课程模块数的教学设计
+    # 惯例带重合(各家指引 3~7 / 4~8 / 5~9 交叠);MOOC 完课率随课程变长一致下降
+    # (Jordan 2014, HarvardX/MITx 数百门),支持小体量书册;下界 3 是本产品结构
+    # 需要(DAG 先修链 + 2~4 篇 + 完整路线叙事)。粒度锚=一节≈8 分钟样课(edX 视频
+    # 参与度 6 分钟实证带的上沿;阅读≠视频,不硬换算)。
+    # ⚠️ Miller 7±2 是工作记忆块容量,不是门数依据,勿引(Laws of UX 明文警告此误用)。
     # legacy 转换的大纲(旧 subtopics)免课数闸——历史形状如实保留,闸只管新设计
     if not d.get("legacy") and not 3 <= len(courses) <= 8:
         return ["courses 数量不在 3~8——大纲至少 3 门,至多 8 门"]
@@ -239,20 +246,8 @@ def validate_material(d: dict[str, Any], fetched: set[str] | None = None) -> lis
 
 # ---------- 共享循环骨架 ----------
 
+# _json_from_text 已提炼为 core.prompts.parse_json_reply(grader/self_eval/归位同用一份)
 
-def _json_from_text(text: str) -> dict[str, Any] | None:
-    """从模型最终回复抠 JSON(容忍 ```json 围栏)。"""
-    t = text.strip()
-    if t.startswith("```"):
-        t = t.strip("`").removeprefix("json").strip()
-    start, end = t.find("{"), t.rfind("}")
-    if start < 0 or end <= start:
-        return None
-    try:
-        d = json.loads(t[start : end + 1])
-    except json.JSONDecodeError:
-        return None
-    return d if isinstance(d, dict) else None
 
 
 def _execute(name: str, args: dict[str, Any]) -> str:
@@ -333,7 +328,7 @@ def _loop(
         usage["output_tokens"] += getattr(u, "output_tokens", 0) or 0
 
         if resp.stop_reason != "tool_use":
-            d = _json_from_text("".join(b.text for b in resp.content if b.type == "text"))
+            d = parse_json_reply("".join(b.text for b in resp.content if b.type == "text"))
             if d is None:
                 messages.append({"role": "assistant", "content": "…"})
                 messages.append(

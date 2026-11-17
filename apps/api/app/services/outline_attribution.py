@@ -16,6 +16,7 @@ from typing import Any
 from app.agent.research import _slug, validate_framework
 from app.core.config import settings
 from app.core.llm import get_llm_client
+from app.core.prompts import parse_json_reply
 
 MATCH_PROMPT = """你在做「课件归位」:把每一门已出课件,归入最贴合的大纲课程位置。
 大纲有多本(每本有 topic 和课程列表)——把它们看成书架上的几本书。
@@ -148,9 +149,10 @@ def attribute_all() -> dict[str, Any]:
         ],
     )
     text = "".join(b.text for b in resp.content if b.type == "text").strip()
-    if text.startswith("```"):
-        text = text.strip("`").removeprefix("json").strip()
-    raw = json.loads(text)
+    raw = parse_json_reply(text)
+    if raw is None:  # 坏 JSON/非对象:与旧裸 loads 同为抛错,由上游「失败不影响交付」兜
+        msg = "归属匹配返回不可解析(坏 JSON 或非对象)"
+        raise RuntimeError(msg)
 
     placements: list[dict[str, str]] = []
     unplaceable: list[dict[str, str]] = []

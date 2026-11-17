@@ -14,9 +14,11 @@ from typing import Any
 
 from app.core.config import settings
 from app.core.llm import get_llm_client
+from app.core.prompts import GRADE_OUTPUT_SPEC, parse_json_reply
 from app.core.trace import trace_grade
 
-GRADE_PROMPT = """你是学习督导,批改学员对刚学内容的复述,并给出百分制评分。
+GRADE_PROMPT = (
+    """你是学习督导,批改学员对刚学内容的复述,并给出百分制评分。
 
 本节讲过的内容:
 {page_content}
@@ -27,20 +29,9 @@ GRADE_PROMPT = """你是学习督导,批改学员对刚学内容的复述,并给
 学员的复述:
 {answer}
 
-按 JSON 输出(不要其他内容):
-{{"score": 0~100 的整数,
-  "comment": "一两句点评:对在哪/缺在哪",
-  "precise": "标准表述——分数再高也给,pass 时作为「更完整的说法」"}}
-
-评分标尺:
-- 85~100:核心关系/步骤全对,细节小瑕疵不扣
-- 70~84:核心说清,个别小漏不扣
-- 40~69:方向对但漏了关键一半,或踩了标准里点名的坑
-- 0~39:说反了/完全没说到点子上
-
-判定尺度(服务端按 score≥70 判过):
-- 70 以上:核心说清即过,措辞小瑕疵不扣
-- 70 以下:漏关键或说反——学员会先问 AI 老师再重新复述"""
+"""
+    + GRADE_OUTPUT_SPEC  # 产出规范(含标尺)在 core/prompts.py——后续批改排版改版动那里
+)
 
 # 同步批改场景:中转间歇 502/坏 JSON 常见,最多试 3 次(1.5s 递增退避)
 _ATTEMPTS = 3
@@ -128,14 +119,10 @@ def grade_recitation(
             f"模型零文本输出(stop={resp.stop_reason}, "
             f"blocks={[b.type for b in resp.content]})——多为思考块吃尽预算"
         )
-    # 模型偶尔裹 ```json```,剥掉
-    if text.startswith("```"):
-        text = text.strip("`").removeprefix("json").strip()
-    try:
-        result: dict[str, Any] = json.loads(text)
-    except json.JSONDecodeError as e:
-        msg = f"批改返回格式异常: {e}"
-        raise RuntimeError(msg) from None
+    result = parse_json_reply(text)  # 围栏/前置废话已容忍;坏 JSON/非对象 → None
+    if result is None:
+        msg = "批改返回格式异常: 不是可解析的 JSON 对象"
+        raise RuntimeError(msg)
     # 百分制判分:score≥70 过,<70 需重学/答疑后再复述;tutored 保底 70
     try:
         score = max(0, min(100, int(result.get("score", 0))))

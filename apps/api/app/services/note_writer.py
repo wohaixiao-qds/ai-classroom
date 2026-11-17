@@ -98,7 +98,8 @@ def _render_grades(course_id: str) -> str:
         out.append(
             f"[{g.get('verdict')}{(' ' + score_s) if score_s else ''}"
             f"{g.get('page_id')}]:复述「{g.get('answer', '')[:80]}」"
-            f"→ {g.get('comment', '')[:120]}"
+            # comment 已三行制(✓/✗/→):笔记只留首行「对在哪」,旧单行 trace 向后兼容
+            f"→ {g.get('comment', '').split(chr(10))[0][:120]}"
             + (f"  ▸标准表述:{precise}" if precise else "")
         )
     return "\n".join(out) or "(没有检查点批改记录)"
