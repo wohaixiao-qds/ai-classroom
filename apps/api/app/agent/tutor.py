@@ -51,7 +51,10 @@ SYSTEM_PROMPT = (
         "「这是第 N 章《章名》会讲的,带着这个问题去学,学完自然会懂」。\n"
         "唯一例外:复述检查点没过时的引导式解答——那是检验已学内容,按该场景指令办。",
         CHAT_NARROW_RULE,
-        "8. **不瞎编**:查不到就说查不到,不编造来源;课程地图里没有的课不要编。",
+        "8. **不瞎编(不确定就先声明)**:课件/工具查不到的部分,先声明"
+        "「这块课件没讲、我不确定」再给推测,推测要标「我猜的」;"
+        "**不许拿顺口的说法把缺口悄悄填上**——没出处的话当有出处讲是最严重的错误;"
+        "查不到就说查不到,不编造来源;课程地图里没有的课不要编。",
     ])
     + "\n"
 )
@@ -77,7 +80,36 @@ def build_system(course_text: str, course_map: str = "") -> list[dict]:
     ]
     if course_map:
         blocks.append({"type": "text", "text": f"## 学员的课程地图\n{course_map}"})
+    # agent 教训账本(经验级 memory,2026-11-18):自评抓到的编造案例自动记
+    # data/agent_lessons.md(人可审可删),每次开局注入——「上一轮犯过的错这一轮
+    # 少犯」。排最后,同样不碰缓存前缀;文件不存在或为空则不注入
+    lessons = _load_agent_lessons()
+    if lessons:
+        blocks.append({"type": "text", "text": f"## 你自己的教训账本(曾经答错过的)\n{lessons}"})
     return blocks
+
+
+def _load_agent_lessons() -> str:
+    """读教训账本正文(跳过 # 行与 <!-- --> 块注释)。账本是人的可审层:删一行=撤销教训。"""
+    p = settings.data_dir / "agent_lessons.md"
+    try:
+        raw = p.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return ""
+    lines: list[str] = []
+    in_comment = False
+    for ln in raw:
+        if in_comment:
+            if "-->" in ln:
+                in_comment = False
+            continue
+        if ln.strip().startswith("<!--"):
+            if "-->" not in ln:
+                in_comment = True
+            continue
+        if ln.strip() and not ln.lstrip().startswith("#"):
+            lines.append(ln)
+    return "\n".join(f"- {ln.strip().removeprefix('- ').strip()}" for ln in lines[:20])
 
 
 def trace(question: str, tool_calls: list[dict], answer: str, elapsed: float) -> None:

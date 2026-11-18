@@ -17,6 +17,7 @@ from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 
 from app.agent.tutor import course_text_of, run_tutor
+from app.core.config import settings
 from app.core.memory import ensure_session, list_sessions, new_session, session_history
 from app.core.trace import read_traces, trace_tutor
 from app.schemas.chat import (
@@ -28,6 +29,7 @@ from app.schemas.chat import (
     SessionListResponse,
 )
 from app.services.catalog import student_course_map
+from app.services.citation_guard import verify_citations
 from app.services.grader import grade_recitation
 from app.services.self_eval import evaluate_answer
 
@@ -75,7 +77,21 @@ def chat(req: ChatRequest) -> StreamingResponse:
                 truncated=ev.get("truncated", False),
                 source=req.source,
                 self_eval=verdict,
+                guard_violations=ev.get("guard_violations", []),
             )
+            # 经验级 memory:自评抓到编造 → 自动记一条候选进教训账本(带待审标,
+            # 人定期清理;删行=撤销教训)。只有 fabricated 记,partial 噪音大不记
+            v = (verdict or {}).get("verdict")
+            if v == "fabricated":
+                lp = settings.data_dir / "agent_lessons.md"
+                lp.parent.mkdir(parents=True, exist_ok=True)
+                reason = (verdict or {}).get("reason", "")[:80]
+                with lp.open("a", encoding="utf-8") as f:
+                    f.write(
+                        f"- [待审] 问题「{ev['question'][:60]}」我曾编造无据内容"
+                        f"({reason})——这类问题先声明「课件没讲、我不确定」再答\n"
+                    )
+                print(f"[chat] 自评判 fabricated,已记教训账本候选: {lp}", flush=True)
         except Exception:  # noqa: BLE001 后台账失败只留日志,不影响已交付的答案
             print(f"[chat] 自评/trace 后台任务失败:\n{traceback.format_exc()}", flush=True)
 
@@ -102,6 +118,20 @@ def chat(req: ChatRequest) -> StreamingResponse:
                 elif ev["type"] == "delta":
                     yield _sse("delta", {"text": ev["text"]}, eid)
                 elif ev["type"] == "final":
+                    # 规则级门禁(假引用拦截):纯文本校验毫秒级,放 done 前;
+                    # 流式体验不受损——答案照常流完,违规紧跟着补正 delta
+                    violations = verify_citations(ev["answer"], course_text)
+                    if violations:
+                        eid += 1
+                        yield _sse(
+                            "delta",
+                            {
+                                "text": "\n\n⚠ **更正**:上文的引用经校验有误——"
+                                + ";".join(violations)
+                                + "。相关说法请以课件原文为准。"
+                            },
+                            eid,
+                        )
                     yield _sse("done", {"tool_calls": len(ev["tool_calls"])}, eid)
                     # 裁判数据留给后台任务;elapsed 在 final 时刻取,tutor 耗时不含裁判时长
                     trace_job.update(
@@ -109,6 +139,7 @@ def chat(req: ChatRequest) -> StreamingResponse:
                         answer=ev["answer"],
                         tool_calls=ev["tool_calls"],
                         elapsed_s=time.perf_counter() - t0,
+                        guard_violations=violations,
                         usage=ev.get("usage"),
                         soft_landed=ev.get("soft_landed", False),
                         truncated=ev.get("truncated", False),
