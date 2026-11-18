@@ -65,6 +65,7 @@ function Reader({ course }: { course: CourseV2 }) {
     { text: string; checkpoint?: CheckpointAskPayload } | null
   >(null);
   const articleRef = useRef<HTMLElement | null>(null); // 划词提问的作用域(正文区)
+  const [selTerm, setSelTerm] = useState<string | null>(null); // 最近一次划词(面板提示条用)
   const [searchParams] = useSearchParams();
   const restoredRef = useRef(false);
   // 三栏占比:左右栏宽全局持久化(跨课一致);中栏 flex-1 自适应
@@ -179,8 +180,15 @@ function Reader({ course }: { course: CourseV2 }) {
 
   return (
     <div className="flex h-full">
-      {/* 划词提问:选中正文浮出「问 AI 老师」,种子进右侧答疑 */}
-      <SelectionAsk articleRef={articleRef} onAsk={(q) => setChatSeed({ text: q })} />
+      {/* 划词提问:选中正文浮出「问 AI 老师」+ 面板提示条(防系统悬浮窗遮盖),种子进右侧答疑 */}
+      <SelectionAsk
+        articleRef={articleRef}
+        onSelected={setSelTerm}
+        onAsk={(q) => {
+          setChatSeed({ text: q });
+          setSelTerm(null);
+        }}
+      />
       {/* 节目录 */}
       <nav
         style={{ width: panels.toc }}
@@ -330,6 +338,17 @@ function Reader({ course }: { course: CourseV2 }) {
           playback={playback}
           seed={chatSeed}
           onSeedConsumed={() => setChatSeed(null)}
+          selectionAsk={
+            selTerm
+              ? {
+                  text: selTerm,
+                  onAsk: () => {
+                    setChatSeed({ text: selQuestion(selTerm) });
+                    setSelTerm(null);
+                  },
+                }
+              : null
+          }
         />
       </div>
     </div>
@@ -340,15 +359,24 @@ function posKey(courseId: string) {
   return `reader-pos-${courseId}`;
 }
 
-/** 划词提问(2026-11-18):选中课件正文 2~200 字 → 选区上方浮出「问 AI 老师」→
- *  一键种子进右侧答疑(答案流式展开)。零基础阅读场景:名词看不懂,选中即问。
- *  正文区(article)外不弹;任何滚动即隐藏;fixed 定位取选区矩形,免容器数学。 */
+/** 划词提问的问题文案(浮钮与面板提示条共用) */
+function selQuestion(sel: string): string {
+  const quote = sel.length > 100 ? `${sel.slice(0, 100)}…` : sel;
+  return `我在课件里看到「${quote}」,这个概念/名词不懂,请用零基础能懂的话解释一下`;
+}
+
+/** 划词提问(2026-11-18):选中课件正文 2~200 字 → 选区上方浮出「问 AI 老师」+
+ *  右侧答疑面板顶部出现「解释一下」提示条(双入口)→ 一键种子进答疑。
+ *  浮钮可能被系统级悬浮窗(划词翻译等)遮盖——面板内提示条在页面内部,永远可见。
+ *  正文区(article)外不弹;任何滚动即隐浮钮(提示条保留最近一次选中);fixed 定位取选区矩形。 */
 function SelectionAsk({
   articleRef,
   onAsk,
+  onSelected,
 }: {
   articleRef: RefObject<HTMLElement | null>;
   onAsk: (q: string) => void;
+  onSelected: (sel: string) => void;
 }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const selRef = useRef("");
@@ -372,6 +400,7 @@ function SelectionAsk({
           return;
         }
         selRef.current = text;
+        onSelected(text); // 面板提示条同步(遮不住的安全入口)
         const rect = sel.getRangeAt(0).getBoundingClientRect();
         setPos({ x: rect.left + rect.width / 2, y: rect.top });
       }, 10);
@@ -382,7 +411,7 @@ function SelectionAsk({
       document.removeEventListener("mouseup", onUp);
       window.removeEventListener("scroll", hide, true);
     };
-  }, [articleRef]);
+  }, [articleRef, onSelected]);
 
   if (!pos) return null;
   return (
@@ -393,9 +422,7 @@ function SelectionAsk({
         const sel = selRef.current;
         window.getSelection()?.removeAllRanges();
         setPos(null);
-        if (!sel) return;
-        const quote = sel.length > 100 ? `${sel.slice(0, 100)}…` : sel;
-        onAsk(`我在课件里看到「${quote}」,这个概念/名词不懂,请用零基础能懂的话解释一下`);
+        if (sel) onAsk(selQuestion(sel));
       }}
       className="anim-drop fixed z-50 -translate-x-1/2 -translate-y-[calc(100%+8px)] rounded-full border border-primary/40 bg-card px-3 py-1.5 text-xs font-medium text-primary shadow-lg outline-none transition-colors hover:bg-primary/10 focus-visible:ring-[3px] focus-visible:ring-ring/40"
     >

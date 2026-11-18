@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Markdown from "react-markdown";
-import { Brain, ChevronRight, History, Plus, Search, Send } from "lucide-react";
+import { Brain, ChevronRight, History, MessageCircleQuestion, Plus, Search, Send } from "lucide-react";
 import type { components } from "../../types/api.gen";
 import type { Course, CourseV2 } from "../../types/csl";
 import { normalizeBold } from "../../utils/md";
@@ -118,11 +118,14 @@ export function ChatPanel({
   playback,
   seed,
   onSeedConsumed,
+  selectionAsk,
 }: {
   course: Course | CourseV2;
   playback: ProgressLike;
   seed?: ChatSeed | null;
   onSeedConsumed?: () => void;
+  /** 划词提问的面板内入口(防系统悬浮窗遮盖浮钮):最近一次课件选词+发送回调 */
+  selectionAsk?: { text: string; onAsk: () => void } | null;
 }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -438,6 +441,19 @@ export function ChatPanel({
           );
         })}
       </div>
+
+      {/* 划词提问提示条:页面内入口,系统悬浮窗遮不住;点「解释一下」即发送 */}
+      {selectionAsk && (
+        <div className="flex items-center gap-2 border-t border-primary/30 bg-primary/5 px-3 py-2">
+          <MessageCircleQuestion size={14} className="shrink-0 text-primary" />
+          <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+            选中了「{selectionAsk.text}」
+          </span>
+          <Button variant="secondary" size="sm" className="shrink-0" onClick={selectionAsk.onAsk}>
+            解释一下
+          </Button>
+        </div>
+      )}
 
       <div className="flex gap-2 border-t border-border p-3">
         <Input
