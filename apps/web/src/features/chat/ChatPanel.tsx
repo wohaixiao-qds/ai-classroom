@@ -119,6 +119,8 @@ export function ChatPanel({
   seed,
   onSeedConsumed,
   selectionAsk,
+  prefill,
+  onPrefillConsumed,
 }: {
   course: Course | CourseV2;
   playback: ProgressLike;
@@ -126,6 +128,9 @@ export function ChatPanel({
   onSeedConsumed?: () => void;
   /** 划词提问的面板内入口(防系统悬浮窗遮盖浮钮):最近一次课件选词+发送回调 */
   selectionAsk?: { text: string; onAsk: () => void } | null;
+  /** 划词提问的可编辑通道:模板问题填进输入框(不自动发),用户补话后 Enter 发送 */
+  prefill?: string | null;
+  onPrefillConsumed?: () => void;
 }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -146,6 +151,22 @@ export function ChatPanel({
   useEffect(() => {
     if (!input && taRef.current) taRef.current.style.height = "auto";
   }, [input]);
+
+  // 划词预填:模板进输入框+聚焦+光标到末尾(想补话就补,不想补直接 Enter)
+  useEffect(() => {
+    if (prefill == null) return;
+    setInput(prefill);
+    onPrefillConsumed?.();
+    requestAnimationFrame(() => {
+      const ta = taRef.current;
+      if (ta) {
+        ta.focus();
+        ta.setSelectionRange(ta.value.length, ta.value.length);
+        autoGrow(ta);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 消费型通道,只在 prefill 变化时触发
+  }, [prefill]);
 
   const units = "pages" in course ? course.pages : course.sections;
   const currentPage = units[playback.state.page]?.id ?? null;
@@ -461,7 +482,7 @@ export function ChatPanel({
             选中了「{selectionAsk.text}」
           </span>
           <Button variant="secondary" size="sm" className="shrink-0" onClick={selectionAsk.onAsk}>
-            解释一下
+            ✎ 编辑提问
           </Button>
         </div>
       )}

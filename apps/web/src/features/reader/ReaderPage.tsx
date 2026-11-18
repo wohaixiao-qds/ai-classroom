@@ -66,6 +66,7 @@ function Reader({ course }: { course: CourseV2 }) {
   >(null);
   const articleRef = useRef<HTMLElement | null>(null); // 划词提问的作用域(正文区)
   const [selTerm, setSelTerm] = useState<string | null>(null); // 最近一次划词(面板提示条用)
+  const [prefill, setPrefill] = useState<string | null>(null); // 划词→输入框可编辑预填
   const [searchParams] = useSearchParams();
   const restoredRef = useRef(false);
   // 三栏占比:左右栏宽全局持久化(跨课一致);中栏 flex-1 自适应
@@ -180,12 +181,13 @@ function Reader({ course }: { course: CourseV2 }) {
 
   return (
     <div className="flex h-full">
-      {/* 划词提问:选中正文浮出「问 AI 老师」+ 面板提示条(防系统悬浮窗遮盖),种子进右侧答疑 */}
+      {/* 划词提问:选中正文浮出「问 AI 老师」+ 面板提示条(防系统悬浮窗遮盖)——
+          都走可编辑预填:模板进输入框,用户补一句自己的话再 Enter 发 */}
       <SelectionAsk
         articleRef={articleRef}
         onSelected={setSelTerm}
         onAsk={(q) => {
-          setChatSeed({ text: q });
+          setPrefill(q);
           setSelTerm(null);
         }}
       />
@@ -338,12 +340,14 @@ function Reader({ course }: { course: CourseV2 }) {
           playback={playback}
           seed={chatSeed}
           onSeedConsumed={() => setChatSeed(null)}
+          prefill={prefill}
+          onPrefillConsumed={() => setPrefill(null)}
           selectionAsk={
             selTerm
               ? {
                   text: selTerm,
                   onAsk: () => {
-                    setChatSeed({ text: selQuestion(selTerm) });
+                    setPrefill(selQuestion(selTerm));
                     setSelTerm(null);
                   },
                 }
