@@ -7,7 +7,7 @@ import type { Course, CourseV2 } from "../../types/csl";
 import { normalizeBold } from "../../utils/md";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
+import { Textarea } from "../../components/ui/textarea";
 
 /** 对进度源的最小结构依赖:幻灯片(usePlayback)与书页(滚动 spy)各给一个适配器。
  *  不再 import usePlayback 类型——reader 形态不该反向依赖播放器。 */
@@ -136,6 +136,16 @@ export function ChatPanel({
   const [showList, setShowList] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true); // 用户在底部附近才自动跟随;主动上翻阅读时不拽人
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
+  /** 输入框自适应长高:内容超过一行就长到内容高(max-h 封顶后内滚) */
+  const autoGrow = (el: HTMLTextAreaElement) => {
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  };
+  // 发送/清空后回一行高
+  useEffect(() => {
+    if (!input && taRef.current) taRef.current.style.height = "auto";
+  }, [input]);
 
   const units = "pages" in course ? course.pages : course.sections;
   const currentPage = units[playback.state.page]?.id ?? null;
@@ -456,12 +466,25 @@ export function ChatPanel({
         </div>
       )}
 
-      <div className="flex gap-2 border-t border-border p-3">
-        <Input
+      {/* 输入区:自适应高度 Textarea——长了自动长高(封顶 ~5 行内部滚动),
+          Enter 发送 / Shift+Enter 换行;IME 组合中的 Enter 不当发送 */}
+      <div className="flex items-end gap-2 border-t border-border p-3">
+        <Textarea
+          ref={taRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && ask()}
+          onChange={(e) => {
+            setInput(e.target.value);
+            autoGrow(e.target);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              void ask();
+            }
+          }}
+          rows={1}
           placeholder="例如:汽车类比再讲一遍"
+          className="max-h-36 min-h-[36px] resize-none overflow-y-auto py-2 leading-relaxed"
         />
         {busy ? (
           <Button variant="outline" onClick={stop} title="停止生成">
