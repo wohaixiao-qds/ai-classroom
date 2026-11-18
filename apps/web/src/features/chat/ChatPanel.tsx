@@ -75,7 +75,15 @@ function linkifyUrls(text: string, keyBase: string): ReactNode[] {
 /** 思考过程块(仿 ZCode):思考流式期间自动展开跟着长,答案文本开始落就自动
  *  折叠成一行,随时点开回看。仅当轮可看——不落会话历史,与工具调用同待遇。
  *  open 态用 manual ?? !settled 派生(不走 effect 折叠),用户手动开合优先于自动。 */
-function ThinkingBlock({ text, settled }: { text: string; settled: boolean }) {
+function ThinkingBlock({
+  text,
+  settled,
+  waitedSec,
+}: {
+  text: string;
+  settled: boolean;
+  waitedSec?: number;
+}) {
   const [manual, setManual] = useState<boolean | null>(null);
   const open = manual ?? !settled;
   const boxRef = useRef<HTMLDivElement>(null);
@@ -96,6 +104,9 @@ function ThinkingBlock({ text, settled }: { text: string; settled: boolean }) {
           <span className="size-1.5 animate-pulse rounded-full bg-muted-foreground" />
         )}
         {settled ? "思考过程" : "思考中"}
+        {!settled && waitedSec !== undefined && (
+          <span className="font-mono opacity-70"> · {waitedSec}s</span>
+        )}
         <ChevronRight size={12} className={cn("transition-transform", open && "rotate-90")} />
       </button>
       {open && (
@@ -142,6 +153,14 @@ export function ChatPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true); // 用户在底部附近才自动跟随;主动上翻阅读时不拽人
   const taRef = useRef<HTMLTextAreaElement | null>(null);
+  const askStartRef = useRef(0);
+  const [waited, setWaited] = useState(0); // 本轮已等待秒数(活体信号:秒数走=没卡)
+  // 答疑计时:glm-5.3 思考肥,首 token 前 20s+ 是常态——静态「思考中…」分不清死活
+  useEffect(() => {
+    if (!busy) return;
+    const t = window.setInterval(() => setWaited((s) => s + 1), 1000);
+    return () => window.clearInterval(t);
+  }, [busy]);
   /** 输入框自适应长高:内容超过一行就长到内容高(max-h 封顶后内滚) */
   const autoGrow = (el: HTMLTextAreaElement) => {
     el.style.height = "auto";
@@ -307,6 +326,12 @@ export function ChatPanel({
     if (!override) setInput("");
     setMsgs((m) => [...m, { role: "user", text: q }]);
     setBusy(true);
+    askStartRef.current = Date.now();
+    setWaited(0);
+    // 占位消息发送即入列:glm-5.3 首响应头前有 20s+ 思考空窗,晚占位=面板全白
+    // (用户误判卡死)——提前占位,「思考中… · Ns」秒数走字当活体信号
+    const assistant: Msg = { role: "assistant", text: "", tools: [] };
+    setMsgs((m) => [...m, assistant]);
     try {
       const ac = new AbortController();
       abortRef.current = ac;
@@ -339,8 +364,6 @@ export function ChatPanel({
       const decoder = new TextDecoder();
       let buf = "";
       let ended = false; // 收到 done 即完成——自评/落 trace 是服务端后台账,不等关流
-      const assistant: Msg = { role: "assistant", text: "", tools: [] };
-      setMsgs((m) => [...m, assistant]);
       while (reader && !ended) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -442,7 +465,11 @@ export function ChatPanel({
           return (
             <div key={i} className={m.role === "user" ? "text-right" : ""}>
               {m.role === "assistant" && m.thinking && (
-                <ThinkingBlock text={m.thinking} settled={!isLive || m.text.length > 0} />
+                <ThinkingBlock
+                  text={m.thinking}
+                  settled={!isLive || m.text.length > 0}
+                  waitedSec={isLive ? waited : undefined}
+                />
               )}
               {/* 工具调用只在生成中实时展示,答完即隐藏,不留档 */}
               {isLive && m.tools && m.tools.length > 0 && (
@@ -464,7 +491,9 @@ export function ChatPanel({
                   {m.text ? (
                     <Markdown components={mdComponents}>{normalizeBold(m.text)}</Markdown>
                   ) : isLive && !m.thinking ? (
-                    <span className="text-muted-foreground">思考中…</span>
+                    <span className="text-muted-foreground">
+                      思考中… <span className="font-mono">· {waited}s</span>
+                    </span>
                   ) : null}
                 </div>
               )}
