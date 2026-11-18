@@ -22,6 +22,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+import httpx
 from anthropic import Anthropic
 from anthropic._exceptions import AuthenticationError, PermissionDeniedError, RateLimitError
 
@@ -47,6 +48,14 @@ def _build() -> Anthropic:
         base_url=settings.llm_base_url,
         api_key=key or "not-set",
         timeout=60.0,  # 时间维度终止:单次调用超 60s 判死,补 MAX_TURNS(次数)兜不住的盲区
+        max_retries=2,  # 传输层重试:连接被掐/瞬时失败自动重连(2026-11-18 连接池坏死事故)
+        # keep-alive 保鲜(同上事故):进程长跑一天后,池里的空闲连接被中转单方面
+        # 掐死,客户端拿死连接干等——表现为「新进程全通、服务进程全挂」。缩短
+        # 复用寿命到 60s,少碰陈旧连接;掐断重连交给上面的 max_retries
+        http_client=httpx.Client(
+            timeout=60.0,
+            limits=httpx.Limits(max_keepalive_connections=4, keepalive_expiry=60),
+        ),
     )
 
 
