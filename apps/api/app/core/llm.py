@@ -78,17 +78,54 @@ def _switch_to_backup(err: Exception) -> bool:
     return True
 
 
-def _guard(call: Callable[[], Any]) -> Any:
-    """key 故障切换守卫:认证/配额类异常切备用 key 重试一次;备 key 再失败原样抛。"""
+def _guard(make_call: Callable[[], Any]) -> Any:
+    """key 故障切换守卫:认证/配额类异常切备用 key 重试一次;备 key 再失败原样抛。
+    make_call 是工厂——重试时重新解析客户端(切换后 _client 已清,重建即用备用 key),
+    不能复用切换前捕获的旧 client(那会让重试仍走主 key,实测踩过)。"""
     global _using_backup
     try:
-        return call()
+        return make_call()
     except _KEY_ERRORS as e:
         if _using_backup or not settings.zhipu_api_key_backup:
             raise
         if not _switch_to_backup(e):
             raise
-        return call()
+        return make_call()
+
+
+class _StreamWithFallback:
+    """stream 管理器代理:anthropic 的 stream **构造时不发请求**,HTTP 在
+    __enter__/首迭代才发起——429/认证错抛在那里,构造期守卫(_guard)永远
+    兜不到。此代理把切换判定挪进 __enter__:主 key 失败 → 切备用重入新流。
+    属性/迭代/退出全部代理到已进入的真实流(get_final_message 等)。"""
+
+    def __init__(self, make_stream: Callable[[], Any]) -> None:
+        self._make = make_stream
+        self._mgr: Any = None
+        self._entered: Any = None
+
+    def __enter__(self) -> Any:
+        try:
+            self._mgr = self._make()
+            self._entered = self._mgr.__enter__()
+            return self._entered
+        except _KEY_ERRORS as e:
+            if not _switch_to_backup(e):
+                raise
+            # 递归一次:_switch 已置 backup 态,若备 key 也失败 _switch 返回 False 抛出
+            return _StreamWithFallback(self._make).__enter__()
+
+    def __iter__(self) -> Any:
+        return iter(self._entered)
+
+    def __exit__(self, *args: Any) -> Any:
+        if self._entered is not None:
+            return self._entered.__exit__(*args)
+        return None
+
+    def __getattr__(self, name: str) -> Any:
+        target = self._entered if self._entered is not None else self._mgr
+        return getattr(target, name)
 
 
 def _fmt_tokens(n: int) -> str:
@@ -111,12 +148,11 @@ class _ObservedMessages:
         n = _call_no
         t0 = time.time()
         print(f"⋯ 模型调用 #{n}…", flush=True)
-        messages = self._messages()
 
-        def call() -> Any:
-            return messages.create(**kwargs)
+        def make_call() -> Any:
+            return self._messages().create(**kwargs)  # 重试时重新解析(切换后=备用 key)
 
-        resp = _guard(call)
+        resp = _guard(make_call)
         dt = time.time() - t0
         usage = getattr(resp, "usage", None)
         it = int(getattr(usage, "input_tokens", 0) or 0)
@@ -128,12 +164,7 @@ class _ObservedMessages:
         return resp
 
     def stream(self, **kwargs: Any) -> Any:
-        messages = self._messages()
-
-        def call() -> Any:
-            return messages.stream(**kwargs)
-
-        return _guard(call)
+        return _StreamWithFallback(lambda: self._messages().stream(**kwargs))
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._messages(), name)
