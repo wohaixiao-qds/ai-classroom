@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Markdown from "react-markdown";
-import { Brain, ChevronRight, History, MessageCircleQuestion, Plus, Search, Send } from "lucide-react";
+import { Brain, Check, ChevronRight, Copy, History, MessageCircleQuestion, Pencil, Plus, Search, Send } from "lucide-react";
 import type { components } from "../../types/api.gen";
 import type { Course, CourseV2 } from "../../types/csl";
 import { normalizeBold } from "../../utils/md";
@@ -42,6 +42,46 @@ type SessionTurn = components["schemas"]["SessionTurn"];
  *  字符集排除 CJK 与全角标点——「详情见 https://a.b/x。」止于 x,中文不粘进链接;
  *  尾部 ASCII 右括号仅在不成对时修剪(Wikipedia 路径括号是合法 URL 字符)。 */
 const URL_RE = /https?:\/\/[^\s<>`"\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]+/gi;
+
+/** 用户气泡 + hover 快捷操作(仿 ZCode):复制(成功闪 ✓)/编辑(内容填回输入框,
+ *  改完重发——不截断历史,等于「基于这句重问一遍」) */
+function UserBubble({ text, onEdit }: { text: string; onEdit: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      /* 剪贴板权限被拒就算了 */
+    }
+  };
+  return (
+    <div className="group/msg relative inline-block max-w-[85%]">
+      <p className="rounded-lg rounded-br-sm bg-primary/15 px-3 py-2 text-left text-sm break-words whitespace-pre-wrap">
+        {text}
+      </p>
+      <div className="pointer-events-none absolute top-full right-0 mt-0.5 flex gap-0.5 opacity-0 transition-opacity group-hover/msg:pointer-events-auto group-hover/msg:opacity-100">
+        <button
+          type="button"
+          onClick={() => void copy()}
+          title="复制"
+          className="flex size-5 items-center justify-center rounded text-muted-foreground outline-none transition-colors hover:bg-secondary hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+        >
+          {copied ? <Check size={12} className="text-success" /> : <Copy size={12} />}
+        </button>
+        <button
+          type="button"
+          onClick={onEdit}
+          title="编辑后重发"
+          className="flex size-5 items-center justify-center rounded text-muted-foreground outline-none transition-colors hover:bg-secondary hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+        >
+          <Pencil size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function linkifyUrls(text: string, keyBase: string): ReactNode[] {
   const out: ReactNode[] = [];
@@ -483,9 +523,20 @@ export function ChatPanel({
                 </div>
               )}
               {m.role === "user" ? (
-                <p className="inline-block max-w-[85%] rounded-lg rounded-br-sm bg-primary/15 px-3 py-2 text-left text-sm break-words">
-                  {m.text}
-                </p>
+                <UserBubble
+                  text={m.text}
+                  onEdit={() => {
+                    setInput(m.text);
+                    requestAnimationFrame(() => {
+                      const ta = taRef.current;
+                      if (ta) {
+                        ta.focus();
+                        ta.setSelectionRange(ta.value.length, ta.value.length);
+                        autoGrow(ta);
+                      }
+                    });
+                  }}
+                />
               ) : (
                 <div className="chat-md text-sm leading-relaxed">
                   {m.text ? (
