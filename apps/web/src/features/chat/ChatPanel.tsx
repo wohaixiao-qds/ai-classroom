@@ -442,9 +442,10 @@ export function ChatPanel({
         })}
       </div>
 
-      {/* 划词提问提示条:页面内入口,系统悬浮窗遮不住;点「解释一下」即发送 */}
+      {/* 划词提问提示条:页面内入口,系统悬浮窗遮不住;点「解释一下」即发送。
+          data-sel-ask:mouseup 清理守卫识别自身,防 click 落空 */}
       {selectionAsk && (
-        <div className="flex items-center gap-2 border-t border-primary/30 bg-primary/5 px-3 py-2">
+        <div data-sel-ask className="flex items-center gap-2 border-t border-primary/30 bg-primary/5 px-3 py-2">
           <MessageCircleQuestion size={14} className="shrink-0 text-primary" />
           <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
             选中了「{selectionAsk.text}」

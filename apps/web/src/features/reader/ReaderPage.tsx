@@ -376,14 +376,17 @@ function SelectionAsk({
 }: {
   articleRef: RefObject<HTMLElement | null>;
   onAsk: (q: string) => void;
-  onSelected: (sel: string) => void;
+  onSelected: (sel: string | null) => void;
 }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const selRef = useRef("");
 
   useEffect(() => {
     const hide = () => setPos(null);
-    const onUp = () => {
+    const onUp = (e: MouseEvent) => {
+      // 点击提问入口自身(浮钮/提示条):mouseup 会先于 click 清掉选区,
+      // 若在此清理状态会把按钮卸载、click 落空——跳过
+      if ((e.target as Element)?.closest?.("[data-sel-ask]")) return;
       // 双击/拖选都先触发 selectionchange,等选区稳定再取
       window.setTimeout(() => {
         const sel = window.getSelection();
@@ -395,8 +398,10 @@ function SelectionAsk({
           text.length > 200 ||
           !articleRef.current?.contains(sel.anchorNode)
         ) {
+          // 取消选中(点了空白/选区清空)→ 浮钮与提示条一起撤
           selRef.current = "";
           setPos(null);
+          onSelected(null);
           return;
         }
         selRef.current = text;
@@ -417,6 +422,7 @@ function SelectionAsk({
   return (
     <button
       type="button"
+      data-sel-ask
       style={{ left: pos.x, top: pos.y }}
       onClick={() => {
         const sel = selRef.current;
