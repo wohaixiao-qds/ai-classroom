@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Markdown from "react-markdown";
-import { ArrowRight, CheckCircle2, ChevronDown, CircleAlert, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, ChevronDown, CircleAlert, LoaderCircle, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
 
 
@@ -99,11 +99,20 @@ export function CheckpointOverlay({
     precise?: string;
   } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [waited, setWaited] = useState(0); // 批改已等待秒数(活体信号:秒数在走=没卡)
   const [compareOpen, setCompareOpen] = useState(true); // B 案:对照区默认展开,可折叠
+
+  // 批改计时:15~20s 的 LLM 等待期,秒数走字告诉学员「还在跑、没死掉」
+  useEffect(() => {
+    if (!busy) return;
+    const t = window.setInterval(() => setWaited((s) => s + 1), 1000);
+    return () => window.clearInterval(t);
+  }, [busy]);
 
   async function submit() {
     if (!answer.trim() || busy) return;
     setBusy(true);
+    setWaited(0); // 计时起点随本次提交(重试/重述各从 0 数)
     try {
       const resp = await fetch("/api/v1/grade", {
         method: "POST",
@@ -187,7 +196,14 @@ export function CheckpointOverlay({
                 </Button>
               )}
               <Button onClick={submit} disabled={busy || !answer.trim()}>
-                {busy ? "批改中…" : "提交批改"}
+                {busy ? (
+                  <>
+                    <LoaderCircle size={14} className="animate-spin" />
+                    批改中 · {waited}s
+                  </>
+                ) : (
+                  "提交批改"
+                )}
               </Button>
             </div>
           </>
