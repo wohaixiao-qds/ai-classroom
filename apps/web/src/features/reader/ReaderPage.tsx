@@ -1,6 +1,7 @@
 import { Sparkles } from "lucide-react";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { ThemeSwitcher } from "../../components/ThemeSwitcher";
@@ -61,8 +62,9 @@ function Reader({ course }: { course: CourseV2 }) {
   const [invite, setInvite] = useState(false);
   const [doneState, setDoneState] = useState<CompletionState | null>(null);
   const [chatSeed, setChatSeed] = useState<
-    { text: string; checkpoint: CheckpointAskPayload } | null
+    { text: string; checkpoint?: CheckpointAskPayload } | null
   >(null);
+  const articleRef = useRef<HTMLElement | null>(null); // 划词提问的作用域(正文区)
   const [searchParams] = useSearchParams();
   const restoredRef = useRef(false);
   // 三栏占比:左右栏宽全局持久化(跨课一致);中栏 flex-1 自适应
@@ -177,6 +179,8 @@ function Reader({ course }: { course: CourseV2 }) {
 
   return (
     <div className="flex h-full">
+      {/* 划词提问:选中正文浮出「问 AI 老师」,种子进右侧答疑 */}
+      <SelectionAsk articleRef={articleRef} onAsk={(q) => setChatSeed({ text: q })} />
       {/* 节目录 */}
       <nav
         style={{ width: panels.toc }}
@@ -243,7 +247,7 @@ function Reader({ course }: { course: CourseV2 }) {
           </div>
         )}
         <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto">
-          <article className="mx-auto max-w-2xl px-6 py-16 font-reading [text-autospace:normal]">
+          <article ref={articleRef} className="mx-auto max-w-2xl px-6 py-16 font-reading [text-autospace:normal]">
             <header className="mb-10">
               <p className="font-mono text-xs tracking-widest text-primary">{course.scenario} · 书页版</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight">{course.title}</h1>
@@ -334,6 +338,70 @@ function Reader({ course }: { course: CourseV2 }) {
 
 function posKey(courseId: string) {
   return `reader-pos-${courseId}`;
+}
+
+/** 划词提问(2026-11-18):选中课件正文 2~200 字 → 选区上方浮出「问 AI 老师」→
+ *  一键种子进右侧答疑(答案流式展开)。零基础阅读场景:名词看不懂,选中即问。
+ *  正文区(article)外不弹;任何滚动即隐藏;fixed 定位取选区矩形,免容器数学。 */
+function SelectionAsk({
+  articleRef,
+  onAsk,
+}: {
+  articleRef: RefObject<HTMLElement | null>;
+  onAsk: (q: string) => void;
+}) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const selRef = useRef("");
+
+  useEffect(() => {
+    const hide = () => setPos(null);
+    const onUp = () => {
+      // 双击/拖选都先触发 selectionchange,等选区稳定再取
+      window.setTimeout(() => {
+        const sel = window.getSelection();
+        const text = sel?.toString().trim() ?? "";
+        if (
+          !sel ||
+          sel.rangeCount === 0 ||
+          text.length < 2 ||
+          text.length > 200 ||
+          !articleRef.current?.contains(sel.anchorNode)
+        ) {
+          selRef.current = "";
+          setPos(null);
+          return;
+        }
+        selRef.current = text;
+        const rect = sel.getRangeAt(0).getBoundingClientRect();
+        setPos({ x: rect.left + rect.width / 2, y: rect.top });
+      }, 10);
+    };
+    document.addEventListener("mouseup", onUp);
+    window.addEventListener("scroll", hide, true); // 捕获:正文容器滚动也触发
+    return () => {
+      document.removeEventListener("mouseup", onUp);
+      window.removeEventListener("scroll", hide, true);
+    };
+  }, [articleRef]);
+
+  if (!pos) return null;
+  return (
+    <button
+      type="button"
+      style={{ left: pos.x, top: pos.y }}
+      onClick={() => {
+        const sel = selRef.current;
+        window.getSelection()?.removeAllRanges();
+        setPos(null);
+        if (!sel) return;
+        const quote = sel.length > 100 ? `${sel.slice(0, 100)}…` : sel;
+        onAsk(`我在课件里看到「${quote}」,这个概念/名词不懂,请用零基础能懂的话解释一下`);
+      }}
+      className="anim-drop fixed z-50 -translate-x-1/2 -translate-y-[calc(100%+8px)] rounded-full border border-primary/40 bg-card px-3 py-1.5 text-xs font-medium text-primary shadow-lg outline-none transition-colors hover:bg-primary/10 focus-visible:ring-[3px] focus-visible:ring-ring/40"
+    >
+      💬 问 AI 老师
+    </button>
+  );
 }
 
 /** 三栏手动占比(2026-11-17):左右两栏可拖拽调宽,全局持久化(跨课一致),双击手柄复位。

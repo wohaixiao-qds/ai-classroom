@@ -16,10 +16,10 @@ export interface ProgressLike {
   jumpToPage: (n: number) => void;
 }
 
-/** 批改→答疑联动种子:复述卡没过,带检查点全上下文来问(P7 补) */
+/** 答疑种子:带上下文自动发送。两类来源——批改联动(带检查点)/划词提问(纯文本) */
 export interface ChatSeed {
   text: string;
-  checkpoint: {
+  checkpoint?: {
     question: string;
     pass_rule: string | null;
     answer: string;
