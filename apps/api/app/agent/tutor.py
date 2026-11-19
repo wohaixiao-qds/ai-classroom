@@ -301,13 +301,55 @@ def run_tutor(
     }
 
 
-def course_text_of(course_id: str) -> str:
-    """课件全文(答疑底料)。v2 书页:标题+每节 heading+各块文本;v1 旧格式兼容。"""
+def course_text_of(course_id: str, section: str | None = None) -> str:
+    """课件底料(答疑)。v2 书页:标题+每节 heading+各块文本;v1 旧格式兼容。
+
+    section(节 id)给定时走**节级窗口**:当前节 ± 相邻节全文 + 全课目录。
+    目的:全文 4~8k token 每问全价(Coding Plan 限额按 token 计),而答疑问题
+    天然贴阅读位置——窗口省 60~80%,全课目录常驻保跨节指路不瞎编。
+    citation_guard 的全文比对在路由侧独立读盘,不受裁剪影响。
+    """
     p: Path = settings.courses_dir / f"{course_id}.csl.json"
     d = json.loads(p.read_text(encoding="utf-8"))
     lines = [f"# {d['title']}"]
+
+    def _block_lines(b: dict[str, Any]) -> list[str]:
+        bt = b.get("type")
+        if bt in ("p", "callout"):
+            return [f"  {b.get('text', '')}"]
+        if bt == "diagram":
+            return [f"  [示意图] {b.get('caption') or ''}: {b.get('code', '')[:200]}"]
+        if bt == "code":
+            return [f"  [代码 {b.get('language', '')}]\n  {b.get('code', '')}"]
+        if bt == "table":
+            rows = [b.get("header", []), *b.get("rows", [])]
+            return [f"  | {'|'.join(map(str, row))}" for row in rows]
+        if bt == "quiz":
+            rule = b.get("pass_rule") or "核心概念说清"
+            return [f"  [检查点] {b.get('question', '')}(标准:{rule})"]
+        return []
     if d.get("version") == 2:
-        for i, sec in enumerate(d.get("sections", []), 1):
+        secs = d.get("sections", [])
+        # 节级窗口:v2 且定位到节才启用
+        cur = next((i for i, s in enumerate(secs) if s.get("id") == section), None)
+        if cur is not None:
+            lo, hi = max(0, cur - 1), min(len(secs), cur + 2)
+            toc = "\n".join(
+                f"  {i + 1}. {s.get('heading', '')}" + (" ← 当前" if i == cur else "")
+                for i, s in enumerate(secs)
+            )
+            lines.append(
+                f"\n[全课目录(共 {len(secs)} 节)]\n{toc}\n"
+                f"[底料窗口:第 {lo + 1}~{hi} 节全文;其余节只有标题——"
+                f"学员问窗口外的内容时如实说「当前上下文没带那节」,可建议学员翻到该节再问]"
+            )
+            for i in range(lo, hi):
+                sec = secs[i]
+                lines.append(f"\n[第{i + 1}节] {sec.get('heading', '')}")
+                for b in sec.get("blocks", []):
+                    lines.extend(_block_lines(b))
+            return "\n".join(lines)
+        for i, sec in enumerate(secs, 1):
             lines.append(f"\n[第{i}节] {sec.get('heading', '')}")
             for b in sec.get("blocks", []):
                 bt = b.get("type")

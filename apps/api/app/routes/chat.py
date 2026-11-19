@@ -43,9 +43,10 @@ def _sse(event_type: str, data: dict, eid: int) -> str:
 
 @router.post("/chat")
 def chat(req: ChatRequest) -> StreamingResponse:
-    # 前置校验:课件必须存在,否则 404(流开始前)
+    # 前置校验:课件必须存在,否则 404(流开始前)。
+    # 底料走节级窗口(当前节±相邻节+全课目录):全文 4~8k 每问全价,问题天然贴阅读位置
     try:
-        course_text = course_text_of(req.course_id)
+        course_text = course_text_of(req.course_id, section=req.current_page)
     except FileNotFoundError:
         raise HTTPException(404, f"课件不存在: {req.course_id}") from None
     # 课程地图与 course_text 同分工:路由层算好传入,agent 层不自己读盘
