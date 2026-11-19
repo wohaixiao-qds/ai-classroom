@@ -21,8 +21,10 @@ export interface CheckpointAskPayload {
 
 /** 「源[N]」→ 页尾来源清单锚点(溯源):备课管线的调研来源硬闸在课件 meta.sources
  *  落了清单,正文标记链化后点击平滑滚到对应条目并高亮闪一下(直接 DOM 注类,
- *  1.6s 后摘除,不走 React 状态)。目标条目不存在(坏生成)则原地不动。 */
-const SRC_RE = /源\s*\[?(\d+)\]?/g;
+ *  1.6s 后摘除,不走 React 状态)。目标条目不存在(坏生成)则原地不动。
+ *  簇匹配:模型常连写「源[1][2][3]」——「源」字后的标号串整体捕获逐个链化
+ *  (旧版只吃「源[1]」,跟写的 [2][3] 落空成灰字)。 */
+const SRC_CLUSTER_RE = /源\s*((?:\[\d+\]|[\d]+)(?:[\s,，、和与及]*(?:\[\d+\]|\d+))*)/g;
 
 function jumpToSource(n: string, e: React.MouseEvent) {
   e.preventDefault();
@@ -41,21 +43,25 @@ function linkifySources(children: ReactNode): ReactNode {
       const out: ReactNode[] = [];
       let last = 0;
       let i = 0;
-      for (const m of node.matchAll(SRC_RE)) {
+      for (const m of node.matchAll(SRC_CLUSTER_RE)) {
         // 源标记之间的普通文本段:裸 URL 也链化(课件正文常直接甩地址,不链化
         // 长链会被容器右缘切断=「链接没给全」;与答疑消息区同用一份 linkifyUrls)
         if (m.index > last) out.push(...linkifyUrls(node.slice(last, m.index), `${keyBase}-t${i}`));
-        out.push(
-          <a
-            key={`${keyBase}-${i++}`}
-            href={`#src-${m[1]}`}
-            className="font-mono text-[13px] text-primary underline decoration-dotted outline-none hover:decoration-solid"
-            title="跳到来源清单"
-            onClick={(e) => jumpToSource(m[1], e)}
-          >
-            {m[0]}
-          </a>,
-        );
+        // 「源」字留作文本;簇内标号([N] 或裸数字)逐个链化
+        out.push("源");
+        for (const num of m[1].matchAll(/\d+/g)) {
+          out.push(
+            <a
+              key={`${keyBase}-${i++}`}
+              href={`#src-${num[0]}`}
+              className="font-mono text-[13px] text-primary underline decoration-dotted outline-none hover:decoration-solid"
+              title="跳到来源清单"
+              onClick={(e) => jumpToSource(num[0], e)}
+            >
+              {[`[${num[0]}]`]}
+            </a>,
+          );
+        }
         last = m.index + m[0].length;
       }
       if (last < node.length) out.push(...linkifyUrls(node.slice(last), `${keyBase}-tend`));
