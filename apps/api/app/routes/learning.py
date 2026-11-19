@@ -94,8 +94,9 @@ def review_due() -> ReviewDue:
 
 
 @router.get("/notes/draft-stream/{course_id}")
-def draft_stream(course_id: str) -> StreamingResponse:
-    """沉淀草稿生成(SSE,P7 补):逐阶段推真实进度,done 事件携带草稿全文。"""
+def draft_stream(course_id: str, feedback: str = "") -> StreamingResponse:
+    """沉淀草稿生成(SSE,P7 补):逐阶段推真实进度,done 事件携带草稿全文。
+    feedback=重蒸要求(2026-11-19):对上一版草稿的修改意见,非空时注入蒸馏 prompt。"""
     st = completion(course_id)
     if not st.ready:
         missing = []
@@ -104,6 +105,7 @@ def draft_stream(course_id: str) -> StreamingResponse:
         if st.checkpoints_passed < st.checkpoints_total:
             missing.append(f"检查点通过 {st.checkpoints_passed}/{st.checkpoints_total}")
         raise HTTPException(409, "还没学完,暂不写回:" + ";".join(missing))
+    fb = feedback.strip()[:200]
 
     def gen():
         eid = 0
@@ -115,7 +117,7 @@ def draft_stream(course_id: str) -> StreamingResponse:
             return f"id: {eid}\nevent: {event_type}\ndata: {payload}\n\n"
 
         yield sse("start", {"course_id": course_id})
-        for ev in draft_events(course_id):
+        for ev in draft_events(course_id, feedback=fb):
             if ev.get("stage") == "done":
                 # 预览过的那份进缓存:确认落盘必须是同一份(SSE 重构曾漏此回填,
                 # apply 每次都缓存未命中→静默重蒸馏 2~3 分钟)

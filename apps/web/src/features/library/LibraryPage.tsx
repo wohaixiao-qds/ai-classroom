@@ -9,6 +9,7 @@ import { KindIcon } from "../../components/KindIcon";
 import { PageError, PageLoading } from "../../components/PageState";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -305,6 +306,7 @@ export function CourseDetailPage() {
   const [prog, setProg] = useState<CompletionState | null>(null);
   const [draft, setDraft] = useState<NoteDraft | null>(null);
   const [draftBusy, setDraftBusy] = useState(false);
+  const [refine, setRefine] = useState(""); // 重蒸要求:对上一版草稿的修改意见,随「重新生成」带上
   const [draftErr, setDraftErr] = useState<string | null>(null);
   const [written, setWritten] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
@@ -402,7 +404,7 @@ export function CourseDetailPage() {
     startDraftSSE();
   }
 
-  function startDraftSSE() {
+  function startDraftSSE(refine?: string) {
     setDraft(null);
     setDraftBusy(true);
     setDraftStage("connect");
@@ -411,6 +413,8 @@ export function CourseDetailPage() {
     const started = Date.now();
     const ac = new AbortController();
     draftAbortRef.current = ac;
+    // 重蒸反馈(2026-11-19):意见直达蒸馏 prompt,重新生成不再纯重掷
+    const qs = refine?.trim() ? `?feedback=${encodeURIComponent(refine.trim().slice(0, 200))}` : "";
     // 计时器:弹层上实时走「已等待 N 秒」
     const timer = window.setInterval(
       () => setDraftElapsed(Math.round((Date.now() - started) / 1000)),
@@ -419,7 +423,7 @@ export function CourseDetailPage() {
 
     void (async () => {
       try {
-        const resp = await fetch(`/api/v1/notes/draft-stream/${courseId}`, {
+        const resp = await fetch(`/api/v1/notes/draft-stream/${courseId}${qs}`, {
           method: "GET",
           signal: ac.signal,
         });
@@ -542,7 +546,7 @@ export function CourseDetailPage() {
   function regenerateDraft() {
     setDraft(null);
     setDraftErr(null);
-    startDraftSSE();
+    startDraftSSE(refine);
   }
 
   return (
@@ -770,14 +774,26 @@ export function CourseDetailPage() {
                 </div>
               )}
               {draft && (
-                <DialogFooter className="border-t border-border px-6 py-4">
-                  <Button variant="ghost" disabled={applying} onClick={() => setDraft(null)}>
-                    取消
-                  </Button>
-                  <Button variant="outline" disabled={applying} onClick={regenerateDraft}>↺ 重新生成</Button>
-              <Button onClick={confirmWrite} disabled={applying}>
-                {applying ? "写入中…" : "确认写回"}
-              </Button>
+                <DialogFooter className="flex-col gap-2 border-t border-border px-6 py-4 sm:flex-col">
+                  {/* 重蒸要求:填了再点「重新生成」,意见直达蒸馏 prompt(留空=原样重掷) */}
+                  <Input
+                    value={refine}
+                    onChange={(e) => setRefine(e.target.value)}
+                    placeholder="重蒸要求(可选):如 更精简 / 多给代码示例 / 巩固题只留两道…"
+                    className="h-8 text-xs"
+                    disabled={applying}
+                  />
+                  <div className="flex w-full justify-end gap-2">
+                    <Button variant="ghost" disabled={applying} onClick={() => setDraft(null)}>
+                      取消
+                    </Button>
+                    <Button variant="outline" disabled={applying} onClick={regenerateDraft}>
+                      ↺ 重新生成{refine.trim() ? "(带要求)" : ""}
+                    </Button>
+                    <Button onClick={confirmWrite} disabled={applying}>
+                      {applying ? "写入中…" : "确认写回"}
+                    </Button>
+                  </div>
                 </DialogFooter>
               )}
             </>

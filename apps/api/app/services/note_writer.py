@@ -214,16 +214,17 @@ _APPEND_PROMPT = """你是笔记整理员。学员已有笔记《{title}》,今�
 """
 
 
-def draft_events(course_id: str):
-    """沉淀草稿生成器:collect→distill→done 三阶段;异常翻转为 error 事件。"""
+def draft_events(course_id: str, feedback: str = ""):
+    """沉淀草稿生成器:collect→distill→done 三阶段;异常翻转为 error 事件。
+    feedback=学员对上一版草稿的修改要求(重蒸时带,注入蒸馏 prompt)。"""
     try:
         yield {"stage": "collect"}
-        yield from _draft_events_inner(course_id)
+        yield from _draft_events_inner(course_id, feedback)
     except Exception as e:  # noqa: BLE001
         yield {"stage": "error", "message": str(e)[:200]}
 
 
-def _draft_events_inner(course_id: str):
+def _draft_events_inner(course_id: str, feedback: str = ""):
     """build_draft 的流式生成器版:yield 进度事件,末尾 yield 草稿(dict)。"""
     import time
 
@@ -267,6 +268,13 @@ def _draft_events_inner(course_id: str):
         )
         note_path = d / f"{title}.md"
         mode = "new" if found else "new-root"
+
+    # 重蒸反馈(2026-11-19):学员看过上一版草稿后的修改要求,非空时注入——
+    # 「重新生成」不再是纯重掷骰子,意见直达蒸馏 prompt
+    if feedback:
+        prompt += (
+            f"\n\n--- 学员对上一版草稿的修改要求(优先级最高,逐条落实) ---\n{feedback}\n"
+        )
 
     chars = 0
     last_report = 0
