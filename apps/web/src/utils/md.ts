@@ -21,6 +21,23 @@ export function normalizeBold(md: string): string {
   //      ⚠️ inner 必须限 30 字且禁内嵌冒号——曾用 [^*\n]*? 贪心回溯吞掉跨段长文
   //      (「名字:**ACI…定义:**新型软件」被误配对挪位,整段粗体全错→字面 ** 漏出)。
   t = t.replace(/\*\*([^*\n:]{0,30}?):\s*\*\*/g, (_m, inner: string) => `**${inner}**:`);
+  // 0.55) 「X**:Y**」形态(冒号紧跟开星号后,模型原始输出常见):开 delimiter
+  //      右侧是标点 → CommonMark 判 left-flanking 不成立,整对判废(实测
+  //      react-markdown strong=0 字面漏)。修:配对感知——只给「真·开星号」后跟
+  //      冒号的,在开星号前插一个空格(实验 b 方案,空格令左邻非字母→flanking 成立)。
+  //      ⚠️ 不能用纯正则重排:`([^\s*])\*\*:` 区分不了合法粗体的闭星号+冒号
+  //      (`**很关键**:`),曾把多对搅坏(实测踩过);split 配对法天然只碰开侧。
+  {
+    const parts = t.split("**");
+    if (parts.length % 2 === 1) {
+      // parts[2k+1] 前的 ** 是开:其内容段以冒号开头 = 坏形态,开前插空格
+      let rebuilt = parts[0];
+      for (let k = 1; k < parts.length; k++) {
+        rebuilt += k % 2 === 1 && parts[k].startsWith(":") ? ` **${parts[k]}` : `**${parts[k]}`;
+      }
+      t = rebuilt;
+    }
+  }
   // 0.6) 冒号后开粗体、句末标点后闭的形态(「：**中文句子。**」)micromark 判废
   //      (实测 4/4 字面,全角半角冒号皆然)——closer 挪到句末标点前,flanking 最稳
   t = t.replace(/([:：]\*\*)([^*\n]+?)([。？！])(\*\*)/g, (_m, open: string, inner: string, punct: string, closer: string) => open + inner + closer + punct);
