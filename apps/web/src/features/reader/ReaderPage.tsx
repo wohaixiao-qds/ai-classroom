@@ -296,7 +296,8 @@ function Reader({ course }: { course: CourseV2 }) {
                       >
                         {s.title}
                       </a>
-                      <span className="block truncate pl-7 text-xs text-muted-foreground">{s.url}</span>
+                      {/* 完整显示(truncate 会截断长 URL 引发「链接没给全」的困惑;折行给全) */}
+                      <span className="block pl-7 text-xs break-all text-muted-foreground">{s.url}</span>
                     </li>
                   ))}
                 </ol>
