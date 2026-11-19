@@ -141,6 +141,7 @@ def run_tutor(
     course_id: str,
     checkpoint: dict[str, Any] | None = None,
     course_map: str = "",
+    mastered_terms: list[str] | None = None,
 ) -> Iterator[dict]:
     """跑一轮答疑,以事件流产出(生成器)。
 
@@ -158,6 +159,15 @@ def run_tutor(
     client = get_llm_client()
     # 动态状态(当前页/检查点联动)放进首条 user 消息,不污染可缓存的 system 前缀
     first_user = question
+    if mastered_terms:
+        # A 方案(2026-11-19):已学概念词表是路由层确定性抽取的「贴在问题旁的事实」——
+        # 模型不需要查任何地图,约束口吻的信息就在 attention 最高位
+        first_user = (
+            "[学员已掌握的概念(直接使用名词,不重新下定义、不从零讲解):"
+            + "/".join(mastered_terms)
+            + "]\n\n"
+            + first_user
+        )
     if current_page:
         first_user = f"[我正在学第「{current_page}」页]\n\n{question}"
     if checkpoint:

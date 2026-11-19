@@ -28,9 +28,10 @@ from app.schemas.chat import (
     SessionDetailResponse,
     SessionListResponse,
 )
-from app.services.catalog import student_course_map
+from app.services.catalog import mastered_concepts, student_course_map
 from app.services.citation_guard import verify_citations
 from app.services.grader import grade_recitation
+from app.services.reteach_guard import detect_reteach
 from app.services.self_eval import evaluate_answer
 
 router = APIRouter(prefix="/api/v1", tags=["chat"])
@@ -49,6 +50,8 @@ def chat(req: ChatRequest) -> StreamingResponse:
         raise HTTPException(404, f"课件不存在: {req.course_id}") from None
     # 课程地图与 course_text 同分工:路由层算好传入,agent 层不自己读盘
     course_map = student_course_map()
+    # A 方案:已学概念词表(确定性抽取,贴在问题旁——「查地图」推理不再外包给模型)
+    mastered = mastered_concepts(exclude_course_id=req.course_id)
 
     session_id = ensure_session(req.session_id, req.course_id)
 
@@ -78,6 +81,7 @@ def chat(req: ChatRequest) -> StreamingResponse:
                 source=req.source,
                 self_eval=verdict,
                 guard_violations=ev.get("guard_violations", []),
+                reteach=detect_reteach(ev["answer"], mastered),
             )
             # 经验级 memory:自评抓到编造 → 自动记一条候选进教训账本(带待审标,
             # 人定期清理;删行=撤销教训)。只有 fabricated 记,partial 噪音大不记
@@ -109,6 +113,7 @@ def chat(req: ChatRequest) -> StreamingResponse:
                 course_id=req.course_id,
                 checkpoint=req.checkpoint.model_dump() if req.checkpoint else None,
                 course_map=course_map,
+                mastered_terms=mastered,
             ):
                 eid += 1
                 if ev["type"] == "tool_call":

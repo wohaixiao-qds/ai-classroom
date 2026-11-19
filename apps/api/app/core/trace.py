@@ -50,6 +50,7 @@ def trace_tutor(
     source: str = "user",
     self_eval: dict[str, str] | None = None,
     guard_violations: list[str] | None = None,
+    reteach: list[str] | None = None,
 ) -> None:
     """答疑一轮的轨迹。
 
@@ -86,6 +87,7 @@ def trace_tutor(
             "error": error,
             "self_eval": self_eval,  # A6:{verdict,reason} 或 None(未评);见 services/self_eval
             "guard_violations": guard_violations or [],  # 假引用门禁拦截明细(空=通过)
+            "reteach": reteach or [],  # 重教门禁(观测期):已学概念被当新课教的命中明细
         },
     )
 

@@ -164,6 +164,45 @@ def student_course_map() -> str:
     return "\n".join(lines) if lines else "(系统里还没有课程)"
 
 
+def mastered_concepts(exclude_course_id: str = "") -> list[str]:
+    """已学完课程的概念词表(确定性抽取,答疑口吻校准用,A 方案 2026-11-19)。
+
+    与 student_course_map 同判据(done+检查点全过=已学完),但产出是**贴在问题旁的
+    事实清单**而非背景地图——把「查地图推理」这个不可靠环节从模型手里拿走。
+    词形:节标题的冒号前段(≤10 字);排除当前课(当前课概念正在学,不算已掌握)。
+    """
+    passed: dict[str, set[str]] = {}
+    for g in read_traces("grade.jsonl", limit=500):
+        if g.get("verdict") == "pass":
+            passed.setdefault(str(g.get("course_id", "")), set()).add(str(g.get("page_id")))
+    done = done_map()
+    out: list[str] = []
+    for p in sorted(settings.courses_dir.glob("*.csl.json")):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 同上
+            continue
+        cid = str(d.get("id", p.stem))
+        if cid == exclude_course_id:
+            continue
+        units = d.get("sections") or d.get("pages") or []
+        if d.get("version") == 2:
+            cp_ids = [
+                b["id"] for s in units for b in s.get("blocks", []) if b.get("type") == "quiz"
+            ]
+        else:
+            cp_ids = [pg["id"] for pg in units if pg.get("checkpoint")]
+        n_pass = sum(1 for i in cp_ids if i in passed.get(cid, set()))
+        if not (done.get(cid) and n_pass >= len(cp_ids)):
+            continue  # 只收已学完的课
+        for u in units:
+            head = str(u.get("heading") or u.get("title") or "")
+            term = head.split(":")[0].split("：")[0].strip()
+            if 2 <= len(term) <= 10:
+                out.append(term)
+    return list(dict.fromkeys(out))[:36]  # 去重封顶,防词表过长反噬上下文
+
+
 def _scan_notes(covered: set[str], prep: set[str], status_of: dict[str, str]) -> list[NoteItem]:
     """能学的:有笔记、未被任何课覆盖。"""
     root = settings.kb_dir
