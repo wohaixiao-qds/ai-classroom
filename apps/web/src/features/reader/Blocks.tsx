@@ -8,6 +8,7 @@ import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { cn } from "../../lib/utils";
 import type { Block } from "../../types/csl";
+import { linkifyUrls } from "../../utils/linkify";
 import { normalizeBold } from "../../utils/md";
 import { CheckpointOverlay } from "./CheckpointOverlay";
 
@@ -41,7 +42,9 @@ function linkifySources(children: ReactNode): ReactNode {
       let last = 0;
       let i = 0;
       for (const m of node.matchAll(SRC_RE)) {
-        if (m.index > last) out.push(node.slice(last, m.index));
+        // 源标记之间的普通文本段:裸 URL 也链化(课件正文常直接甩地址,不链化
+        // 长链会被容器右缘切断=「链接没给全」;与答疑消息区同用一份 linkifyUrls)
+        if (m.index > last) out.push(...linkifyUrls(node.slice(last, m.index), `${keyBase}-t${i}`));
         out.push(
           <a
             key={`${keyBase}-${i++}`}
@@ -55,7 +58,7 @@ function linkifySources(children: ReactNode): ReactNode {
         );
         last = m.index + m[0].length;
       }
-      if (last < node.length) out.push(node.slice(last));
+      if (last < node.length) out.push(...linkifyUrls(node.slice(last), `${keyBase}-tend`));
       return out;
     }
     // 容器(strong/em/code…)递归:源标记偶尔嵌在强调里
