@@ -142,6 +142,7 @@ def run_tutor(
     checkpoint: dict[str, Any] | None = None,
     course_map: str = "",
     mastered_terms: list[str] | None = None,
+    state_note: str | None = None,
 ) -> Iterator[dict]:
     """跑一轮答疑,以事件流产出(生成器)。
 
@@ -168,6 +169,10 @@ def run_tutor(
             + "]\n\n"
             + first_user
         )
+    if state_note:
+        # 侧信道(2026-11-19):会话中途的进度增量(检查点通过/打卡/词表增),贴当轮
+        # user 前缀——追加式生长,历史永不回改,KV 缓存零击穿
+        first_user = f"{state_note}\n{first_user}"
     if current_page:
         first_user = f"[我正在学第「{current_page}」页]\n\n{question}"
     if checkpoint:

@@ -28,7 +28,7 @@ from app.schemas.chat import (
     SessionDetailResponse,
     SessionListResponse,
 )
-from app.services.catalog import mastered_concepts, student_course_map
+from app.services.catalog import mastered_concepts, session_state_note, student_course_map
 from app.services.citation_guard import verify_citations
 from app.services.grader import grade_recitation
 from app.services.reteach_guard import detect_reteach
@@ -54,6 +54,8 @@ def chat(req: ChatRequest) -> StreamingResponse:
     mastered = mastered_concepts(exclude_course_id=req.course_id)
 
     session_id = ensure_session(req.session_id, req.course_id)
+    # 侧信道:会话中途进度增量(拉模式,每问现算 diff,变化才产出)
+    state_note = session_state_note(session_id, req.course_id)
 
     # A6 答案自评 + 落 trace 是「事后账」:done 先发、裁判流结束后后台跑。
     # 之前裁判挡在 done 之前——5.3 思考常开后裁判一次动辄几十秒,前端答案已
@@ -114,6 +116,7 @@ def chat(req: ChatRequest) -> StreamingResponse:
                 checkpoint=req.checkpoint.model_dump() if req.checkpoint else None,
                 course_map=course_map,
                 mastered_terms=mastered,
+                state_note=state_note,
             ):
                 eid += 1
                 if ev["type"] == "tool_call":

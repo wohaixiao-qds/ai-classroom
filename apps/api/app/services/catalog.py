@@ -203,6 +203,49 @@ def mastered_concepts(exclude_course_id: str = "") -> list[str]:
     return list(dict.fromkeys(out))[:36]  # 去重封顶,防词表过长反噬上下文
 
 
+# 会话级状态快照(侧信道,2026-11-19):进程内存,重启丢失=下问重贴基线,幂等无害。
+# 拉模式——发问是同步点:每问现算进度,与快照 diff,变化才产出提醒注入当轮 user 前缀。
+_SESSION_STATE: dict[str, tuple[int, bool, int]] = {}  # (检查点数, 打卡, 词表长度)
+
+
+def session_state_note(session_id: str, course_id: str) -> str | None:
+    """答疑侧信道:会话中途的进度增量提醒(变化才产出,None=不变不贴)。
+
+    覆盖三事件:本课检查点通过数变化 / 本课打卡完成 / 已学词表增量(跨课并行)。
+    注入位由调用方决定(tutor 当轮 user 前缀,追加式不击穿缓存)。
+    """
+    st = completion(course_id)
+    terms = mastered_concepts(exclude_course_id=course_id)
+    snap = _SESSION_STATE.get(session_id)
+    notes: list[str] = []
+    if snap is None:
+        # 首轮:基线一句话(节位置由 current_page 承担,这里只给检查点面)
+        if st.checkpoints_total:
+            notes.append(f"正在学本课,检查点 {st.checkpoints_passed}/{st.checkpoints_total}")
+    else:
+        prev_cp, prev_done, prev_n_terms = snap
+        if st.checkpoints_passed > prev_cp:
+            # 刚通过的题目:grade trace 最新一条 pass(给老师「刚过了什么」的具体语境)
+            last_q = ""
+            for g in read_traces("grade.jsonl", limit=50):
+                if g.get("course_id") == course_id and g.get("verdict") == "pass":
+                    last_q = str(g.get("comment", "")).split("\n")[0][:24] or str(
+                        g.get("page_id", "")
+                    )
+                    break
+            notes.append(
+                "你刚通过了一个检查点"
+                + (f"(「{last_q}」)" if last_q else "")
+                + f",本课 {st.checkpoints_passed}/{st.checkpoints_total}"
+            )
+        if st.done and not prev_done:
+            notes.append("你已学完本课——之后的回答可直接使用本课全部概念,不再当新课讲")
+        if len(terms) > prev_n_terms:
+            notes.append("你的已学课程增加了,词表已更新(已学概念直接用)")
+    _SESSION_STATE[session_id] = (st.checkpoints_passed, st.done, len(terms))
+    return f"[学习状态:{';'.join(notes)}]" if notes else None
+
+
 def _scan_notes(covered: set[str], prep: set[str], status_of: dict[str, str]) -> list[NoteItem]:
     """能学的:有笔记、未被任何课覆盖。"""
     root = settings.kb_dir
