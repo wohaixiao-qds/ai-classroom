@@ -19,7 +19,15 @@ from app.schemas.csl import EvidenceItem
 
 def normalized_body(text: str) -> str:
     """fetch_page 的 [标题 | URL] 只标识出处,不属于支持结论的正文。"""
-    text = re.sub(r"^\[[^\n]*\|\s*https?://[^\n]*\]\s*\n?", "", text)
+    # Only remove a standalone metadata line. Some extractors return a single
+    # long line; using `[^\n]*` there can consume the entire page up to a later
+    # Markdown link's closing bracket and falsely invalidate real quotations.
+    first_line, separator, remainder = text.partition("\n")
+    if separator and re.fullmatch(r"\[[^\n]*\|\s*https?://[^\n]*\]\s*", first_line):
+        text = remainder
+    # Markdown emphasis is extractor formatting, not semantic page text. The
+    # model may omit it while still quoting a contiguous passage verbatim.
+    text = re.sub(r"(?<!\\)(\*{1,3})(?=\S)(.+?)(?<=\S)\1", r"\2", text)
     return " ".join(text.split())
 
 
@@ -52,7 +60,7 @@ def _points(material: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
 
 
 def locate_material(
-    material: dict[str, Any], pages: Mapping[str, str],
+    material: dict[str, Any], pages: Mapping[str, str], *, _saved_bodies: bool = False,
 ) -> tuple[dict[str, Any], list[str]]:
     """仅用本轮实际返回构建证据,覆盖模型自报的 evidence/快照/审查结果。"""
     result = copy.deepcopy(material)
@@ -60,14 +68,16 @@ def locate_material(
         s.get("id"): str(s.get("url", ""))
         for s in result.get("sources", []) if isinstance(s, dict)
     }
-    snapshots = {url: normalized_body(body) for url, body in pages.items()
-                 if not fetch_error(body)}
+    snapshots = dict(pages) if _saved_bodies else {
+        url: normalized_body(body) for url, body in pages.items() if not fetch_error(body)
+    }
     evidence: list[dict[str, Any]] = []
     errors = []
     for eid, point in _points(result):
         sid = point.get("source_id")
-        quote = " ".join(str(point.get("quote") or "").split())
         body = snapshots.get(sources.get(sid, ""), "")
+        raw_quote = " ".join(str(point.get("quote") or "").split())
+        quote = raw_quote if _saved_bodies and raw_quote in body else normalized_body(raw_quote)
         start = body.find(quote) if quote else -1
         if len(quote) < 12:
             errors.append(f"要点 {eid} 缺少足够具体的原文摘录(至少12字符,须逐字引用)")
@@ -105,7 +115,9 @@ def material_evidence(material: dict[str, Any]) -> list[dict[str, Any]]:
             if not isinstance(body, str) or text_hash(body) != snapshot.get("sha256"):
                 raise ValueError(f"原文快照指纹不符:{url}")
             pages[url] = body
-        rebuilt, errors = locate_material(material, pages)
+        # A saved body already has a verified hash. Do not normalize it again:
+        # old snapshots may contain Markdown or a second header in the body.
+        rebuilt, errors = locate_material(material, pages, _saved_bodies=True)
         if errors:
             raise ValueError("原料证据损坏:" + ";".join(errors[:3]))
         old = {e.get("id"): e for e in material.get("evidence", []) if isinstance(e, dict)}

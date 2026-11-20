@@ -89,6 +89,16 @@ class EvidenceChainTests(unittest.TestCase):
         self.assertEqual(item["support"], "unreviewed")
         self.assertIn("Context before", item["context"])
 
+    def test_normalized_body_only_removes_a_standalone_fetch_header(self) -> None:
+        quote = "A quotation near a Markdown link [reference](https://example.org/page)."
+        self.assertEqual(
+            normalized_body(f"[Page title | https://example.org/page]\n{quote}"), quote
+        )
+        # One-line extractors are common; the metadata parser must not mistake
+        # a Markdown link's closing bracket for the end of the page header.
+        self.assertEqual(normalized_body(f"[Page title | https://example.org/page] {quote}"),
+                         f"[Page title | https://example.org/page] {quote}")
+
     def test_fabricated_quote_and_tool_header_cannot_be_evidence(self) -> None:
         for quote in ("This statement was never in the original document.",
                       "资料标题 | https://example.org/2"):
@@ -96,6 +106,27 @@ class EvidenceChainTests(unittest.TestCase):
             candidate["groups"][0]["points"][0]["quote"] = quote
             _, errors = locate_material(candidate, self.pages)
             self.assertTrue(any("g1p1" in error for error in errors))
+
+    def test_markdown_emphasis_does_not_break_verbatim_quote_matching(self) -> None:
+        self.assertEqual(normalized_body("cost = unit_price * count; source_id"),
+                         "cost = unit_price * count; source_id")
+        candidate = copy.deepcopy(self.raw)
+        candidate["groups"][0]["points"][0]["quote"] = (
+            "Only incremental changes are appended; existing history is preserved."
+        )
+        pages = dict(self.pages)
+        url = self.raw["sources"][0]["url"]
+        pages[url] = pages[url].replace(
+            "Only incremental changes are appended; existing history is preserved.",
+            "**Only incremental changes are appended; existing history is preserved.**",
+        )
+        _, errors = locate_material(candidate, pages)
+        self.assertFalse(errors)
+        candidate["groups"][0]["points"][0]["quote"] = (
+            "Only **incremental changes** are appended; existing history is preserved."
+        )
+        _, errors = locate_material(candidate, self.pages)
+        self.assertFalse(errors)
 
     def test_cache_snapshot_tampering_rejected_and_changed_point_loses_old_review(self) -> None:
         self.material["evidence"][0].update(support="supported", reviewer="model:old")
@@ -108,6 +139,18 @@ class EvidenceChainTests(unittest.TestCase):
         item = material_evidence(changed)[0]
         self.assertEqual(item["support"], "unreviewed")
         self.assertIsNone(item["reviewer"])
+
+    def test_recovered_snapshot_with_markdown_links_keeps_real_quote(self) -> None:
+        raw = copy.deepcopy(self.raw)
+        raw["groups"][0]["points"][0]["quote"] = QUOTE
+        url = raw["sources"][0]["url"]
+        pages = {key: value for key, value in self.pages.items()}
+        pages[url] = (
+            f"[Source | {url}]\nPrefix [linked text](https://example.org/linked). {QUOTE}"
+        )
+        material, errors = locate_material(raw, pages)
+        self.assertEqual(errors, [])
+        self.assertEqual(material_evidence(material)[0]["quote_status"], "matched")
 
     def test_legacy_material_cannot_self_declare_verified(self) -> None:
         self.raw["evidence"] = [{"id": "g1p1", "support": "supported"}]
