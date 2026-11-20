@@ -20,7 +20,7 @@ interface OutlineCourse {
   id: string;
   title: string;
   goal: string;
-  why?: string; // 弱点归因:这门课弥补模型的哪个天然弱点(老待探反思框架制度化)
+  why?: string; // 具体学习障碍或应用问题;模型弱点只用于适用领域
   part?: string;
   prereq_titles?: string[];
   course_file_id?: string | null;
@@ -236,9 +236,9 @@ export function BookPage() {
                   {c.why && (
                     <p
                       className="mt-0.5 pl-[26px] text-xs leading-relaxed text-primary/70"
-                      title="弱点归因:这门课弥补模型的哪个天然弱点"
+                      title="学习动机:这门课解决什么理解障碍或实际问题"
                     >
-                      ↯ 弥补:{c.why}
+                      学习动机：{c.why}
                     </p>
                   )}
                   {/* 挂接课件平铺:真实课件标题,一门大纲课可能收编多门旧课 */}

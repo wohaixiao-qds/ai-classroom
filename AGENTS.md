@@ -4,7 +4,7 @@
 
 ## 项目是什么
 
-个人本地部署的 AI 老师课堂：FastAPI(Python) 后端 + React(TS) 前端播放器，课件逐页 TTS 讲解 + 答疑 Agent 对话 + 复述检查点。主线服务作者本人学习，未来演化成对外 AI 课堂。
+个人本地部署的 AI 老师课堂：FastAPI(Python) 后端 + React(TS) 书页阅读器，主题调研→领域大纲→逐课生成 CSL v2(节/块)→答疑/复述/间隔复习→预览确认后沉淀笔记。v1 幻灯片播放器已退役，TTS provider 留存但 v2 不编译音频。主线服务作者本人学习，未来演化成对外 AI 课堂。
 
 ---
 
@@ -14,14 +14,15 @@
 
 - `docs/设计方案-v1.md` —— 产品设计总纲（四 Agent 架构、场景、路线）
 - `docs/P1执行计划.md` —— P1 阶段任务 T1~T6 及验收标准（已完成）
-- `docs/P1.5执行计划.md` —— **当前阶段**：答疑 agent 打磨(A1~A6) + AI 教室骨架(B0~B2)、课表四泳道、衍生机制
+- `docs/P1.5执行计划.md` —— 历史阶段：答疑 agent 打磨(A1~A6) + AI 教室骨架(B0~B2)
 - `docs/项目结构与开发规范.md` —— 目录结构、分层、API/工具链/Git 规范
 - `docs/agent设计.md` —— 五维 × 每个 agent 的设计图纸（P2 备课施工依据）
+- `docs/agent设计-现状梳理-2026-11.md` —— 当前 Agent 实现快照；阶段计划中的播放器与早期类型目录不再作为现状
 
 ## 1.2 边界铁律（违反=返工）
 
-1. `apps/api` 与 `apps/web` **互不 import**；唯一连接是 HTTP(SSE) + `packages/api-types` 生成产物
-2. **跨语言不手写共享类型**：后端 FastAPI 导出 OpenAPI → `openapi-typescript` 生成 TS 类型，前端只 import 生成产物
+1. `apps/api` 与 `apps/web` **互不 import**；通过 HTTP(SSE) 与发布的静态 CSL JSON 连接，分别使用 `apps/web/src/types/api.gen.ts` 与 `csl.gen.ts` 生成契约
+2. **跨语言不手写共享类型**：HTTP 从 FastAPI OpenAPI 生成；静态 CSL 从后端 Pydantic schema 包装为内存 OpenAPI，复用 `openapi-typescript` 生成。`csl.ts` 仅作类型出口和前端视图函数，`pnpm -C apps/web check-csl-types` 检查漂移
 3. 前端 feature 之间只 import 对方 `index.ts` 公共出口
 4. 后端：router 薄（校验+调 service）；async 路由内禁止阻塞调用
 5. 知识库目录（`/Users/zhangyu/CodeDevelopment/学习知识库`）**只读**
@@ -34,8 +35,8 @@
 | 端 | 技术 |
 |---|---|
 | 后端 | Python · FastAPI · uv · ruff · mypy strict · anthropic SDK（base_url 指智谱）· edge-tts（provider 抽象） |
-| 前端 | React · Vite · TS strict · Tailwind v4 · shadcn/ui · reveal.js(@revealjs/react) · assistant-ui |
-| 契约 | OpenAPI 生成 TS 类型；SSE 事件信封 `{type,data,id}` + 心跳 |
+| 前端 | React · Vite · TypeScript · Tailwind v4 · shadcn/ui · react-markdown · mermaid；书页阅读器与自建 SSE 对话 UI |
+| 契约 | OpenAPI 生成 HTTP 与静态 CSL 的 TS 类型；SSE 传输事件 |
 | Git | Conventional Commits；简化 GitHub Flow（main 小步提交） |
 
 ## 1.4 四象限协作协议
@@ -57,7 +58,7 @@
 
 ## 2.1 任务编号制（防跑偏，最高优先级）
 
-1. 只做 `docs/P1执行计划.md` 中当前任务及其前置
+1. 只做当前用户明确授权的任务及其前置；阶段任务按对应执行计划，P1/P1.5 为已封版历史，不限制后续已授权阶段
 2. **范围外的想法（新功能、优化、重构）→ 先提出，不动手**，由人决定是否纳入
 3. 开工前自查：本次改动对应哪个 T 编号？验收标准是什么？
 4. 不擅自引入新依赖/新框架/新抽象——需要时先说明理由征得同意
@@ -87,7 +88,7 @@
 
 ## 3.2 当前状态（每完成一个任务更新本节）
 
-- 阶段：**P1.5（答疑 agent 打磨 + AI 教室骨架）** ← 策略改为垂直深耕：一个 agent 打磨成熟再做下一个
+- 当前主线：**书页课堂已落地，进行 Agent 架构审查收口**。以下为按时间保留的阶段历史，后续条目中的完成记录优先于早期“进行中”标记。
 - ✅ P1 代码全部完成（T1~T6，2026-08-20）：CSL schema + 第一课（7页/27句/3检查点）、TTS 音频、reveal 课件渲染 + 三主题、音画同步引擎 + 断点续播 + 字幕、答疑 Agent 工具循环 + SSE、复述批改闭环
 - ✅ P1 后续修复（2026-08-21）：音画时序按句首触发（with_sentence）、暂停原地续放、reveal 主题覆盖、对比度、右侧常驻对话栏、LLM 客户端工厂、上下文缓存名实相符、MAX_TURNS 软着陆、60s 超时、.env 自动加载、**答疑真流式 + markdown 渲染 + 与播放解耦**、窄框排版约束、输入框空格守卫
 - ✅ **P1.5 全部完成(2026-08-21)→ 已封版**:A1~A6 + B0~B2 全过,明细见上一轮提交;收尾亦清(gen-types/A4多页/自评展示/traces 移出 git)
@@ -208,6 +209,7 @@
 - ✅ **追加(2026-11-20)·Eval 基础修复(用户确认四方向)**:①学习状态改读 SQLite `learning_grades`,一次事务导入完整旧批改轨迹并从 mastery 补回历史 pass,完成判定/课程地图/已学词表/最近批改/笔记批改底料不再受全局 Trace 窗口影响;新 `source=test` 批改不入学习结果或复习排期,保留 raw_score/tutored 区分模型评分与辅导保底。②共享 `TraceRun` 按 run_id 追加 started/progress/finished/assessment,答疑执行先落盘后后台补评,调研/备课/批改异常或取消也记终态,进程退出无终态显示 interrupted;真实循环次数、模型/代码/提示/工具/初始上下文哈希与本地快照可复盘。③弃「引用或搜索=有据」,工具行为/引用存在性/语义证据支撑分别计量;高风险全评、其他固定 20% 抽样,裁判纳入实际成功工具返回与会话上下文,未评原因/覆盖率/裁判 token 耗时独立可见;旧记录状态与证据结论保留未知。④自动教训只入 pending,包含旧 `[待审]` 行,观测页可编辑确认/拒绝/撤销,确认后下一问生效;保留人的旧手写规则。Eval 页新增四类执行轨迹、引用/重教违规、正确分母与错误重试,类型由 OpenAPI 生成。新增 `apps/api/evals/` 9 个固定场景+参考/反例+人工 rubric,`scripts/eval_agent.py` 离线检查记录输出,缺人工标签返回未评(退出码 2),自检不冒充真实模型成绩。验证:38 项 unittest/ruff/测试与评测脚本 mypy 通过;app mypy 对干净 HEAD 为 39→19,新增 0;web lint/build 通过(存量 warning);隔离浏览器验证确认/撤销/来源过滤/失败与取消/503 重试,实际 CSS 480/768/1024/1440 无横溢。**限制**:线上裁判仍与答疑共用模型,9 个种子场景尚未采集真实模型输出与人工标注,不宣称质量准确率;当前内置浏览器最窄实际 CSS 480,375/414 未完成实测。断连测试初版的替身提前退出作用域,曾误走真实答疑路径并写入 3 条 mock-session 孤立提问;已按固定会话/课件/内容/行 id 精确清除,复查残留 0,并给所有测试库与模型入口加隔离兜底(未模拟调用立即失败),修复后全量通过。真实课程/批改/掌握度/知识库未改,临时预览已关闭。
 - ✅ **追加(2026-11-20)·备课恢复与规划兑现验收(架构审查续项)**:规划保留 covers,建课时原子保存 `data/research/<course_id>.plan.json`;恢复加载原节 id/顺序/测验要求,已恢复规划撤掉 init/submit 工具,坏规划明确报错。旧半成品缺规划先补交且必须保留已有节 id;建课后规划锁定,write_section 拒规划外 id 并按原序落盘。自查与收笔终验共用规划对照(漏节/重复节/顺序/计划测验缺 pass_rule 均打回),结构有效不再等于交付完整。修断连测试替身生命周期,覆盖完整 SSE 消费。新增 8 项临时目录+模型替身回归,全量 46 项 unittest/ruff 通过,改动模块与测试 mypy(`--follow-imports=silent`)通过。限制:材料 covers 仍为写作约定,不代表语义覆盖或事实核验;未跑真实模型/发布/知识库写入。
 - ✅ **追加(2026-11-20)·后台任务与产物稳定绑定**:三类任务共用 SQLite `job_bindings`(稳定 binding id/预留课件 id/原料快照与哈希/规划哈希),执行尝试用 catalog_actions.id 单独传子进程;重复 queued/running 事务去重,状态按尝试 id 回写,取消终态不被旧进程复活。prep 建课采用预留 id,每轮/写节检查尝试有效性;重试定位绑定课件,材料或规划变化/丢失明确拒绝,旧任务仅在来源或领域可核对且唯一时迁移。大纲同名课按任务领域隔离,取消保留骨架与规划,未交付绑定产物不进入课程库/发布;日志与 PID 按尝试分离,异常退出任务可在再次提交时校正并恢复。新增 16 项离线回归,当前全量 62 项 unittest 通过;本轮 13 文件 Ruff/定向 mypy 通过。未启动真实模型、后台生成或知识库写入;材料变化后的显式重建/差异审阅 UI、真实模型评测基线仍待后续。
+- ✅ **追加(2026-11-20)·审查剩余三项实施**:①原文→原料→课件证据链:Research 用实际抓取正文生成快照/摘录偏移/指纹,伪造摘录与坏快照打回,每份新原料额外做一次模型语义初审(失败明确未审);Prep 确定性带入来源编号与证据索引,块关联 evidence_ids,拒未知或已标不支持的原料引用。旧材料不补造验证;旧半成品按 URL 恢复丢失的来源编号。阅读器按节展示原文依据;只读 `audit_evidence.py` 对实际正文另审,表格图注也纳入,人工标签绑定内容哈希,全量人工确认才退出 0。②通用领域适配:why 改具体学习障碍/应用问题,模型弱点只用于适用的 Agent 课程;稳定理论不再强制近一年,新领域使用自己的 vault 目录与导览链接,旧主题绑定保留。③契约与文档收敛:Pydantic 唯一 CSL 结构源,复用现有 openapi-typescript 生成 csl.gen.ts,csl.ts 只留别名/视图函数;漂移检查串入 lint。README/有效开发规范/Agent 现状同步书页架构,阶段计划保留历史语境。新增 18 项离线回归,全量 **80 项 unittest 通过**;Ruff/定向 11 文件 mypy 通过,app mypy 对干净 HEAD 为 19→19、新增 0;web lint/build 通过(9 个存量 warning及包体提示),故意改生成产物后漂移检查如预期失败、恢复后通过;9 项评测器自检通过但未跑真实模型。隔离 CLI 验证未审=2/人工标签示例=0且原件未改;隔离浏览器验证来源跳转/旧课不渲染/键盘折叠/实际 CSS 480 与桌面无横溢。**限制**:未做真实模型端到端或人工真值集校准,同源模型初审不代表事实正确;旧课未回填证据;375/414 未实测。验证未改真实课程、学习库或知识库,未新增依赖,预览已关闭。
 - ⚠️ 长期记账(不阻塞 P2):①A4/ChatPanel 的 typescript-reviewer 屡被中转挡,恢复后补(现以 §3.1 自查+浏览器实测代替);②A6 局限(2026-11-20 更新):引用存在性门禁只查存在,语义支撑仍需裁判与人工校准;当前同源模型审查信号不能当准确率,固定用例真实输出与人工标签待积累;③dev 服务器(API :8100 / web :5273,原 5173 与他项目冲突已改)会话结束需重启;④4 门调研管线前的手写课(ACI四铁律/harness 是什么/自我学习闭环/工具粒度设计)无 meta.sources,来源溯源对它们不渲染——补来源=内容审校活,非机械回填,暂缓(2026-11-17 晚:四门已全部退役归档,本条随之关闭)
 
 ---
@@ -218,6 +220,9 @@
 ./start.sh          # 一键起前后端(旧进程自动先杀再重启;./start.sh api|web 单独重启)
 cd apps/api && uv run ruff check app && cd ../web && pnpm run lint   # lint
 pnpm -C apps/web gen-types   # OpenAPI → TS(需 API 已启动)
+pnpm -C apps/web gen-csl-types   # 静态 CSL Pydantic → TS(无需起服务)
+pnpm -C apps/web check-csl-types # 生成一致性检查,已串入前端 lint
+uv run --directory apps/api python -m unittest discover -s tests -v
 ```
 
 ## AI 工具差异说明

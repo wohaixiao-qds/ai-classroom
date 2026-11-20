@@ -25,6 +25,7 @@ from app.schemas.csl import (
     QuizBlock,
     TableBlock,
 )
+from app.services.evidence import course_evidence_report
 
 # 这些页型的内容生来就该逐步揭示(模板定义),零 fragment = 整页一次性亮,
 # 违背「讲到什么亮什么」——机械可查,故为 error。封面/图解除外。
@@ -136,6 +137,38 @@ def _validate_v2(d: dict[str, Any]) -> dict[str, Any]:
         course.id, course.title, course.scenario,
         course.meta.source_notes, course.meta.depends_on, errors, warnings,
     )
+    evidence_ids = [e.id for e in course.meta.evidence]
+    if len(evidence_ids) != len(set(evidence_ids)):
+        errors.append("meta.evidence 证据 id 重复,每条要点必须有唯一身份")
+    source_id_list = [s.id if s.id is not None else i
+                      for i, s in enumerate(course.meta.sources, 1)]
+    if any(sid <= 0 for sid in source_id_list) or len(source_id_list) != len(set(source_id_list)):
+        errors.append("meta.sources 来源 id 必须是唯一的正整数(旧课无 id 时使用列表序号)")
+    source_ids = set(source_id_list)
+    for evidence in course.meta.evidence:
+        if not evidence.id.strip() or not evidence.point.strip():
+            errors.append("meta.evidence 的 id 与 point 不可为空")
+        if evidence.source_id is not None and evidence.source_id not in source_ids:
+            errors.append(f"证据 {evidence.id} 的来源[{evidence.source_id}]不在 meta.sources 中")
+        if evidence.quote_status == "matched" and not (
+            evidence.source_id is not None and evidence.quote
+            and evidence.source_hash and evidence.context
+            and evidence.quote in evidence.context
+            and evidence.quote_start is not None and evidence.quote_start >= 0
+            and evidence.quote_end == evidence.quote_start + len(evidence.quote)
+        ):
+            errors.append(f"证据 {evidence.id} 的摘录定位信息不完整或不一致")
+    report = course_evidence_report(course.model_dump())
+    errors.extend(report["errors"])
+    if course.meta.evidence:
+        missing = sum(e.quote_status != "matched" for e in course.meta.evidence)
+        pending = sum(e.support != "supported" for e in course.meta.evidence)
+        if missing or pending:
+            warnings.append(f"证据待审: {missing} 条无可验证原文定位,"
+                            f"{pending} 条未获模型完整支撑判定;模型判定仍需人工校准")
+        unlinked = report["total_blocks"] - report["linked_blocks"]
+        warnings.append(f"正文语义未审,另有 {unlinked} 块未关联原文证据"
+                        "(练习/类比不要求强行找来源);可用 audit_evidence.py 审阅")
     if not course.sections:
         errors.append("sections 为空——至少一节")
 

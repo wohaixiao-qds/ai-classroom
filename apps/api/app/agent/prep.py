@@ -35,6 +35,7 @@ from app.core.prompts import DEV_LANDING_RULE, OFF_THE_SHELF_RULE, PITFALL_RULE
 from app.core.trace import observed, run_context, trace_prep, update_run
 from app.schemas.csl import Section
 from app.services.csl_validator import validate_course
+from app.services.evidence import course_evidence_report, material_evidence
 
 MAX_TURNS = 24
 
@@ -42,7 +43,7 @@ PREP_PROMPT = """你是教材作者,把备课材料写成一份 v2 书页课件(
 
 {position}
 
-# 备课材料(每条要点带来源 id,写进正文的内容都可溯源)
+# 备课材料(每条带证据 ID,缺原文的材料明确待审)
 {material}
 
 # 学员已有课程(判断先修关系用;学习路线的学习顺序就靠它生长)
@@ -93,6 +94,14 @@ _SHARED_STYLE = """# 块型菜单(blocks 数组,type 必须精确匹配)
 quiz 的 question 问「关系/区别/步骤/为什么」这类要动脑复述的,别问填空「是什么」;
 pass_rule 写具体判定标准(例:「答出四层名称和顺序」),批改 agent 靠它判;
 id 固定用「<节id>-cp」。
+
+# 原文证据
+材料每条标有证据[g1p1]等 ID。承载该要点的块填 "evidence_ids":["g1p1"];
+只用材料中实际存在的 ID,关键数字/版本/规范断言必须关联对应证据。
+原文摘录保持原语言,正文可解释改写;不扩大原文的适用条件。
+标为 unsupported 的要点不要作为事实使用;partial/uncertain/unreviewed 如实保留限制。
+练习、自造示例、类比可留空 evidence_ids,但明确标为示例,不能冒充来源事实。
+引用只建立追溯关系,不能声称正文已被事实核验。
 
 """ + PITFALL_RULE + "\n\n" + DEV_LANDING_RULE + "\n\n" + OFF_THE_SHELF_RULE + "\n"
 
@@ -243,6 +252,7 @@ def _make_tools(
     material_topic: str | None = None,
     material_groups: list[str] | None = None,
     job_binding: dict[str, Any] | None = None,
+    evidence_items: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
     groups = material_groups or []
     state: dict[str, Any] = {"course_id": None, "plan": None, "plan_reviews": 0}
@@ -382,9 +392,11 @@ def _make_tools(
                 "topic": material_topic,  # 课程库分组钥匙,harness 确定性写入
                 # 来源确定性带入:材料里的调研来源 harness 直接写进 meta.sources(有据链路终点)
                 "sources": [
-                    {"title": str(s.get("title", ""))[:80], "url": str(s.get("url", ""))}
-                    for s in material_sources
+                    {"id": s.get("id", i), "title": str(s.get("title", ""))[:80],
+                     "url": str(s.get("url", ""))}
+                    for i, s in enumerate(material_sources, 1)
                 ],
+                "evidence": evidence_items or [],
                 # 先修建议是教学判断,归模型;合法性归上面的即时校验 + 收笔终验
                 "depends_on": deps,
                 "duration_min": None,
@@ -422,6 +434,20 @@ def _make_tools(
         course = _load(p)
         if course is None:
             return "(课件文件读不回,重新 init_course)"
+        # 旧半成品首次续写时补材料索引;已有索引保留,不改写既有证据结论。
+        if evidence_items and not course.setdefault("meta", {}).get("evidence"):
+            course["meta"]["evidence"] = evidence_items
+            # 早期课件丢过 source_id,按同一材料的 URL 补回身份,不能拿数组序号重编号。
+            source_ids = {str(s.get("url", "")): s.get("id", i)
+                          for i, s in enumerate(material_sources, 1)}
+            for source in course["meta"].get("sources", []):
+                if source.get("id") is None and source.get("url") in source_ids:
+                    source["id"] = source_ids[source["url"]]
+        proof = course_evidence_report({
+            "meta": course.get("meta", {}), "sections": [section],
+        })
+        if proof["errors"]:
+            return "(证据引用有问题,该节未写入):\n- " + "\n- ".join(proof["errors"])
         # upsert-by-id:同 id = 替换该节(改错的原语),否则追加。
         sid = section.get("id")
         plan_ids = [s["id"] for s in state["plan"]]
@@ -635,12 +661,20 @@ def _render_material(m: dict[str, Any]) -> str:
         head += f"\n  [{s.get('id')}] {s.get('title','')[:50]} | {s.get('url','')}"
     if not srcs:
         head += "\n  (来自学员笔记,无网页来源)"
+    evidence = {e["id"]: e for e in material_evidence(m)}
     body = ""
-    for g in m.get("groups", []):
+    for gi, g in enumerate(m.get("groups", []), 1):
         body += f"\n## {g.get('heading')}"
-        for pt in g.get("points", []):
+        for pi, pt in enumerate(g.get("points", []), 1):
+            eid = f"g{gi}p{pi}"
+            item = evidence[eid]
             sid = f"(源[{pt.get('source_id')}])" if pt.get("source_id") else ""
-            body += f"\n- {pt.get('text')}{sid}"
+            body += f"\n- 证据[{eid}] {pt.get('text')}{sid}"
+            if item["quote"]:
+                body += f"\n  原文摘录:{item['quote']}"
+            body += f"\n  摘录定位:{item['quote_status']} / 原料语义:{item['support']}"
+            if item.get("reason"):
+                body += f" / {item['reason']}"
     return head + body
 
 
@@ -696,6 +730,7 @@ def run_prep(
         material_topic=str(material.get("topic")) or None,
         material_groups=[str(g.get("heading", "")) for g in material.get("groups", [])],
         job_binding=job_binding,
+        evidence_items=material_evidence(material),
     )
     state["subtopic"] = str(material.get("subtopic") or "本课")  # 兜底模板用
     position = (

@@ -1,6 +1,6 @@
 # AI 课堂（ai-classroom）
 
-本地部署的私有 AI 老师：给它一个想学的主题，它自动**调研 → 规划大纲 → 逐课生成书页式课程**（文字 + mermaid 插图 + 检查点 + 闪卡），你按大纲点单学习；课堂内嵌答疑 Agent 与复述批改，学完自动蒸馏笔记写回 Obsidian 知识库，检查点/闪卡按间隔重复排期复习。
+本地部署的私有 AI 老师：给它一个想学的主题，它自动**调研 → 规划大纲 → 逐课生成书页式课程**（文字 + mermaid 插图 + 检查点 + 闪卡），你按大纲点单学习；课堂内嵌答疑 Agent 与复述批改，学完预览并确认后将蒸馏笔记写回 Obsidian，检查点/闪卡按间隔重复排期复习。
 
 ## 功能一览
 
@@ -10,6 +10,7 @@
 - 🔁 **间隔复习**：检查点与闪卡按 [1,3,7,14,30,60] 天排期（低置信封顶：一次蒙对不算过），学习台到期提醒
 - 📝 **知识沉淀**：学完打卡 → 三源蒸馏 → 确认写回 Obsidian vault（vault 目录结构跟随大纲自动同步）
 - 🧠 **答疑 Agent**：认识全库课程与你的学习进度，跨课融通；SSE 真流式 + 工具调用（联网搜索/读笔记）
+- 🔗 **原文依据**：新调研保留抓取正文快照、要点摘录与位置，课件块关联证据；阅读器可展开查看原文。摘录定位、模型语义初审、人工审校分别记录，旧材料缺证据时保持待审
 
 ## 技术栈
 
@@ -52,7 +53,7 @@ cp config/secrets.env.example config/secrets.env
 
 ```
 ├── apps/api     # FastAPI 后端:app/agent(各 agent 循环) · app/core(基础设施) · app/services
-├── apps/web     # React 前端:features/(页面模块) · src/types(OpenAPI 生成类型,已入库)
+├── apps/web     # React 前端:features/(页面模块) · src/types(API 与静态 CSL 生成类型)
 ├── config/      # 密钥配置(secrets.env 已 gitignore)
 ├── docs/        # 设计方案 / 各阶段执行计划 / 竞品拆解
 └── samples/     # 定稿样例
@@ -65,6 +66,14 @@ cp config/secrets.env.example config/secrets.env
 uv run --directory apps/api ruff check app   # 后端 lint
 pnpm -C apps/web lint                        # 前端 lint
 pnpm -C apps/web gen-types                  # 后端改 API 后重新生成 TS 类型(需 API 已启动)
+pnpm -C apps/web gen-csl-types              # Pydantic CSL schema → TS(无需起 API)
+pnpm -C apps/web check-csl-types            # 校验生成产物未漂移(也包含在 lint 中)
+uv run --directory apps/api python -m unittest discover -s tests -v
+uv run --directory apps/api python scripts/eval_agent.py --self-check
+# 只读导出指定课件的证据链与人工审查模板,默认不调用模型;未审返回退出码 2
+uv run --directory apps/api python scripts/audit_evidence.py courses/COURSE_ID.csl.json
 ```
+
+三个循环 Agent（Research / Prep / Tutor）共享客户端、工具基础设施与 Trace；批改、蒸馏、归位和证据审查属于单次 LLM 服务。固定评测集及局限见 [apps/api/evals/README.md](apps/api/evals/README.md)，架构现状见 [docs/agent设计-现状梳理-2026-11.md](docs/agent设计-现状梳理-2026-11.md)。
 
 AI 辅助开发规范见 [AGENTS.md](AGENTS.md)，产品设计文档见 [docs/](docs/)。

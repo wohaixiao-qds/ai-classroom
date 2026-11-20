@@ -72,13 +72,21 @@ def _parts_of(fw: dict[str, Any]) -> list[str]:
 
 def _domain_base(fw: dict[str, Any]) -> Path | None:
     """vault 领域目录。fw 的 domain 是调研自由文本(实测有「Agent 工程」「RAG 工程」),
-    取首词;该目录在 vault 不存在时回落 Agent(当前唯一活跃领域)。"""
+    取首词。已有主题保留绑定;新领域使用自己的目录,不再统一回落 Agent。"""
     kb = settings.kb_dir
     if not kb.is_dir():
         return None
-    dom = (str(fw.get("domain") or "").strip() or "Agent").split()[0] or "Agent"
-    d = kb / dom
-    return d if d.is_dir() else kb / "Agent"
+    dom = (str(fw.get("domain") or "").strip() or "Agent").split()[0]
+    dom = re.sub(r"[^\w-]", "", dom) or "未分类"
+    legacy = kb / "Agent"
+    bound = str(fw.get("theme_dir") or "").strip()
+    alias = _ALIAS.get(str(fw.get("topic") or ""))
+    # 旧 RAG/MCP 主题原本就在 Agent 下,领域适配不搬动既有笔记。
+    if (bound and Path(bound).name == bound and (legacy / bound).is_dir()) or (
+        alias and (legacy / alias).is_dir()
+    ):
+        return legacy
+    return kb / dom
 
 
 def _resolve_theme_dir(fw: dict[str, Any], topic: str) -> Path | None:
@@ -133,7 +141,7 @@ def _outline_stub(fw: dict[str, Any], theme: Path) -> None:
         f"## 与课堂路线的对应\n\n"
         f"大纲 {n} 门" + (f"、{len(parts)} 篇:{' / '.join(parts)}" if parts else "") + "。"
         "路线全文见 [[大纲]](同步自动更新)。\n\n"
-        "## 🔗\n[[00-Agent导览]] · [[大纲]]\n"
+        f"## 🔗\n[[00-{dom}导览]] · [[大纲]]\n"
     )
     (theme / f"00-{_clean_theme(topic)}导览.md").write_text(body, encoding="utf-8")
 
@@ -189,7 +197,7 @@ def _write_outline_doc(fw: dict[str, Any], theme: Path) -> None:
             preqs = "、".join(f"「{p}」" for p in c.get("prereqs", [])) or "—"
             lines.append(f"{idx}. {mark} **{c.get('title')}** — {c.get('goal')}")
             if c.get("why"):
-                lines.append(f"   弱点归因:{c.get('why')}")
+                lines.append(f"   学习动机:{c.get('why')}")
             lines.append(f"   先修:{preqs}")
         lines.append("")
     if not parts:
@@ -199,7 +207,7 @@ def _write_outline_doc(fw: dict[str, Any], theme: Path) -> None:
             mark = "✅" if _course_published(c) else "⬜"
             lines.append(f"{i}. {mark} **{c.get('title')}** — {c.get('goal')}")
             if c.get("why"):
-                lines.append(f"   弱点归因:{c.get('why')}")
+                lines.append(f"   学习动机:{c.get('why')}")
         lines.append("")
     (theme / "大纲.md").write_text("\n".join(lines), encoding="utf-8")
 

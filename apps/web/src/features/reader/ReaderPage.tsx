@@ -14,6 +14,7 @@ type CompletionState = components["schemas"]["CompletionState"];
 import { ChatPanel, type ProgressLike } from "../chat/ChatPanel";
 import { isV2, parseCourse, type CourseV2 } from "../../types/csl";
 import { Blocks, type CheckpointAskPayload } from "./Blocks";
+import { EvidencePanel } from "./EvidencePanel";
 
 /** 书页阅读器(P6·M2):节目录 + 正文块渲染 + 内嵌检查点/闪卡 + 答疑侧栏。
  *  断点=滚动位置(localStorage);深链 ?section=N(1 起算)落到第 N 节。 */
@@ -276,7 +277,8 @@ function Reader({ course }: { course: CourseV2 }) {
                 />
               </section>
             ))}
-            {/* 来源清单(溯源):备课管线 meta.sources 的硬闸来源;正文「源[N]」锚点跳到这里。
+            <EvidencePanel course={course} />
+            {/* 来源清单:正文「源[N]」锚点按实际来源 id 跳转,旧课回落列表序号。
                 不进 sections 数组——TOC/学完进度/深链语义全部不受影响 */}
             {(course.meta.sources?.length ?? 0) > 0 && (
               <section id="sources" data-sec className="mb-12 scroll-mt-6">
@@ -285,8 +287,8 @@ function Reader({ course }: { course: CourseV2 }) {
                 </h2>
                 <ol className="space-y-2">
                   {course.meta.sources!.map((s, i) => (
-                    <li key={i} id={`src-${i + 1}`} className="scroll-mt-16 rounded-lg p-1.5">
-                      <span className="mr-1.5 font-mono text-sm text-primary">[{i + 1}]</span>
+                    <li key={i} id={`src-${s.id ?? i + 1}`} className="scroll-mt-16 rounded-lg p-1.5">
+                      <span className="mr-1.5 font-mono text-sm text-primary">[{s.id ?? i + 1}]</span>
                       <a
                         href={s.url}
                         target="_blank"

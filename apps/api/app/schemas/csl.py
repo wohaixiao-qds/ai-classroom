@@ -126,10 +126,30 @@ class Page(BaseModel):
 
 
 class SourceRef(BaseModel):
-    """调研来源(有据可查链路的终点):网页 → 原料(带源) → 课件 meta.sources。"""
+    """来源目录;id 保留调研编号,列表位置不能替代来源身份。"""
 
     title: str
     url: str
+    id: int | None = None
+
+
+class EvidenceItem(BaseModel):
+    """原料要点及其原文定位。摘录命中和语义支撑是两种独立的检查。"""
+
+    id: str
+    point: str
+    source_id: int | None = None
+    quote: str | None = None
+    context: str | None = None
+    source_hash: str | None = None
+    quote_start: int | None = None  # 归一空白后的正文字符偏移,不含工具标题头
+    quote_end: int | None = None
+    quote_status: Literal["matched", "missing"] = "missing"
+    support: Literal[
+        "supported", "partial", "unsupported", "uncertain", "unreviewed"
+    ] = "unreviewed"
+    reviewer: str | None = None
+    reason: str | None = None
 
 
 class CourseDep(BaseModel):
@@ -143,6 +163,7 @@ class CourseDep(BaseModel):
 class CourseMeta(BaseModel):
     source_notes: list[str] = []  # 来源笔记（知识库文件名），溯源用
     sources: list[SourceRef] = []  # 调研来源(新课走找资料时带;复习课通常为空)
+    evidence: list[EvidenceItem] = []  # 原文→原料;块的 evidence_ids 关联这里
     topic: str | None = None  # 所属主题(备课 harness 从材料确定性写入;课程库分组用)
     depends_on: list[CourseDep] = []  # 先修依赖(学习顺序;root 课为空)
     duration_min: int | None = None
@@ -190,14 +211,20 @@ class Course(BaseModel):
 # 顶层 "version": 2 是唯一格式标记(meta.version 是 v1 历史遗留,不作数)。
 
 
-class ParagraphBlock(BaseModel):
+class EvidenceBlock(BaseModel):
+    """块引用的是原料证据 ID;引用本身不证明改写后的正文受原文支持。"""
+
+    evidence_ids: list[str] = []
+
+
+class ParagraphBlock(EvidenceBlock):
     """书面 prose 段落;支持 **加粗** 与 `行内代码`。"""
 
     type: Literal["p"] = "p"
     text: str
 
 
-class DiagramBlock(BaseModel):
+class DiagramBlock(EvidenceBlock):
     """mermaid 示意图(P6 插图):前端渲染失败降级为代码块。"""
 
     type: Literal["diagram"] = "diagram"
@@ -206,27 +233,27 @@ class DiagramBlock(BaseModel):
     caption: str | None = None
 
 
-class CodeBlock(BaseModel):
+class CodeBlock(EvidenceBlock):
     type: Literal["code"] = "code"
     language: str = "text"
     code: str
     caption: str | None = None
 
 
-class TableBlock(BaseModel):
+class TableBlock(EvidenceBlock):
     type: Literal["table"] = "table"
     header: list[str]
     rows: list[list[str]]
     caption: str | None = None
 
 
-class CalloutBlock(BaseModel):
+class CalloutBlock(EvidenceBlock):
     type: Literal["callout"] = "callout"
     kind: Literal["tip", "warn", "note"] = "note"
     text: str
 
 
-class QuizBlock(BaseModel):
+class QuizBlock(EvidenceBlock):
     """复述检查点(原 v1 page.checkpoint)或自测题,内嵌节末。"""
 
     type: Literal["quiz"] = "quiz"
@@ -241,7 +268,7 @@ class Flashcard(BaseModel):
     back: str
 
 
-class FlashcardsBlock(BaseModel):
+class FlashcardsBlock(EvidenceBlock):
     """闪卡(P5·T5 并入):复习队列的消费单元。"""
 
     type: Literal["flashcards"] = "flashcards"

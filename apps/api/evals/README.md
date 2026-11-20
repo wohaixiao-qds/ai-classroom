@@ -24,3 +24,22 @@
 退出码：`0` = 所有规则与人工评分通过；`1` = 缺输出/规则失败/人工判失败/输入格式错误；`2` = 规则通过但仍缺人工评分。报告分别给规则成绩、人工语义成绩、未评数。`--self-check` 成功不表示已经跑过真实模型。
 
 当前局限：9 个种子用例不足以代表实际问题分布；短语检查只检验明确约束，不等于语义正确；线上裁判与答疑共用模型，尚无足够人工标签校准其误判率。应持续把真实失败转成固定用例，并在更换模型/prompt 时保留候选输出与人工评分。
+
+## 原文证据链审阅
+
+新调研在原料中保存 `source_snapshots`，程序核对每条 `quote` 在实际正文中的字符位置和哈希，再保存独立的原料语义模型初审。发布课件只带 `meta.evidence` 中的摘录/上下文，块通过 `evidence_ids` 关联，不发布整份原网页。来源保留原 ID，不以数组序号重编号。旧材料没有原文快照时保持 `missing/unreviewed`，不补造验证结果。
+
+在 `apps/api` 下执行：
+
+```bash
+# 只读实际正文、关联原文和人工标签模板,默认无模型调用;未审退出码 2
+.venv/bin/python scripts/audit_evidence.py courses/COURSE_ID.csl.json > /tmp/evidence-report.json
+# 可选:显式调用当前配置模型,对实际课件块重新审查(收费;仍不是人工确认)
+.venv/bin/python scripts/audit_evidence.py courses/COURSE_ID.csl.json --model
+# 审阅后将各块 review_template 填为具名标签,保存成 JSON 数组后检查
+.venv/bin/python scripts/audit_evidence.py courses/COURSE_ID.csl.json --reviews /tmp/reviews.json
+```
+
+人工标签包含 `id`、`reviewer`、`input_hash`、`verdict`、`reason`。`verdict` 为 `supported/unsupported/not_applicable`；练习、类比等无事实核验对象可说明原因并标为 `not_applicable`。标签绑定当前块文本和完整关联证据，正文或证据变化后旧标签失效。默认报告逐块标未审；不会把原料 supported 沿用成正文 supported。模型审查失败或格式错误保持未审，模型常识不作补充证据。
+
+该入口退出码：`0`=全部块获具名人工确认；`1`=结构/引用错误、标签失效或明确不支持；`2`=仍缺人工确认（包括只有模型初审）。它不修改课程、发布副本、学习记录或知识库，也不把检查通过宣称为客观事实正确率。

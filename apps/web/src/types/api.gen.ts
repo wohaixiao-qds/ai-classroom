@@ -510,7 +510,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel
-         * @description 手动取消后台任务:SIGTERM → job_runner 收尾(清 0 节骨架/置 cancelled)。
+         * @description 手动取消后台任务:SIGTERM → job_runner 保留恢复产物并置 cancelled。
          */
         post: operations["cancel_api_v1_jobs_cancel_post"];
         delete?: never;
