@@ -158,34 +158,34 @@ def run_tutor(
       {"type":"final","answer":..,"tool_calls":[..]} 收尾(给落轨迹用)
     """
     client = get_llm_client()
-    # 动态状态(当前页/检查点联动)放进首条 user 消息,不污染可缓存的 system 前缀
-    first_user = question
+    # 动态状态分块收集后统一组装,避免当前节/检查点分支覆盖已学词表或进度增量。
+    # 它们只进入当轮 user 消息,不改 system 缓存前缀或已有历史。
+    context_parts: list[str] = []
     if mastered_terms:
         # A 方案(2026-11-19):已学概念词表是路由层确定性抽取的「贴在问题旁的事实」——
         # 模型不需要查任何地图,约束口吻的信息就在 attention 最高位
-        first_user = (
+        context_parts.append(
             "[学员已掌握的概念(直接使用名词,不重新下定义、不从零讲解):"
             + "/".join(mastered_terms)
-            + "]\n\n"
-            + first_user
+            + "]"
         )
     if state_note:
         # 侧信道(2026-11-19):会话中途的进度增量(检查点通过/打卡/词表增),贴当轮
         # user 前缀——追加式生长,历史永不回改,KV 缓存零击穿
-        first_user = f"{state_note}\n{first_user}"
+        context_parts.append(state_note)
     if current_page:
-        first_user = f"[我正在学第「{current_page}」页]\n\n{question}"
+        context_parts.append(f"[我正在学第「{current_page}」页]")
     if checkpoint:
         # 批改→答疑联动(P7 补):复述没过,老师拿全上下文做引导式解答
-        first_user = (
+        context_parts.append(
             "[复述检查点没过,请引导式解答:先点破薄弱点,引导学员自己想通,"
             "不要直接给完整标准答案]\n"
             f"检查点问题:{checkpoint.get('question', '')}\n"
             f"通过标准:{checkpoint.get('pass_rule') or '核心概念说清即可'}\n"
             f"学员回答:{checkpoint.get('answer', '')}\n"
-            f"判定:{checkpoint.get('verdict', 'warn')}\n\n"
-            f"{question}"
+            f"判定:{checkpoint.get('verdict', 'warn')}"
         )
+    first_user = "\n\n".join([*context_parts, question])
     history = load_messages(session_id)
     messages: list[dict] = [*history, {"role": "user", "content": first_user}]
     append_turn(session_id, course_id, "user", question, page_id=current_page)
@@ -307,7 +307,7 @@ def course_text_of(course_id: str, section: str | None = None) -> str:
     section(节 id)给定时走**节级窗口**:当前节 ± 相邻节全文 + 全课目录。
     目的:全文 4~8k token 每问全价(Coding Plan 限额按 token 计),而答疑问题
     天然贴阅读位置——窗口省 60~80%,全课目录常驻保跨节指路不瞎编。
-    citation_guard 的全文比对在路由侧独立读盘,不受裁剪影响。
+    citation_guard 的完整章节索引在路由侧独立读取,不受裁剪影响。
     """
     p: Path = settings.courses_dir / f"{course_id}.csl.json"
     d = json.loads(p.read_text(encoding="utf-8"))

@@ -29,7 +29,7 @@ from app.schemas.chat import (
     SessionListResponse,
 )
 from app.services.catalog import mastered_concepts, session_state_note, student_course_map
-from app.services.citation_guard import verify_citations
+from app.services.citation_guard import course_index_of, verify_citations
 from app.services.grader import grade_recitation
 from app.services.reteach_guard import detect_reteach
 from app.services.self_eval import evaluate_answer
@@ -47,6 +47,8 @@ def chat(req: ChatRequest) -> StreamingResponse:
     # 底料走节级窗口(当前节±相邻节+全课目录):全文 4~8k 每问全价,问题天然贴阅读位置
     try:
         course_text = course_text_of(req.course_id, section=req.current_page)
+        # 引用合法性以完整章节结构为准,不能拿裁剪后的模型底料当作全课。
+        course_index = course_index_of(req.course_id)
     except FileNotFoundError:
         raise HTTPException(404, f"课件不存在: {req.course_id}") from None
     # 课程地图与 course_text 同分工:路由层算好传入,agent 层不自己读盘
@@ -129,7 +131,7 @@ def chat(req: ChatRequest) -> StreamingResponse:
                 elif ev["type"] == "final":
                     # 规则级门禁(假引用拦截):纯文本校验毫秒级,放 done 前;
                     # 流式体验不受损——答案照常流完,违规紧跟着补正 delta
-                    violations = verify_citations(ev["answer"], course_text)
+                    violations = verify_citations(ev["answer"], course_index)
                     if violations:
                         eid += 1
                         yield _sse(

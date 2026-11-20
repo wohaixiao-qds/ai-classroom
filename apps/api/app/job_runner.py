@@ -71,7 +71,7 @@ def _run() -> str:
             (c for c in fw["courses"] if c.get("title") == course_title), None
         )
         if outline_course is None:
-            return f"大纲里没有这门课: {course_title}"
+            raise ValueError(f"大纲里没有这门课: {course_title}")
         material = cached_material(topic, course_title) or research_material(
             topic, course_title
         )
@@ -140,10 +140,11 @@ def _run() -> str:
             print(f"topic 归位: {new_topic}")
         result = run_prep(material)  # 入口课无前置,无位置感可承接
     else:
-        return f"未知任务类型: {kind}"
+        raise ValueError(f"未知任务类型: {kind}")
 
     if not result.get("ok"):
-        return "备课未通过校验(软着陆),产物在 courses/ 可人工接着审"
+        # 软着陆只保留中间产物,不等于合格交付;由入口统一记 failed。
+        raise RuntimeError("备课未通过校验(软着陆),产物在 courses/ 可人工接着审")
     course = result["course"]
 
     # 大纲挂接(P7·M2):outline_course_id 恒写(目录出课判定靠它);
@@ -196,13 +197,18 @@ def _run() -> str:
     return str(course["id"])
 
 
-if __name__ == "__main__":
+def _main() -> int:
     signal.signal(signal.SIGTERM, _on_cancel)
     try:
         detail = _run()
     except Exception as e:  # noqa: BLE001 后台任务:任何异常都要落状态,不能静默死掉
         set_status(sys.argv[2], "failed", str(e)[:200])
         print(f"FAILED: {e}")
-        sys.exit(1)
+        return 1
     set_status(sys.argv[2], "done", detail)
     print(f"DONE: {detail}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(_main())
