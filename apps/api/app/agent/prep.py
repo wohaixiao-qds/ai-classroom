@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -163,6 +164,54 @@ def _covers_key(s: str) -> str:
     return "".join(str(s).split())[:8]
 
 
+def _plan_path(course_id: str) -> Path:
+    return settings.data_dir / "research" / f"{course_id}.plan.json"
+
+
+def _save_plan(course_id: str, plan: list[dict[str, Any]], groups: list[str]) -> None:
+    """规划独立于发布课件,原子替换避免中断留下半份 JSON。"""
+    path = _plan_path(course_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"version": 1, "course_id": course_id, "sections": plan, "groups": groups}
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                     delete=False) as file:
+        temp = Path(file.name)
+        try:
+            json.dump(payload, file, ensure_ascii=False, indent=2)
+            file.flush()
+            temp.replace(path)
+        finally:
+            temp.unlink(missing_ok=True)
+
+
+def _plan_delivery_errors(course: dict[str, Any], plan: list[dict[str, Any]] | None) -> list[str]:
+    """只验可确定的规划兑现;covers 是写作约定,不冒充语义覆盖证明。"""
+    if not plan:
+        return ["还没有通过的课程规划——先 submit_plan"]
+    sections = course.get("sections", [])
+    ids = [s.get("id") for s in sections]
+    planned_ids = [s["id"] for s in plan]
+    errors = []
+    if len(ids) != len(set(ids)):
+        errors.append("实际课件存在重复节 id,按规划保留唯一一节")
+    for item in plan:
+        sid = item["id"]
+        section = next((s for s in sections if s.get("id") == sid), None)
+        if section is None:
+            errors.append(f"规划节 {sid}「{item['heading']}」尚未交付,用 write_section 补齐")
+        elif item["has_quiz"] and not any(
+            b.get("type") == "quiz" and str(b.get("pass_rule") or "").strip()
+            for b in section.get("blocks", [])
+        ):
+            errors.append(f"规划节 {sid} 缺少带明确 pass_rule 的测验,重交同 id 修正")
+    extra = [sid for sid in ids if sid not in planned_ids]
+    if extra:
+        errors.append(f"课件含规划外节 {extra},需按原规划修正")
+    if not extra and len(ids) == len(planned_ids) and ids != planned_ids:
+        errors.append("实际节顺序与规划不符,按原规划逐节重交修正")
+    return errors
+
+
 def _template_plan(groups: list[str], subtopic: str) -> list[dict[str, Any]]:
     """静态默认规划(两次规划未过时兜底,DeepTutor #25「永不空转」):
     首节 intro + 每材料组一节;末 3 组带检查点(不足 3 组则全带)。"""
@@ -188,11 +237,27 @@ def _make_tools(
 
     def submit_plan(sections: list[dict[str, Any]]) -> str:
         """规划外显(P5·T2 并入):harness 确定性校验 → 人审 → 兜底。"""
+        if state["course_id"] and state["plan"] is not None:
+            return "(已建课件的规划已锁定,按原规划补齐或重交同 id 修错)"
         state["plan_reviews"] += 1
         problems: list[str] = []
         n = len(sections)
         if not 3 <= n <= 9:
             problems.append(f"规划了 {n} 节,合法范围 3~9")
+        ids = [s.get("id") for s in sections if isinstance(s, dict)]
+        if len(ids) != n or any(not isinstance(sid, str) or not sid.strip() for sid in ids):
+            problems.append("每个规划节必须有非空字符串 id")
+        elif len(ids) != len(set(ids)):
+            problems.append("规划节 id 重复,每节必须唯一")
+        if any(not isinstance(s, dict) or not str(s.get("heading") or "").strip()
+               for s in sections):
+            problems.append("规划节标题不能为空")
+        if state["course_id"]:
+            existing_course = _load(_course_path(state["course_id"])) or {}
+            missing_ids = [s["id"] for s in existing_course.get("sections", [])
+                           if s["id"] not in ids]
+            if missing_ids:
+                problems.append(f"恢复规划必须保留已有节 id:{missing_ids}")
         n_quiz = sum(1 for s in sections if isinstance(s, dict) and s.get("has_quiz"))
         need = min(3, len(groups)) if groups else 0
         if n_quiz < need:
@@ -210,7 +275,7 @@ def _make_tools(
             missing = [g for g in groups if _covers_key(g) not in covered]
             if missing:
                 problems.append(f"材料组未被任何节覆盖:{missing[:5]}")
-        if problems and state["plan_reviews"] > 2:
+        if problems and state["plan_reviews"] > 2 and not state["course_id"]:
             # 两次人审路径都走不通 → 静态模板兜底,循环绝不卡在规划上
             plan = _template_plan(groups, str(state.get("subtopic") or "本课"))
             state["plan"] = plan
@@ -226,6 +291,7 @@ def _make_tools(
                 "id": str(s.get("id", f"s{i}")),
                 "heading": str(s.get("heading", ""))[:40],
                 "has_quiz": bool(s.get("has_quiz")),
+                "covers": str(s.get("covers", "")),
             }
             for i, s in enumerate(sections)
             if isinstance(s, dict)
@@ -240,10 +306,13 @@ def _make_tools(
             if raw and state["plan_reviews"] <= 2:
                 state["plan_reviews"] += 1
                 return f"(学员对规划有意见,按它重排后再 submit_plan):{raw}"
+        if state["course_id"]:
+            _save_plan(state["course_id"], plan, groups)
         state["plan"] = plan
         return (
             f"规划通过({len(plan)} 节 / {n_quiz} 检查点)。"
-            "继续:init_course → write_section 逐节写。"
+            + ("继续:write_section 按规划补齐。" if state["course_id"]
+               else "继续:init_course → write_section 逐节写。")
         )
 
     def init_course(  # noqa: A002
@@ -309,6 +378,7 @@ def _make_tools(
             "sections": [],
         }
         p.parent.mkdir(parents=True, exist_ok=True)
+        _save_plan(id, state["plan"], groups)
         p.write_text(json.dumps(course, ensure_ascii=False, indent=2), encoding="utf-8")
         state["course_id"] = id
         dep_msg = (
@@ -333,6 +403,9 @@ def _make_tools(
             return "(课件文件读不回,重新 init_course)"
         # upsert-by-id:同 id = 替换该节(改错的原语),否则追加。
         sid = section.get("id")
+        plan_ids = [s["id"] for s in state["plan"]]
+        if sid not in plan_ids:
+            return f"(节 id {sid} 不在规划中,请使用原规划 id:{plan_ids})"
         idx = next((i for i, sc in enumerate(course["sections"]) if sc.get("id") == sid), None)
         if idx is None:
             course["sections"].append(section)
@@ -351,6 +424,7 @@ def _make_tools(
             course["sections"][idx] = section
             msg = f"已替换第{idx + 1}节({sid})。"
             _op_log(cid, "replace", f"{sid} {str(section.get('heading', ''))[:24]}")
+        course["sections"].sort(key=lambda s: plan_ids.index(s["id"]))
         p.write_text(json.dumps(course, ensure_ascii=False, indent=2), encoding="utf-8")
         return msg
 
@@ -362,15 +436,16 @@ def _make_tools(
         if course is None:
             return "(课件文件读不回)"
         r = validate_course(course)
-        head = ("✅ " if r["ok"] else "❌ ") + str(r["summary"])
-        body = "".join(f"\n  ✗ {e}" for e in r["errors"])
+        errors = r["errors"] + _plan_delivery_errors(course, state["plan"])
+        head = ("❌ " if errors else "✅ ") + str(r["summary"])
+        body = "".join(f"\n  ✗ {e}" for e in errors)
         warns = r["warnings"]
         # warning(quiz 配额提示/先修缺 reason 等)只放前 5 条,免得淹没 error
         if len(warns) > 5:
             n_more = len(warns) - 5
             warns = warns[:5] + [f"(其余 {n_more} 条 warning 略)"]
         body += "".join(f"\n  ⚠ {w}" for w in warns)
-        verdict = r["summary"][:120] + ("" if r["ok"] else f"(err {len(r['errors'])})")
+        verdict = r["summary"][:120] + (f"(err {len(errors)})" if errors else "")
         _op_log(cid, "validate", verdict)
         return str(head + body)
 
@@ -554,8 +629,11 @@ RESUME_PROMPT = """你在**续写**一份未完成的书页课件(它属于某�
 
 {position}
 
-# 课件已有内容(不要重复、不要改动——你的任务是接在后面写)
+# 课件已有内容(保留已有节 id,需要修错时重交同 id)
 {existing_sections}
+
+# 恢复规划
+{resume_plan}
 
 # 续写材料(与已写部分同一来源,每条要点带来源 id)
 {material}
@@ -563,19 +641,19 @@ RESUME_PROMPT = """你在**续写**一份未完成的书页课件(它属于某�
 # 学员已有课程
 {existing}
 
-# 任务:直接 write_section 续写(不要 init_course/submit_plan,工具清单里也没有)
-- 已有节你看得到讲了什么;新节补它们**没讲的**,把这门课补完整
-- 新节 id 从「s{next_no}」起续编号;总节数含已有节控制在 9 节内
-- 若材料已覆盖得差不多,写 1~2 节收尾即可,宁短勿凑
+# 任务:按恢复规划 write_section(不要 init_course)
+- 已有节不要重写凑数;补齐规划中尚未交付的节,严格沿用规划 id 和顺序
+- 规划要求测验的节必须有 quiz 和非空 pass_rule;已有节缺测验可重交同 id 修正
+- validate_csl 会对照规划检查漏节、测验与顺序,全部通过才算交付
 
 {shared_style}
 
 # 检查点纪律(教学闸)
-新写的节,节末放 quiz(id「<节id>-cp」),question 问关系/区别/步骤,
+规划要求测验的节,节末放 quiz(id「<节id>-cp」),question 问关系/区别/步骤,
 pass_rule 写具体可判标准。
 
 # 流程
-1. 直接 write_section 逐节续写(一次一节;重交同 id = 替换)
+1. 已恢复规划则直接 write_section;历史课没有规划则先 submit_plan
 2. 每写 2~3 节 validate_csl 自查
 3. 终验通过后收笔说交付总结(不再调工具)"""
 
@@ -607,6 +685,37 @@ def run_prep(
         if rc is None:
             raise ValueError(f"续写目标课件不存在: {resume_course_id}")
         state["course_id"] = resume_course_id
+        plan_path = _plan_path(resume_course_id)
+        saved = _load(plan_path)
+        if plan_path.exists():
+            # 损坏不能悄悄当作旧课重排,否则会丢失原交付约定。
+            if saved is None or saved.get("course_id") != resume_course_id:
+                raise ValueError(f"恢复规划损坏或课件 id 不匹配: {plan_path}")
+            plan = saved.get("sections")
+            if (
+                saved.get("version") != 1 or not isinstance(plan, list) or not plan
+                or any(not isinstance(s, dict)
+                       or not isinstance(s.get("id"), str) or not s["id"].strip()
+                       or not isinstance(s.get("heading"), str) or not s["heading"].strip()
+                       or not isinstance(s.get("has_quiz"), bool)
+                       or not isinstance(s.get("covers"), str) for s in plan)
+                or len({s["id"] for s in plan}) != len(plan)
+            ):
+                raise ValueError(f"恢复规划格式无效: {plan_path}")
+            state["plan"] = plan
+            resume_plan = "已恢复原规划,不要重新规划或改 id:\n" + json.dumps(
+                plan, ensure_ascii=False
+            )
+            tools = [t for t in tools if t["name"] not in ("submit_plan", "init_course")]
+        else:
+            resume_plan = (
+                "历史半成品没有保存规划。先 submit_plan 补交完整规划(3~9 节),"
+                "必须包含所有已有节的原 id,并覆盖全部材料组,然后按规划补写。"
+                "不得宣称恢复了旧规划。"
+            )
+            tools = [t for t in tools if t["name"] != "init_course"]
+        # 暴露给模型的工具与实际可执行清单保持一致。
+        dispatch = {t["name"]: dispatch[t["name"]] for t in tools}
         secs = rc.get("sections", [])
         existing_lines = (
             "\n".join(
@@ -618,13 +727,12 @@ def run_prep(
         prompt = RESUME_PROMPT.format(
             position=position,
             existing_sections=(
-                f"课件「{rc.get('title', '')}」已有 {len(secs)} 节:\n{existing_lines}\n"
-                f"新节 id 从 s{len(secs) + 1} 起续编号"
+                f"课件「{rc.get('title', '')}」已有 {len(secs)} 节:\n{existing_lines}"
             ),
+            resume_plan=resume_plan,
             material=_render_material(material),
             existing=_course_brief(),
             shared_style=_SHARED_STYLE,
-            next_no=len(secs) + 1,
         )
     else:
         prompt = PREP_PROMPT.format(
@@ -654,7 +762,8 @@ def run_prep(
         if course is None:
             return ["课件文件读不回"]
         r = validate_course(course)
-        return None if r["ok"] else r["errors"]
+        errors = r["errors"] + _plan_delivery_errors(course, state["plan"])
+        return errors or None
 
     for turn in range(MAX_TURNS):
         update_run(turns=turn + 1)

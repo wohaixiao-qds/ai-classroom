@@ -451,9 +451,6 @@ class EvalTests(unittest.TestCase):
             yield {"type": "delta", "text": "迟来的答案"}
             yield {"type": "final", "answer": "迟来的答案", "tool_calls": []}
 
-        with self.chat_patches(), patch.object(chat, "run_tutor", side_effect=waiting):
-            response = chat.chat(ChatRequest(course_id="course", question="问题"))
-
         async def serve() -> None:
             async def receive() -> Message:
                 while not entered.is_set():
@@ -477,7 +474,9 @@ class EvalTests(unittest.TestCase):
                 release.set()
                 await asyncio.wait_for(task, timeout=2)
 
-        with patch.object(chat, "run_tutor", side_effect=waiting):
+        # SSE 延迟消费:替身必须一直覆盖到响应执行结束,不能只覆盖构造响应。
+        with self.chat_patches(), patch.object(chat, "run_tutor", side_effect=waiting):
+            response = chat.chat(ChatRequest(course_id="course", question="问题"))
             asyncio.run(serve())
         self.assertEqual(len(trace.read_traces("tutor.jsonl")), 1)
         self.assertEqual(trace.read_traces("tutor.jsonl")[0]["status"], "cancelled")
