@@ -6,18 +6,14 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 
 from app.core.catalog_store import set_status
+from app.schemas.jobs import JobDetail, JobOperation, JobSummary, Kind
 from app.services import job_lifecycle
 from app.services.executor import cancel_job, log_path_for
 
 router = APIRouter(prefix="/api/v1", tags=["jobs"])
-
-Kind = Literal["request_prep", "request_research", "outline_prep"]
 
 
 @router.get("/jobs/log")
@@ -42,43 +38,6 @@ def cancel(kind: Kind, target: str) -> dict[str, object]:
         set_status(target, "cancelled", str(r.get("note", "手动取消")),
                    action_id=int(action_id) if isinstance(action_id, int) else None)
     return r
-
-
-class JobSummary(BaseModel):
-    id: int
-    kind: Kind
-    target: str
-    label: str | None
-    status: str
-    detail: str | None
-    created_at: str
-    course_id: str | None
-    can_resume: bool
-
-
-class JobEvent(BaseModel):
-    id: int
-    action_id: int
-    stage: str
-    status: str
-    detail: str
-    created_at: str
-    current: int | None
-    total: int | None
-
-
-class JobDetail(BaseModel):
-    job: JobSummary
-    events: list[JobEvent]
-    attempts: int
-    history_recorded: bool
-
-
-class JobOperation(BaseModel):
-    ok: bool
-    status: str
-    note: str
-    action_id: int | None
 
 
 @router.get("/jobs", response_model=list[JobSummary])

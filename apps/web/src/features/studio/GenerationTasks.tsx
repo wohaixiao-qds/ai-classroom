@@ -1,5 +1,5 @@
 import { BookOpen, ChevronDown, ChevronUp, CircleCheck, CircleDashed, CircleX, ListChecks, LoaderCircle, Pause, Play, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { SectionHeader } from "../../components/SectionHeader";
@@ -169,11 +169,17 @@ function JobProgress({ job, onChanged }: { job: Job; onChanged: () => void }) {
   </div>;
 }
 
-export function GenerationTasks({ refreshKey }: { refreshKey?: string }) {
+export function GenerationTasks({ refreshKey, focusJob }: {
+  refreshKey?: string;
+  focusJob?: Pick<Job, "kind" | "target"> | null;
+}) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selected, setSelected] = useState<string | null | undefined>(undefined);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const pendingFocus = useRef(false);
+  const region = useRef<HTMLElement>(null);
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
       const data = await request<Job[]>("/api/v1/jobs", { signal });
@@ -181,7 +187,7 @@ export function GenerationTasks({ refreshKey }: { refreshKey?: string }) {
       setJobs(data); setError("");
       setSelected((old) => {
         if (old !== undefined) return old && data.some((job) => keyOf(job) === old) ? old : old === null ? null : undefined;
-        const active = data.find((job) => ["running", "queued"].includes(job.status));
+        const active = data.find((job) => ["running", "queued", "stopping"].includes(job.status));
         return active ? keyOf(active) : undefined;
       });
     } catch (reason) { if (!signal?.aborted) setError(reason instanceof Error ? reason.message : "任务加载失败"); }
@@ -193,21 +199,51 @@ export function GenerationTasks({ refreshKey }: { refreshKey?: string }) {
     const timer = window.setInterval(() => void load(controller.signal), 5000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, [load, refreshKey]);
-  return <section aria-label="生成流程" className="space-y-3">
-    <SectionHeader icon={ListChecks} title="生成流程" count={jobs.length} hint="逐节点查看产物、验收依据与问题；随时停止或继续。" />
+  useEffect(() => {
+    if (!focusJob) return;
+    const controller = new AbortController();
+    queueMicrotask(async () => {
+      await load(controller.signal);
+      if (controller.signal.aborted) return;
+      pendingFocus.current = true;
+      setHistoryOpen(true);
+      setSelected(`${focusJob.kind}:${focusJob.target}`);
+    });
+    return () => controller.abort();
+  }, [focusJob, load]);
+  useEffect(() => {
+    if (!pendingFocus.current || !selected) return;
+    const job = jobs.find((item) => keyOf(item) === selected);
+    if (!job) return;
+    const article = region.current?.querySelector<HTMLElement>(`#generation-job-${job.id}`);
+    if (!article) return;
+    pendingFocus.current = false;
+    article.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    article.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+  }, [jobs, selected, historyOpen]);
+  const active = jobs.filter((job) => ["running", "queued", "stopping"].includes(job.status));
+  const history = jobs.filter((job) => !["running", "queued", "stopping"].includes(job.status));
+  const renderJob = (job: Job) => {
+    const key = keyOf(job); const open = selected === key;
+    return <article id={`generation-job-${job.id}`} key={key} className={`scroll-mt-6 overflow-hidden rounded-xl border bg-card ${["running", "queued", "stopping"].includes(job.status) ? "border-primary/40" : "border-border"}`}>
+      <button type="button" aria-expanded={open} aria-controls={`generation-${job.id}`} onClick={() => setSelected(open ? null : key)} className="flex min-h-11 w-full items-start gap-3 p-4 text-left sm:p-5">
+        <div className="min-w-0 flex-1"><p className="break-words font-medium">{job.label || job.target}</p><p className="mt-1 text-sm text-muted-foreground">{job.kind === "request_research" ? "主题调研与首课" : job.kind === "outline_prep" ? "大纲逐课备课" : "笔记备课"} · {job.created_at}</p></div>
+        <Badge variant={job.status === "done" ? "success" : job.status === "failed" ? "destructive" : ["running", "queued", "stopping"].includes(job.status) ? "warning" : "secondary"}>{STATUS[job.status] || job.status}</Badge>
+        {open ? <ChevronUp size={16} className="mt-1 shrink-0" /> : <ChevronDown size={16} className="mt-1 shrink-0" />}
+      </button>
+      {open && <div id={`generation-${job.id}`}><JobProgress job={job} onChanged={() => void load()} /></div>}
+    </article>;
+  };
+  return <section ref={region} aria-label="生成任务" className="space-y-3">
+    <SectionHeader icon={ListChecks} title="生成任务" count={jobs.length} hint="查看真实节点与验收依据；进行中的任务优先展示。" />
     {error && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">{error}<Button variant="outline" size="sm" onClick={() => void load()}>重新加载</Button></div>}
     {loading && <p role="status" className="text-sm text-muted-foreground">正在读取任务…</p>}
     {!loading && !error && !jobs.length && <p className="rounded-lg border border-dashed border-border p-5 text-sm text-muted-foreground">输入想学的主题后，调研、大纲、备课和验收进展会逐步出现在这里。</p>}
-    {jobs.map((job) => {
-      const key = keyOf(job); const open = selected === key;
-      return <article key={key} className={`overflow-hidden rounded-xl border bg-card ${["running", "queued"].includes(job.status) ? "border-primary/40" : "border-border"}`}>
-        <button type="button" aria-expanded={open} aria-controls={`generation-${job.id}`} onClick={() => setSelected(open ? null : key)} className="flex w-full items-start gap-3 p-4 text-left sm:p-5">
-          <div className="min-w-0 flex-1"><p className="break-words font-medium">{job.label || job.target}</p><p className="mt-1 text-xs text-muted-foreground">{job.kind === "request_research" ? "主题调研与首课" : job.kind === "outline_prep" ? "大纲逐课备课" : "笔记备课"} · {job.created_at}</p></div>
-          <Badge variant={job.status === "done" ? "success" : job.status === "failed" ? "destructive" : ["running", "queued", "stopping"].includes(job.status) ? "warning" : "secondary"}>{STATUS[job.status] || job.status}</Badge>
-          {open ? <ChevronUp size={16} className="mt-1 shrink-0" /> : <ChevronDown size={16} className="mt-1 shrink-0" />}
-        </button>
-        {open && <div id={`generation-${job.id}`}><JobProgress job={job} onChanged={() => void load()} /></div>}
-      </article>;
-    })}
+    {active.map(renderJob)}
+    {!loading && jobs.length > 0 && active.length === 0 && <p className="text-sm text-muted-foreground">当前没有正在生成的任务。</p>}
+    {history.length > 0 && <details open={historyOpen} onToggle={(event) => { if (event.target === event.currentTarget) setHistoryOpen(event.currentTarget.open); }} className="rounded-xl border border-border p-4">
+      <summary className="min-h-11 cursor-pointer content-center text-sm font-medium">历史任务（{history.length}）</summary>
+      {historyOpen && <div className="mt-3 space-y-3">{history.map(renderJob)}</div>}
+    </details>}
   </section>;
 }

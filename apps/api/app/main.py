@@ -12,6 +12,7 @@ from app.routes.job_trust import router as job_trust_router
 from app.routes.jobs import router as jobs_router
 from app.routes.learning import router as learning_router
 from app.routes.outline import router as outline_router
+from app.routes.wishlist import router as wishlist_router
 
 app = FastAPI(title="AI 课堂 API", version="0.1.0")
 
@@ -31,3 +32,4 @@ app.include_router(outline_router)
 app.include_router(jobs_router)
 
 app.include_router(job_trust_router)
+app.include_router(wishlist_router)

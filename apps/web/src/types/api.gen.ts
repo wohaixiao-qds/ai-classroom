@@ -588,6 +588,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/wishlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Wishlist */
+        get: operations["list_wishlist_api_v1_wishlist_get"];
+        put?: never;
+        /** Save Wishlist */
+        post: operations["save_wishlist_api_v1_wishlist_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wishlist/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Wishlist */
+        patch: operations["update_wishlist_api_v1_wishlist__item_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/wishlist/{item_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Wishlist */
+        post: operations["start_wishlist_api_v1_wishlist__item_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/learning-questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Learning Questions */
+        get: operations["learning_questions_api_v1_learning_questions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/learning-questions/{question_id}/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Save Question */
+        post: operations["save_question_api_v1_learning_questions__question_id__save_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/learning-questions/{question_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dismiss Question */
+        post: operations["dismiss_question_api_v1_learning_questions__question_id__dismiss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -982,6 +1085,30 @@ export interface components {
              */
             publication_status: "allowed" | "blocked" | "unknown";
         };
+        /** LearningQuestion */
+        LearningQuestion: {
+            /** Id */
+            id: string;
+            /** Question */
+            question: string;
+            /** Course Id */
+            course_id?: string | null;
+            /** Page Id */
+            page_id?: string | null;
+            /** Run Id */
+            run_id?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Detail */
+            detail?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "candidate" | "saved" | "dismissed";
+            /** Wishlist Id */
+            wishlist_id?: string | null;
+        };
         /** Lesson */
         Lesson: {
             /** Id */
@@ -1164,6 +1291,11 @@ export interface components {
             soft_landed: number;
             /** Truncated */
             truncated: number;
+        };
+        /** QuestionOperation */
+        QuestionOperation: {
+            /** Ok */
+            ok: boolean;
         };
         /** RepeatGroup */
         RepeatGroup: {
@@ -1614,6 +1746,70 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WishlistItem */
+        WishlistItem: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "started" | "removed";
+            /** Created At */
+            created_at: string;
+            /** Sources */
+            sources: components["schemas"]["WishlistSource"][];
+            job?: components["schemas"]["JobSummary"] | null;
+        };
+        /** WishlistResponse */
+        WishlistResponse: {
+            /** Items */
+            items: components["schemas"]["WishlistItem"][];
+            /** Pending Count */
+            pending_count: number;
+        };
+        /** WishlistSave */
+        WishlistSave: {
+            /** Title */
+            title: string;
+        };
+        /** WishlistSource */
+        WishlistSource: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "manual" | "vault" | "question";
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Course Id */
+            course_id?: string | null;
+            /** Page Id */
+            page_id?: string | null;
+            /** Run Id */
+            run_id?: string | null;
+        };
+        /** WishlistStartResult */
+        WishlistStartResult: {
+            item: components["schemas"]["WishlistItem"];
+            job: components["schemas"]["JobSummary"];
+            /** Created */
+            created: boolean;
+            /** Note */
+            note: string;
+        };
+        /** WishlistUpdate */
+        WishlistUpdate: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "removed";
         };
     };
     responses: never;
@@ -2650,6 +2846,231 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobTrustReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_wishlist_api_v1_wishlist_get: {
+        parameters: {
+            query?: {
+                status?: "pending" | "started" | "removed" | "all";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WishlistResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_wishlist_api_v1_wishlist_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WishlistSave"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WishlistItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_wishlist_api_v1_wishlist__item_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WishlistUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WishlistItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_wishlist_api_v1_wishlist__item_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WishlistStartResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    learning_questions_api_v1_learning_questions_get: {
+        parameters: {
+            query?: {
+                course_id?: string | null;
+                unassigned?: boolean;
+                include_dismissed?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LearningQuestion"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_question_api_v1_learning_questions__question_id__save_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WishlistItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_question_api_v1_learning_questions__question_id__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionOperation"];
                 };
             };
             /** @description Validation Error */

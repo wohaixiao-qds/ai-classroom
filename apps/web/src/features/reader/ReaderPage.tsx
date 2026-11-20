@@ -15,6 +15,7 @@ import { ChatPanel, type ProgressLike } from "../chat/ChatPanel";
 import { isV2, parseCourse, type CourseV2 } from "../../types/csl";
 import { Blocks, type CheckpointAskPayload } from "./Blocks";
 import { EvidencePanel } from "./EvidencePanel";
+import { LearningQuestions } from "../learning-questions/index";
 
 /** 书页阅读器(P6·M2):节目录 + 正文块渲染 + 内嵌检查点/闪卡 + 答疑侧栏。
  *  断点=滚动位置(localStorage);深链 ?section=N(1 起算)落到第 N 节。 */
@@ -305,6 +306,8 @@ function Reader({ course }: { course: CourseV2 }) {
                 </ol>
               </section>
             )}
+            <LearningQuestions courseId={course.id} sections={course.sections} />
+
             <footer className="mt-14 border-t border-border pt-8 text-center">
               <Button onClick={onDone}>✅ 学完了,打卡</Button>
               {doneState && (
