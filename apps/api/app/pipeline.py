@@ -109,7 +109,10 @@ def run_pipeline(
     print(f"原料:{n_pts} 条要点 / {len(material['sources'])} 个来源")
 
     print("\n③ 备课循环(写→验→改,客观终止)…")
-    r = run_prep(material, prev_subtopic=prev)
+    selected: dict[str, Any] = next((c for c in fw["courses"] if c["title"] == subtopic), {})
+    goal = str(selected.get("goal") or "")
+    prereqs = [c["title"] for c in fw["courses"] if c["id"] in selected.get("prereqs", [])]
+    r = run_prep(material, prev_subtopic=prev, learning_goal=goal, prerequisite_titles=prereqs)
     if not r["ok"]:
         print("⚠️ 备课软着陆,人工接着审")
         return r
@@ -118,8 +121,12 @@ def run_pipeline(
     if not auto:  # 交互模式:先修建议过一眼人审;auto(生成中心)直接落盘,日志可查
         confirm_depends_on(course)
 
+    from app.services.publication import ensure_publication
+
+    course = ensure_publication(course, material, learning_goal=goal, prerequisite_titles=prereqs)
+    r["course"] = course
     print("\n④ 发布前端…")
-    publish_courses()
+    publish_courses(str(course["id"]))
     mins = (time.perf_counter() - t0) / 60
     secs = course.get("sections", [])
     n_quiz = sum(1 for s in secs for b in s.get("blocks", []) if b.get("type") == "quiz")

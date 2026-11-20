@@ -19,6 +19,7 @@ from app.core.config import settings
 from app.core.job_store import get_binding, incomplete_course_ids
 from app.services.executor import reconcile_job, start_job
 from app.services.outline_attribution import _load_outline, _outline_path
+from app.services.publication import is_review_draft
 
 router = APIRouter(prefix="/api/v1", tags=["outline"])
 
@@ -41,6 +42,8 @@ def _existing_courses_index(
         try:
             d = json.loads(p.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001 坏课件不挡列表
+            continue
+        if is_review_draft(d):
             continue
         if not (d.get("sections") or d.get("pages")):
             continue
@@ -66,6 +69,8 @@ def _outline_linked_ids(topic: str | None = None) -> dict[str, str]:
             continue
         try:
             d = json.loads(p.read_text(encoding="utf-8"))
+            if is_review_draft(d):
+                continue
             meta = d.get("meta") or {}
             if topic is not None and meta.get("job_kind") == "outline_prep" and not str(
                 meta.get("job_target", "")

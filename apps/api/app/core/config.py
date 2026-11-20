@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     # 5.3 特性:思考常开不可关,经 anthropic 兼容端点 reasoning_effort/budget 均无效,
     # 思考块与文本共吃 max_tokens 预算——各调用点预算见各文件(重思考任务 16384 起)
     llm_model: str = "glm-5.3"
+    evidence_review_model: str | None = None  # 可配独立裁判模型,默认同模型独立调用
 
     # 搜索(博查 → AnySearch → Tavily,tools.search_provider 自动选择;ZHIPU_API_KEY 仅作 LLM 用)
     search_api_key: str = ""

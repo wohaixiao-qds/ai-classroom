@@ -203,7 +203,8 @@ class JobBindingTests(unittest.TestCase):
         destination = settings.data_dir / "published"
         with patch.object(type(settings), "web_public_courses", new_callable=PropertyMock,
                           return_value=destination):
-            publish_courses(a["course_id"])
+            with patch("app.services.publication.assert_publishable"):
+                publish_courses(a["course_id"])
         self.assertTrue((destination / f"{a['course_id']}.csl.json").exists())
         self.assertFalse((destination / f"{b['course_id']}.csl.json").exists())
         self.assertFalse(outline._existing_courses_index()[2])
@@ -239,6 +240,8 @@ class JobBindingTests(unittest.TestCase):
                 "ok": True, "course": {"id": binding["course_id"]},
             }) as model,
             patch("app.services.tts_compile.publish_courses"),
+            patch("app.services.publication.ensure_publication",
+                  side_effect=lambda course, *_args, **_kwargs: course),
             patch("app.services.outline_attribution.attribute_all", return_value={
                 "placements": [], "unplaceable": [],
             }),

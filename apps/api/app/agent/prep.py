@@ -99,6 +99,8 @@ id 固定用「<节id>-cp」。
 材料每条标有证据[g1p1]等 ID。承载该要点的块填 "evidence_ids":["g1p1"];
 只用材料中实际存在的 ID,关键数字/版本/规范断言必须关联对应证据。
 原文摘录保持原语言,正文可解释改写;不扩大原文的适用条件。
+成绩数字不等于受控对照,不得无依据归因为全部提升来自某组件;组合系统不等于贡献各占一半。
+个别团队案例不得概括所有团队;评分方式按目标选择,不得排成固定可靠性顺序。
 标为 unsupported 的要点不要作为事实使用;partial/uncertain/unreviewed 如实保留限制。
 练习、自造示例、类比可留空 evidence_ids,但明确标为示例,不能冒充来源事实。
 引用只建立追溯关系,不能声称正文已被事实核验。
@@ -178,7 +180,7 @@ def _plan_path(course_id: str) -> Path:
 
 
 def _save_plan(course_id: str, plan: list[dict[str, Any]], groups: list[str],
-               binding: dict[str, Any] | None = None) -> None:
+               binding: dict[str, Any] | None = None, learning_goal: str = "") -> None:
     """规划独立于发布课件,原子替换避免中断留下半份 JSON。"""
     path = _plan_path(course_id)
     if binding:
@@ -186,7 +188,8 @@ def _save_plan(course_id: str, plan: list[dict[str, Any]], groups: list[str],
 
         ensure_active(binding)
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"version": 1, "course_id": course_id, "sections": plan, "groups": groups}
+    payload = {"version": 1, "course_id": course_id, "sections": plan, "groups": groups,
+               "learning_goal": learning_goal}
     if binding:
         payload.update(job_binding_id=binding["id"], material_hash=binding["material_hash"])
     with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
@@ -204,7 +207,15 @@ def _save_plan(course_id: str, plan: list[dict[str, Any]], groups: list[str],
         record_plan(str(binding["id"]), path)
 
 
-def _plan_delivery_errors(course: dict[str, Any], plan: list[dict[str, Any]] | None) -> list[str]:
+def _valid_goal_check(check: Any) -> bool:
+    return isinstance(check, dict) and all(
+        isinstance(check.get(key), str) and check[key].strip()
+        for key in ("question", "pass_rule")
+    )
+
+
+def _plan_delivery_errors(course: dict[str, Any], plan: list[dict[str, Any]] | None,
+                          learning_goal: str = "") -> list[str]:
     """只验可确定的规划兑现;covers 是写作约定,不冒充语义覆盖证明。"""
     if not plan:
         return ["还没有通过的课程规划——先 submit_plan"]
@@ -224,6 +235,14 @@ def _plan_delivery_errors(course: dict[str, Any], plan: list[dict[str, Any]] | N
             for b in section.get("blocks", [])
         ):
             errors.append(f"规划节 {sid} 缺少带明确 pass_rule 的测验,重交同 id 修正")
+        check = item.get("goal_check")
+        if isinstance(check, dict) and _valid_goal_check(check) and section is not None and not any(
+            b.get("type") == "quiz" and b.get("question") == check["question"]
+            and b.get("pass_rule") == check["pass_rule"] for b in section.get("blocks", [])
+        ):
+            errors.append(f"规划节 {sid} 未交付约定的目标应用题与判分标准")
+    if learning_goal and not any(_valid_goal_check(item.get("goal_check")) for item in plan):
+        errors.append("规划缺大纲目标应用题,不能只交概念复述;需补交目标验收规划")
     extra = [sid for sid in ids if sid not in planned_ids]
     if extra:
         errors.append(f"课件含规划外节 {extra},需按原规划修正")
@@ -253,6 +272,7 @@ def _make_tools(
     material_groups: list[str] | None = None,
     job_binding: dict[str, Any] | None = None,
     evidence_items: list[dict[str, Any]] | None = None,
+    learning_goal: str = "",
 ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
     groups = material_groups or []
     state: dict[str, Any] = {"course_id": None, "plan": None, "plan_reviews": 0}
@@ -297,7 +317,24 @@ def _make_tools(
             missing = [g for g in groups if _covers_key(g) not in covered]
             if missing:
                 problems.append(f"材料组未被任何节覆盖:{missing[:5]}")
-        if problems and state["plan_reviews"] > 2 and not state["course_id"]:
+        checks = [s.get("goal_check") for s in sections
+                  if isinstance(s, dict) and s.get("goal_check")]
+        if any(not _valid_goal_check(c) for c in checks):
+            problems.append("goal_check 必须含非空 question 与 pass_rule")
+        if any(s.get("goal_check") and not s.get("has_quiz")
+               for s in sections if isinstance(s, dict)):
+            problems.append("目标应用题所在节必须 has_quiz=true")
+        required_plan = state.get("required_plan")
+        if required_plan:
+            preserved = [{k: sec.get(k) for k in ("id", "heading", "has_quiz", "covers")}
+                         for sec in sections if isinstance(sec, dict)]
+            original = [{k: sec.get(k) for k in ("id", "heading", "has_quiz", "covers")}
+                        for sec in required_plan]
+            if preserved != original:
+                problems.append("恢复时只补 goal_check,原节 id/顺序/标题/覆盖与测验约定不得变更")
+        if learning_goal and not checks:
+            problems.append("大纲目标须有至少一道应用题 goal_check,逐项覆盖目标所要求的操作")
+        if problems and not learning_goal and state["plan_reviews"] > 2 and not state["course_id"]:
             # 两次人审路径都走不通 → 静态模板兜底,循环绝不卡在规划上
             plan = _template_plan(groups, str(state.get("subtopic") or "本课"))
             state["plan"] = plan
@@ -314,6 +351,7 @@ def _make_tools(
                 "heading": str(s.get("heading", ""))[:40],
                 "has_quiz": bool(s.get("has_quiz")),
                 "covers": str(s.get("covers", "")),
+                **({"goal_check": s["goal_check"]} if s.get("goal_check") else {}),
             }
             for i, s in enumerate(sections)
             if isinstance(s, dict)
@@ -329,7 +367,7 @@ def _make_tools(
                 state["plan_reviews"] += 1
                 return f"(学员对规划有意见,按它重排后再 submit_plan):{raw}"
         if state["course_id"]:
-            _save_plan(state["course_id"], plan, groups, job_binding)
+            _save_plan(state["course_id"], plan, groups, job_binding, learning_goal)
         state["plan"] = plan
         return (
             f"规划通过({len(plan)} 节 / {n_quiz} 检查点)。"
@@ -389,6 +427,7 @@ def _make_tools(
             "version": 2,  # 书页课件(顶层版本标记,v2 唯一真相)
             "meta": {
                 "source_notes": source_notes,
+                "publication_required": True,
                 "topic": material_topic,  # 课程库分组钥匙,harness 确定性写入
                 # 来源确定性带入:材料里的调研来源 harness 直接写进 meta.sources(有据链路终点)
                 "sources": [
@@ -407,7 +446,7 @@ def _make_tools(
         if job_binding:
             course["meta"].update(job_binding_id=job_binding["id"],
                                   job_kind=job_binding["kind"], job_target=job_binding["target"])
-        _save_plan(id, state["plan"], groups, job_binding)
+        _save_plan(id, state["plan"], groups, job_binding, learning_goal)
         p.write_text(json.dumps(course, ensure_ascii=False, indent=2), encoding="utf-8")
         state["course_id"] = id
         dep_msg = (
@@ -483,7 +522,7 @@ def _make_tools(
         if course is None:
             return "(课件文件读不回)"
         r = validate_course(course)
-        errors = r["errors"] + _plan_delivery_errors(course, state["plan"])
+        errors = r["errors"] + _plan_delivery_errors(course, state["plan"], learning_goal)
         head = ("❌ " if errors else "✅ ") + str(r["summary"])
         body = "".join(f"\n  ✗ {e}" for e in errors)
         warns = r["warnings"]
@@ -512,6 +551,13 @@ def _make_tools(
                                 "id": {"type": "string"},
                                 "heading": {"type": "string"},
                                 "has_quiz": {"type": "boolean"},
+                                "goal_check": {
+                                    "type": "object",
+                                    "properties": {"question": {"type": "string"},
+                                                   "pass_rule": {"type": "string"}},
+                                    "required": ["question", "pass_rule"],
+                                    "description": "目标应用题,正文给示例,写节时原样交付题与标准",
+                                },
                                 "covers": {
                                     "type": "string",
                                     "description": "该节覆盖的材料组名,逗号分隔",
@@ -723,7 +769,13 @@ def run_prep(
     resume_course_id: str | None = None,
     *, source: str = "user",
     job_binding: dict[str, Any] | None = None,
+    learning_goal: str = "",
+    prerequisite_titles: list[str] | None = None,
+    revision_feedback: str = "",
 ) -> dict[str, Any]:
+    if resume_course_id and not learning_goal:
+        saved_contract = _load(_plan_path(resume_course_id)) or {}
+        learning_goal = str(saved_contract.get("learning_goal") or "")
     tools, dispatch, state = _make_tools(
         material.get("sources") or [],
         material_path=material.get("_material_path"),
@@ -731,12 +783,24 @@ def run_prep(
         material_groups=[str(g.get("heading", "")) for g in material.get("groups", [])],
         job_binding=job_binding,
         evidence_items=material_evidence(material),
+        learning_goal=learning_goal,
     )
     state["subtopic"] = str(material.get("subtopic") or "本课")  # 兜底模板用
     position = (
         f"本课在「{material.get('topic')}」学习框架中的位置:前一课讲了「{prev_subtopic}」,"
         f"开场用一句话承接它。" if prev_subtopic else "这是该主题的第一课。"
     )
+    if prerequisite_titles is not None:
+        position += (
+            "\n大纲指定的唯一先修课程:" + ("、".join(prerequisite_titles) or "无,这是独立入口课")
+            + "。此约束优先于已有课程速览;不能预设其他旧课的知识,所需概念在本课讲清。"
+        )
+    if learning_goal:
+        position += (
+            f"\n大纲学习目标(交付约束):{learning_goal}\n"
+            "submit_plan 至少一节填 goal_check={question,pass_rule},要求学员实际完成目标操作,"
+            "不能用解释必要性替代设计/实现任务。正文给完整示例,对应节原样写入该应用题与判分标准。"
+        )
     if resume_course_id:
         # 续写模式(P7):载盘上已有节,RESUME_PROMPT 直接逐节续写
         rc = _load(_course_path(resume_course_id))
@@ -756,15 +820,29 @@ def run_prep(
                        or not isinstance(s.get("id"), str) or not s["id"].strip()
                        or not isinstance(s.get("heading"), str) or not s["heading"].strip()
                        or not isinstance(s.get("has_quiz"), bool)
-                       or not isinstance(s.get("covers"), str) for s in plan)
+                       or not isinstance(s.get("covers"), str)
+                       or (s.get("goal_check") is not None
+                           and not _valid_goal_check(s["goal_check"])) for s in plan)
                 or len({s["id"] for s in plan}) != len(plan)
             ):
                 raise ValueError(f"恢复规划格式无效: {plan_path}")
-            state["plan"] = plan
-            resume_plan = "已恢复原规划,不要重新规划或改 id:\n" + json.dumps(
-                plan, ensure_ascii=False
-            )
-            tools = [t for t in tools if t["name"] not in ("submit_plan", "init_course")]
+            saved_goal = saved.get("learning_goal", "")
+            if saved_goal and saved_goal != learning_goal:
+                raise ValueError("大纲学习目标已变化,拒绝沿用原规划;请先审阅目标差异")
+            if learning_goal and not any(s.get("goal_check") for s in plan):
+                state["required_plan"] = plan
+                # 旧规划缺目标验收时允许补约定,已有节 id 仍由 submit_plan 保护。
+                resume_plan = (
+                    "旧规划缺目标应用题,先 submit_plan 补 goal_check,其他字段不变:\n"
+                    + json.dumps(plan, ensure_ascii=False)
+                )
+                tools = [t for t in tools if t["name"] != "init_course"]
+            else:
+                state["plan"] = plan
+                tools = [t for t in tools if t["name"] not in ("submit_plan", "init_course")]
+            if state["plan"] is not None:
+                resume_plan = ("已恢复原规划,不要重新规划或改 id:\n"
+                               + json.dumps(plan, ensure_ascii=False))
         else:
             resume_plan = (
                 "历史半成品没有保存规划。先 submit_plan 补交完整规划(3~9 节),"
@@ -799,6 +877,11 @@ def run_prep(
             existing=_course_brief(),
             shared_style=_SHARED_STYLE,
         )
+    if revision_feedback:
+        # 外部审查反馈是待处理数据,不继承裁判的对话或推理。
+        prompt += ("\n发布审查发现以下问题,保留原规划,只重交相关节修订。"
+                   "补证必须来自材料真实原文;不能把事实改标示例逃避核查:\n" + revision_feedback)
+        prompt += "\n当前全文:\n" + json.dumps((rc or {}).get("sections", []), ensure_ascii=False)
     # 离线批量循环放宽单次超时:模型一轮会写几千 token 的规划+页 JSON,
     # 中转慢速时 60s 必掐死(实测 191s);chat 的 60s 交互护栏不受影响
     client = get_llm_client().with_options(timeout=240.0)
@@ -820,7 +903,7 @@ def run_prep(
         if course is None:
             return ["课件文件读不回"]
         r = validate_course(course)
-        errors = r["errors"] + _plan_delivery_errors(course, state["plan"])
+        errors = r["errors"] + _plan_delivery_errors(course, state["plan"], learning_goal)
         return errors or None
 
     for turn in range(MAX_TURNS):

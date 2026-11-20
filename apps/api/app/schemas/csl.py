@@ -160,9 +160,21 @@ class CourseDep(BaseModel):
     reason: str | None = None  # 一句话:为什么先学它
 
 
+class PublicationReview(BaseModel):
+    """摘要只供展示,发布还需验证独立报告与内容指纹。"""
+
+    status: Literal["model_reviewed", "blocked", "unreviewed"]
+    content_hash: str
+    report_hash: str
+    reviewed_at: str
+    reviewer: str
+
+
 class CourseMeta(BaseModel):
     source_notes: list[str] = []  # 来源笔记（知识库文件名），溯源用
     sources: list[SourceRef] = []  # 调研来源(新课走找资料时带;复习课通常为空)
+    publication_required: bool = False  # 新课从骨架开始强制审查,旧课保留未审标记
+    publication_review: PublicationReview | None = None
     evidence: list[EvidenceItem] = []  # 原文→原料;块的 evidence_ids 关联这里
     topic: str | None = None  # 所属主题(备课 harness 从材料确定性写入;课程库分组用)
     depends_on: list[CourseDep] = []  # 先修依赖(学习顺序;root 课为空)

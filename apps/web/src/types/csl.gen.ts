@@ -147,6 +147,13 @@ export interface components {
              */
             sources: components["schemas"]["SourceRef"][];
             /**
+             * Publication Required
+             * @default false
+             */
+            publication_required: boolean;
+            /** @default null */
+            publication_review: components["schemas"]["PublicationReview"] | null;
+            /**
              * Evidence
              * @default []
              */
@@ -452,6 +459,25 @@ export interface components {
             type: "p";
             /** Text */
             text: string;
+        };
+        /**
+         * PublicationReview
+         * @description 摘要只供展示,发布还需验证独立报告与内容指纹。
+         */
+        PublicationReview: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "model_reviewed" | "blocked" | "unreviewed";
+            /** Content Hash */
+            content_hash: string;
+            /** Report Hash */
+            report_hash: string;
+            /** Reviewed At */
+            reviewed_at: string;
+            /** Reviewer */
+            reviewer: string;
         };
         /**
          * QuizBlock

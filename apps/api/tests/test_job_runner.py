@@ -38,6 +38,9 @@ class JobRunnerTests(unittest.TestCase):
         self.prep: MagicMock = self._patch("app.agent.prep.run_prep")
         self.prep.return_value = {"ok": True, "course": {"id": "test-course"}}
         self._patch("app.agent.prep._material_from_note").return_value = {}
+        self._patch("app.services.publication.ensure_publication").side_effect = (
+            lambda course, *_args, **_kwargs: course
+        )
         self.publish = self._patch("app.services.tts_compile.publish_courses")
         self.attribute = self._patch("app.services.outline_attribution.attribute_all")
         self.attribute.return_value = {"placements": [], "unplaceable": []}

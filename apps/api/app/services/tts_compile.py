@@ -63,20 +63,33 @@ def compile_course_audio(course_id: str, provider: TTSProvider | None = None) ->
 
 def publish_courses(course_id: str | None = None) -> None:
     """课件+音频 → 前端 public(全量镜像,幂等)。"""
-    dst = settings.web_public_courses
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    if dst.exists():
-        shutil.rmtree(dst)
     from app.core.job_store import incomplete_course_ids
+    from app.services.publication import PublicationBlocked, assert_publishable
 
+    dst = settings.web_public_courses
     pending = incomplete_course_ids()
-    pending.discard(course_id or "")  # 当前课程已终验,发布成功后 runner 才置 done
-
-    def ignore(directory: str, names: list[str]) -> set[str]:
-        if Path(directory) != settings.courses_dir:
-            return set()
-        return {name for name in names if name.endswith(".csl.json")
-                and name.removesuffix(".csl.json") in pending}
-
-    shutil.copytree(settings.courses_dir, dst, ignore=ignore)
+    pending.discard(course_id or "")
+    sources = list(settings.courses_dir.glob("*.csl.json"))
+    # 当前交付必须先通过门禁,任何失败均不触碰发布目录。
+    if course_id:
+        path = settings.courses_dir / f"{course_id}.csl.json"
+        assert_publishable(json.loads(path.read_text(encoding="utf-8")))
+    dst.mkdir(parents=True, exist_ok=True)
+    for path in sources:
+        cid = path.name.removesuffix(".csl.json")
+        if cid in pending:
+            continue
+        course = json.loads(path.read_text(encoding="utf-8"))
+        try:
+            assert_publishable(course)
+        except PublicationBlocked:
+            # 历史已发布版本保留;新草稿或变更版本绝不覆盖它。
+            continue
+        temp = dst / (path.name + ".tmp")
+        shutil.copy2(path, temp)
+        temp.replace(dst / path.name)
+    for directory in ("assets", "audio"):
+        source = settings.courses_dir / directory
+        if source.is_dir():
+            shutil.copytree(source, dst / directory, dirs_exist_ok=True)
     print(f"✅ 已发布到前端: {dst}")

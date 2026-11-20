@@ -24,6 +24,7 @@ from app.core.progress import completion, done_map
 from app.core.trace import read_traces
 from app.schemas.catalog import Catalog, CourseItem, NoteItem, SparkItem, TodoItem
 from app.schemas.csl import parse_course
+from app.services.publication import is_review_draft
 
 _EXCLUDE_DIRS = {"99-System"}  # 系统目录,非学习内容
 _ROOT_MGMT = {"术语表", "进度", "下次继续", "README", "CLAUDE"}  # 规则一:根目录管理文件
@@ -98,7 +99,10 @@ def _load_courses() -> tuple[list[CourseItem], set[str]]:
         if p.name.removesuffix(".csl.json") in pending:
             continue
         try:
-            course = parse_course(p.read_text(encoding="utf-8"))
+            raw = p.read_text(encoding="utf-8")
+            if is_review_draft(json.loads(raw)):
+                continue
+            course = parse_course(raw)
         except Exception:  # noqa: BLE001 单个坏课件不该拖垮整张课表
             continue
         if not (getattr(course, "sections", None) or getattr(course, "pages", None)):
@@ -133,6 +137,8 @@ def student_course_map() -> str:
         try:
             d = json.loads(p.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001 单个坏课件不拖垮整张地图
+            continue
+        if is_review_draft(d):
             continue
         cid = str(d.get("id", p.stem))
         units = d.get("sections") or d.get("pages") or []
@@ -181,6 +187,8 @@ def mastered_concepts(exclude_course_id: str = "") -> list[str]:
         try:
             d = json.loads(p.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001 同上
+            continue
+        if is_review_draft(d):
             continue
         cid = str(d.get("id", p.stem))
         if cid == exclude_course_id:

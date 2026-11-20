@@ -332,15 +332,16 @@ def _loop(
     usage = {"input_tokens": 0, "output_tokens": 0}
     t0 = time.perf_counter()
     last_err: list[str] = []
+    token_budget = 32768 if phase.startswith("material:") else 16384
     run_context(prompt=prompt, tools=RESEARCH_TOOLS,
-                parameters={"max_tokens": 16384, "max_turns": MAX_TURNS})
+                parameters={"max_tokens": token_budget, "max_turns": MAX_TURNS})
 
     for turn in range(MAX_TURNS):
         update_run(turns=turn + 1)
         last_turn = turn == MAX_TURNS - 1
         resp = client.messages.create(
             model=settings.llm_model,
-            max_tokens=16384,  # 5.3 思考常开共吃预算:8192 间歇被全烧光(实测同 prep)
+            max_tokens=token_budget,  # 带原文摘录的原料用32K,避免思考+完整JSON连续撞16K
             # 观测客户端返回 Any,dict messages 直传不再需要 ignore(历史上 SDK TypedDict 拒 dict)
             messages=messages,
             tools=[] if last_turn else RESEARCH_TOOLS,
@@ -351,7 +352,11 @@ def _loop(
         update_run(usage=usage)
 
         if resp.stop_reason != "tool_use":
-            d = parse_json_reply("".join(b.text for b in resp.content if b.type == "text"))
+            text = "".join(b.text for b in resp.content if b.type == "text")
+            update_run(last_response={"stop_reason": resp.stop_reason,
+                                      "block_types": [b.type for b in resp.content],
+                                      "text_length": len(text), "max_tokens": token_budget})
+            d = parse_json_reply(text)
             if d is None:
                 messages.append({"role": "assistant", "content": "…"})
                 messages.append(

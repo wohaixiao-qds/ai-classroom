@@ -60,7 +60,8 @@ def _legacy_course(kind: str, target: str, material: dict[str, Any],
 
 
 def _bound_prep(kind: str, target: str, material: dict[str, Any],
-                *, prev: str | None = None) -> dict[str, Any]:
+                *, prev: str | None = None, learning_goal: str = "",
+                prerequisite_titles: list[str] | None = None) -> dict[str, Any]:
     from app.agent.prep import _course_path, _plan_path, run_prep
 
     binding = get_binding(kind, target)
@@ -80,11 +81,41 @@ def _bound_prep(kind: str, target: str, material: dict[str, Any],
         if course.get("id") != cid or (owner and owner != binding["id"]):
             raise ValueError("绑定课件归属不匹配,拒绝续写")
         print(f"恢复绑定课件 {cid} (binding={binding['id']})")
-    result = run_prep(material, prev_subtopic=prev, resume_course_id=resume, job_binding=binding)
+    result = run_prep(material, prev_subtopic=prev, resume_course_id=resume, job_binding=binding,
+                      learning_goal=learning_goal, prerequisite_titles=prerequisite_titles)
     ensure_active(binding)
     if result.get("course") and result["course"].get("id") != cid:
         raise ValueError("备课返回的课件 id 与任务绑定不匹配")
     return result
+
+
+def _apply_outline_contract(course: dict[str, Any], framework: dict[str, Any],
+                            entry: dict[str, Any], topic: str) -> None:
+    """显式 refs 优先,再按同领域的大纲 id 查找;不按全库同名猜测。"""
+    available: dict[str, dict[str, Any]] = {}
+    for path in settings.courses_dir.glob("*.csl.json"):
+        try:
+            candidate = json.loads(path.read_text(encoding="utf-8"))
+            if candidate.get("sections"):
+                available[str(candidate["id"])] = candidate
+        except (OSError, ValueError, KeyError):
+            continue
+    entries = {c["id"]: c for c in framework["courses"]}
+    deps = []
+    for pid in entry.get("prereqs", []):
+        prerequisite = entries[pid]
+        refs = list(prerequisite.get("course_refs") or [])
+        if prerequisite.get("course_ref"):
+            refs.append(prerequisite["course_ref"])
+        for cid, candidate in available.items():
+            meta = candidate.get("meta") or {}
+            same_topic = meta.get("job_target") in (topic, topic + "::" + prerequisite["title"])
+            if same_topic and meta.get("outline_course_id") == pid:
+                refs.append(cid)
+        for cid in dict.fromkeys(refs):
+            if cid in available and cid != course["id"]:
+                deps.append({"id": cid, "reason": f"大纲先修:{prerequisite['title']}"})
+    course.setdefault("meta", {}).update(outline_course_id=entry["id"], depends_on=deps)
 
 
 def _on_cancel(signum: int, _frame: Any) -> None:
@@ -149,7 +180,9 @@ def _run() -> str:
         titles_by_id = {c["id"]: c["title"] for c in fw["courses"]}
         prereq_titles = [titles_by_id[pid] for pid in prereq_ids if pid in titles_by_id]
         prev = prereq_titles[-1] if prereq_titles else None
-        result = _bound_prep(kind, target, material, prev=prev)
+        result = _bound_prep(kind, target, material, prev=prev,
+                             learning_goal=str(outline_course.get("goal") or ""),
+                             prerequisite_titles=prereq_titles)
     elif kind == "request_research":
         # 样课先行(P5 补):一句话开课 = 先出领域大纲(零基础完整路线),
         # 再自动备大纲第一门样课;其余课在大纲里逐课点单(生成中心)
@@ -195,7 +228,11 @@ def _run() -> str:
             mp = _Path(str(material["_material_path"]))
             mp.write_text(_json.dumps(material, ensure_ascii=False, indent=2), encoding="utf-8")
             print(f"topic 归位: {new_topic}")
-        result = _bound_prep(kind, target, material)
+        topic, outline_course = target, entry
+        result = _bound_prep(kind, target, material,
+                             learning_goal=str(entry.get("goal") or ""),
+                             prerequisite_titles=[c["title"] for c in fw["courses"]
+                                                  if c["id"] in entry.get("prereqs", [])])
     else:
         raise ValueError(f"未知任务类型: {kind}")
 
@@ -204,45 +241,31 @@ def _run() -> str:
         raise RuntimeError("备课未通过校验(软着陆),产物在 courses/ 可人工接着审")
     course = result["course"]
 
-    # 大纲挂接(P7·M2):outline_course_id 恒写(目录出课判定靠它);
-    # 先修链覆盖模型建议,只挂已出课的(前置未出课时先欠着,那门课出炉后
-    # 整链会在学习路线里自然续上——按标题匹配课件)
-    if kind == "outline_prep":
-        import json as _json
-        from pathlib import Path as _Path
-
+    # 两个入口共用大纲权威先修,包括显式的空列表。
+    if kind in ("outline_prep", "request_research"):
         from app.agent.prep import _course_path
 
-        by_title: dict[str, str] = {}
-        for p in settings.courses_dir.glob("*.csl.json"):
-            try:
-                cd = _json.loads(p.read_text(encoding="utf-8"))
-                meta = cd.get("meta") or {}
-                job_target = str(meta.get("job_target") or "")
-                if meta.get("job_kind") == "outline_prep" and not job_target.startswith(
-                    topic + "::"
-                ):
-                    continue
-                by_title[str(cd.get("title", ""))] = str(cd.get("id", ""))
-            except Exception:  # noqa: BLE001
-                continue
-        deps = [
-            {"id": by_title[t], "reason": f"大纲先修:{t}"}
-            for t in prereq_titles
-            if t in by_title and by_title[t] != course["id"]
-        ]
-        course["meta"]["outline_course_id"] = (outline_course or {}).get("id", "")
-        if deps:
-            course["meta"]["depends_on"] = deps
-        cp = _course_path(str(course["id"]))
-        cp.write_text(_json.dumps(course, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(
-            f"大纲挂接完成:outline_course_id={course['meta']['outline_course_id']}"
-            + (f",先修链={[d['id'] for d in deps]}" if deps else "")
+        assert outline_course is not None  # 两个入口均已验证大纲课程存在
+        _apply_outline_contract(course, fw, outline_course, topic)
+        _course_path(str(course["id"])).write_text(
+            json.dumps(course, ensure_ascii=False, indent=2), encoding="utf-8",
         )
 
+    from app.services.publication import ensure_publication
     from app.services.tts_compile import publish_courses
 
+    course = ensure_publication(
+        course, material,
+        learning_goal=str(outline_course.get("goal") or "")
+        if kind in ("outline_prep", "request_research") and outline_course else "",
+        job_binding={**(get_binding(kind, target) or {}), "action_id": _action_id()},
+        prerequisite_titles=[c["title"] for c in fw["courses"]
+                             if c["id"] in outline_course.get("prereqs", [])]
+        if kind in ("outline_prep", "request_research") and outline_course else None,
+    )
+    binding = get_binding(kind, target)
+    if binding:
+        ensure_active({**binding, "action_id": _action_id()})
     publish_courses(str(course["id"]))
 
     # 出课自动归位(P7):新课与旧课都进最贴合的大纲位置(一次 LLM 调用;

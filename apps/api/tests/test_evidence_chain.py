@@ -277,6 +277,7 @@ class EvidenceChainTests(unittest.TestCase):
               patch.object(research, "MAX_TURNS", 4)):
             result = research._loop("prompt", research.validate_material, "状态", "material:增量",
                                     source="test")
+        self.assertEqual(client.messages.create.call_args.kwargs["max_tokens"], 32768)
         self.assertEqual(result["evidence_version"], 1)
         self.assertEqual(result["evidence"][0]["support"], "partial")
         self.assertEqual(len(result["source_snapshots"]), 3)
