@@ -3,7 +3,7 @@
 为什么进 SQLite 而不是只信 localStorage:完成判定是写回闸门的一环,
 CLI/网页/未来自动建议都要同一真相;浏览器数据太易失。
 判定(2026-08-24 对齐):进度覆盖到最后一页(done,由播放引擎自然停止时上报)
-+ 该课所有检查点至少 pass 过一次(grade 轨迹,现成数据)。
++ 该课所有检查点至少 pass 过一次(SQLite 持久批改结果)。
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import sqlite3
 import time
 
 from app.core.config import settings
-from app.core.trace import read_traces
+from app.core.learning_store import passed_checkpoints
 from app.schemas.learning import CompletionState
 
 _DB = settings.data_dir / "classroom.db"
@@ -67,11 +67,7 @@ def completion(course_id: str) -> CompletionState:
         ]
     else:
         cp_ids = [pg["id"] for pg in d.get("pages", []) if pg.get("checkpoint")]
-    passed = {
-        g.get("page_id")
-        for g in read_traces("grade.jsonl", limit=500)
-        if g.get("course_id") == course_id and g.get("verdict") == "pass"
-    }
+    passed = passed_checkpoints().get(course_id, set())
     n_pass = sum(1 for i in cp_ids if i in passed)
     with _conn() as c:
         row = c.execute(

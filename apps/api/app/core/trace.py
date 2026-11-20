@@ -1,38 +1,190 @@
-"""Eval 层 · 轨迹落盘(共享 harness 基础设施)。
+"""共享 Eval 轨迹:先记录执行,再补评价。JSONL 追加事件按 run_id 合并成一次执行。
 
-两条独立轨迹,各自 JSONL(形状不同,不混):
-- tutor.jsonl : 答疑问答轨迹
-- grade.jsonl : 复述批改轨迹
-
-设计约束(见 docs/P1.5执行计划 §六):trace 属 Eval 层,只追加、供观测/复盘;
-Runtime 不反过来读它当记忆(记忆走 SQLite),避免两层搅在一起。
+学习进度不读这里。旧行缺失的状态/版本/证据保持 unknown,不推断为成功或有据。
 """
 
 from __future__ import annotations
 
+import functools
+import hashlib
+import inspect
 import json
+import os
 import re
+import socket
+import threading
 import time
+import uuid
+from collections.abc import Callable
+from contextvars import ContextVar
 from pathlib import Path
-from typing import Any
+from typing import Any, ParamSpec, TypeVar
 
 from app.core.config import settings
 
-# v2 书页化后课件单位是「节」,模型实际引用「课件第N节」(SYSTEM_PROMPT 的「第N页」措辞
-# 已跟不上)——只认「页」会让自评豁免与观测 cited_rate 对 v2 课全部落空
 _CITE_RE = re.compile(r"课件第\s*(\d+)\s*[页节]")
+_ACTIVE: ContextVar[TraceRun | None] = ContextVar("trace_run", default=None)
+P = ParamSpec("P")
+T = TypeVar("T")
+EVAL_VERSION = "evidence-v2"
 
 
 def cited_pages(answer: str) -> list[int]:
-    """从回答里提取引用的课件页码(供观测页统计"哪页常被引用")。"""
     return sorted({int(m) for m in _CITE_RE.findall(answer)})
+
+
+def digest(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(value, ensure_ascii=False, sort_keys=True, default=str).encode()
+    ).hexdigest()
+
+
+@functools.cache
+def _code_hash() -> str:
+    root = Path(__file__).resolve().parents[1]
+    return digest(
+        {
+            str(p.relative_to(root)): p.read_text(encoding="utf-8")
+            for p in sorted(root.rglob("*.py"))
+        }
+    )
 
 
 def _append(filename: str, rec: dict[str, Any]) -> None:
     settings.traces_dir.mkdir(parents=True, exist_ok=True)
-    rec = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), **rec}
+    line = json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), **rec}, ensure_ascii=False)
+    # 单次 append write,线程/子进程各写一条完整行。
     with (settings.traces_dir / filename).open("a", encoding="utf-8") as f:
-        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        f.write(line + "\n")
+
+
+class TraceRun:
+    """同一执行的生命周期。终态只写一次,后续裁判只能补 assessment。"""
+
+    def __init__(self, stage: str, **fields: Any) -> None:
+        self.stage = stage
+        self.id = uuid.uuid4().hex
+        self.started = time.perf_counter()
+        self.finished = False
+        self.fields: dict[str, Any] = {"source": "user", "turns": 0, **fields}
+        self.lock = threading.RLock()
+        self.versions = {
+            "trace": "2",
+            "eval": EVAL_VERSION,
+            "model": settings.llm_model,
+            "code_hash": _code_hash(),
+        }
+        self._write(
+            "started",
+            status="running",
+            pid=os.getpid(),
+            host=socket.gethostname(),
+            **self.fields,
+            versions=self.versions,
+        )
+
+    def _write(self, event: str, **fields: Any) -> None:
+        _append(
+            f"{self.stage}.jsonl",
+            {"run_id": self.id, "stage": self.stage, "event": event, **fields},
+        )
+
+    def update(self, **fields: Any) -> None:
+        with self.lock:
+            if not self.finished:
+                self.fields.update(fields)
+                self._write("progress", **fields)
+
+    def context(self, **context: Any) -> None:
+        """保存实际初始输入(含历史/工具定义),不包含客户端、环境或凭据。"""
+        path = settings.data_dir / "eval-context" / f"{self.id}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(context, ensure_ascii=False, default=str), encoding="utf-8")
+        self.versions.update(
+            {
+                "context_hash": digest(context),
+                "prompt_hash": digest(context.get("system") or context.get("prompt")),
+                "tools_hash": digest(context.get("tools", [])),
+            }
+        )
+        self.update(context_file=path.name, versions=self.versions)
+
+    def finish(self, status: str, **fields: Any) -> None:
+        with self.lock:
+            if self.finished:
+                return
+            self.fields.update(fields)
+            self.fields["status"] = status
+            self._write(
+                "finished",
+                **{
+                    **self.fields,
+                    "status": status,
+                    "elapsed_s": round(time.perf_counter() - self.started, 3),
+                },
+            )
+            self.finished = True
+
+    def assess(self, assessment: dict[str, Any]) -> None:
+        self._write("assessment", self_eval=assessment)
+
+
+def current_run() -> TraceRun | None:
+    return _ACTIVE.get()
+
+
+def update_run(**fields: Any) -> None:
+    if run := current_run():
+        run.update(**fields)
+
+
+def run_context(**fields: Any) -> None:
+    if run := current_run():
+        run.context(**fields)
+
+
+def observed(stage: str) -> Callable[[Callable[P, T]], Callable[P, T]]:
+    """给同步批处理入口补异常/取消终态,保留各自独立循环及原有 trace 字段。"""
+
+    def decorate(fn: Callable[P, T]) -> Callable[P, T]:
+        @functools.wraps(fn)
+        def wrapped(*args: P.args, **kwargs: P.kwargs) -> T:
+            bound = inspect.signature(fn).bind(*args, **kwargs)
+            fields = {
+                k: v
+                for k, v in bound.arguments.items()
+                if k in ("course_id", "page_id", "topic", "phase", "source", "tutored")
+            }
+            run = TraceRun(stage, **fields)
+            token = _ACTIVE.set(run)
+            try:
+                result = fn(*args, **kwargs)
+                run.finish(str(run.fields.get("status", "succeeded")))
+                return result
+            except BaseException as exc:
+                cancelled = isinstance(exc, (SystemExit, KeyboardInterrupt))
+                status = "cancelled" if cancelled else "failed"
+                run.finish(status, error=f"{type(exc).__name__}: {exc}")
+                raise
+            finally:
+                _ACTIVE.reset(token)
+
+        return wrapped
+
+    return decorate
+
+
+def _record(stage: str, fields: dict[str, Any], run: TraceRun | None = None) -> None:
+    status = fields.pop(
+        "status", "succeeded" if fields.get("ok", True) and not fields.get("error") else "failed"
+    )
+    active = run or current_run()
+    if run:
+        run.finish(status, **fields)
+    elif active:
+        active.update(status=status, **fields)
+    else:
+        _append(f"{stage}.jsonl", {"stage": stage, "status": status, **fields})
 
 
 def trace_tutor(
@@ -41,164 +193,134 @@ def trace_tutor(
     page_id: str | None,
     question: str,
     answer: str,
-    tool_calls: list[dict],
+    tool_calls: list[dict[str, Any]],
     elapsed_s: float,
-    usage: dict | None = None,
+    usage: dict[str, Any] | None = None,
     error: str | None = None,
     soft_landed: bool = False,
     truncated: bool = False,
     source: str = "user",
-    self_eval: dict[str, str] | None = None,
+    self_eval: dict[str, Any] | None = None,
     guard_violations: list[str] | None = None,
     reteach: list[str] | None = None,
+    turns: int | None = None,
+    status: str = "succeeded",
+    run: TraceRun | None = None,
 ) -> None:
-    """答疑一轮的轨迹。
-
-    质量信号(防假性完成用):
-      cited_pages   引用了课件哪几页(空=未引课件)
-      searched      是否联网(也是衍生候选判定信号:课件答不了才联网)
-      grounded      有据:引了课件 或 联网查过
-      tool_error    工具报错过(仍作答则可疑)
-      soft_landed   撞 MAX_TURNS 才收尾(查不到硬答)
-      truncated     撞 max_tokens 被截断
-      source        user=真实使用 / test=调试脚本(避免测试噪音污染统计)
-    """
     cited = cited_pages(answer)
-    searched = any(t.get("name") == "web_search" for t in tool_calls)
-    _append(
-        "tutor.jsonl",
+    violations = guard_violations or []
+    _record(
+        "tutor",
         {
-            "source": source,
             "course_id": course_id,
             "page_id": page_id,
             "question": question,
             "answer": answer,
+            "source": source,
             "answer_len": len(answer),
             "cited_pages": cited,
             "tool_calls": tool_calls,
-            "searched": searched,
-            "grounded": bool(cited) or searched,
+            "tool_used": bool(tool_calls),
+            "searched": any(t.get("name") == "web_search" for t in tool_calls),
+            # 仅存在性合法;不等于这些章节支撑了回答。未引用=不适用。
+            "citation_valid": not violations if cited or re.search(r"\[\d+\]", answer) else None,
             "tool_error": any(t.get("error") for t in tool_calls),
             "soft_landed": soft_landed,
             "truncated": truncated,
-            "turns": max(1, len(tool_calls)),
-            "elapsed_s": round(elapsed_s, 1),
+            "turns": turns,
+            "elapsed_s": elapsed_s,
             "usage": usage or {},
             "error": error,
-            "self_eval": self_eval,  # A6:{verdict,reason} 或 None(未评);见 services/self_eval
-            "guard_violations": guard_violations or [],  # 假引用门禁拦截明细(空=通过)
-            "reteach": reteach or [],  # 重教门禁(观测期):已学概念被当新课教的命中明细
+            "self_eval": self_eval,
+            "guard_violations": violations,
+            "reteach": reteach or [],
+            "status": status,
         },
+        run,
     )
 
 
-def trace_grade(
-    *,
-    course_id: str,
-    page_id: str,
-    answer: str,
-    verdict: str,
-    comment: str,
-    elapsed_s: float,
-    score: int | None = None,
-    precise: str | None = None,
-) -> None:
-    """复述批改的轨迹(供观测页算检查点通过率)。"""
-    _append(
-        "grade.jsonl",
+def trace_grade(**fields: Any) -> None:
+    _record("grade", fields)
+
+
+def trace_research(**fields: Any) -> None:
+    calls = fields.get("tool_calls", [])
+    _record(
+        "research",
         {
-            "course_id": course_id,
-            "page_id": page_id,
-            "answer": answer,
-            "answer_len": len(answer),
-            "verdict": verdict,
-            "comment": comment,
-            "score": score,
-            "precise": precise,
-            "elapsed_s": round(elapsed_s, 1),
+            **fields,
+            "searched": sum(t.get("name") == "web_search" for t in calls),
+            "fetched": sum(t.get("name") == "fetch_page" for t in calls),
         },
     )
 
 
-def trace_research(
-    *,
-    topic: str,
-    material_path: str,
-    tool_calls: list[dict[str, Any]],
-    ok: bool,
-    elapsed_s: float,
-    usage: dict[str, Any] | None = None,
-    error: str | None = None,
-) -> None:
-    """找资料一轮的轨迹(M2a)。"""
-    _append(
-        "research.jsonl",
-        {
-            "topic": topic,
-            "material_path": material_path,
-            "tool_calls": tool_calls,
-            "searched": sum(1 for t in tool_calls if t.get("name") == "web_search"),
-            "fetched": sum(1 for t in tool_calls if t.get("name") == "fetch_page"),
-            "ok": ok,
-            "elapsed_s": round(elapsed_s, 1),
-            "usage": usage or {},
-            "error": error,
-        },
-    )
+def trace_prep(**fields: Any) -> None:
+    _record("prep", fields)
 
 
-def trace_prep(
-    *,
-    course_id: str,
-    subtopic: str,
-    sections: int,
-    validate_failures: int,
-    ok: bool,
-    elapsed_s: float,
-    tool_calls: list[dict[str, Any]] | None = None,
-    usage: dict[str, Any] | None = None,
-    error: str | None = None,
-) -> None:
-    """备课一轮的轨迹(M2b→M3 书页版)。validate_failures=打回次数,循环健康度关键观测。"""
-    _append(
-        "prep.jsonl",
-        {
-            "course_id": course_id,
-            "subtopic": subtopic,
-            "sections": sections,
-            "validate_failures": validate_failures,
-            "tool_calls": tool_calls or [],
-            "ok": ok,
-            "elapsed_s": round(elapsed_s, 1),
-            "usage": usage or {},
-            "error": error,
-        },
-    )
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
-def read_traces(filename: str, limit: int = 200) -> list[dict]:
-    """读最近 limit 条(观测页用)。坏行跳过,不让一行脏数据毁掉整页。"""
-    p: Path = settings.traces_dir / filename
-    if not p.exists():
+def read_traces(filename: str, limit: int = 200) -> list[dict[str, Any]]:
+    """流式读行、按执行合并。补评不会重复计数或把旧执行移到最新位置。"""
+    path = settings.traces_dir / filename
+    if not path.exists() or limit <= 0:
         return []
-    out: list[dict] = []
-    for line in p.read_text(encoding="utf-8").splitlines():
-        try:
-            out.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
-    # 归一化:A3 之前落的旧记录缺新字段,补默认值,免得前端读 undefined.length 崩
+    rows: dict[str, dict[str, Any]] = {}
+    with path.open(encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(rec, dict):
+                continue
+            key = str(rec.get("run_id") or f"legacy-{i}")
+            if key in rows:
+                start_ts = rows[key].get("ts")
+                rows[key].update(rec)
+                rows[key]["ts"] = start_ts
+            else:
+                rows[key] = rec
+    out = list(rows.values())[-limit:][::-1]
+    defaults: dict[str, Any] = {
+        "cited_pages": [],
+        "tool_calls": [],
+        "usage": {},
+        "course_id": "",
+        "page_id": None,
+        "source": "user",
+        "soft_landed": False,
+        "truncated": False,
+        "self_eval": None,
+        "guard_violations": [],
+        "reteach": [],
+        "status": "unknown",
+        "versions": {},
+        "elapsed_s": 0,
+        "answer": "",
+        "question": "",
+        "turns": None,
+        "citation_valid": None,
+    }
     for r in out:
-        r.setdefault("cited_pages", [])
-        r.setdefault("tool_calls", [])
-        r.setdefault("usage", {})
-        r.setdefault("searched", False)
-        r.setdefault("course_id", "")
-        r.setdefault("page_id", None)
-        r.setdefault("source", "user")
-        r.setdefault("grounded", bool(r.get("cited_pages")) or r.get("searched", False))
-        r.setdefault("tool_error", any(t.get("error") for t in r.get("tool_calls", [])))
-        r.setdefault("soft_landed", False)
-        r.setdefault("truncated", False)
-        r.setdefault("self_eval", None)
-    return out[-limit:][::-1]  # 最新在前
+        for k, default in defaults.items():
+            r.setdefault(k, default)
+        # 旧 grounded 是行为启发式,不转为证据支撑结论。
+        r.pop("grounded", None)
+        r.setdefault("searched", any(t.get("name") == "web_search" for t in r["tool_calls"]))
+        r.setdefault("tool_error", any(t.get("error") for t in r["tool_calls"]))
+        if r["status"] == "running" and r.get("host") == socket.gethostname():
+            if not _alive(int(r.get("pid", 0))):
+                r["status"] = "interrupted"
+                r["error"] = "执行进程已退出,未留下终态"
+    return out

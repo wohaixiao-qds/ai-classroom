@@ -82,7 +82,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/eval/summary": {
+    "/api/v1/flash/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Flash Report
+         * @description 闪卡自评(M4):记得/忘了 → 同一套掌握度累积与间隔排期。无 LLM,纯回写。
+         */
+        post: operations["flash_report_api_v1_flash_report_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/grade/last": {
         parameters: {
             query?: never;
             header?: never;
@@ -90,9 +110,26 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Summary
-         * @description 质量指标(防假性完成)+ 成本/性能。include_test=true 才把调试调用算进来。
+         * Grade Last
+         * @description 回查某检查点最近一次批改(通过态跨刷新展示用);没有则 {found: false}。
          */
+        get: operations["grade_last_api_v1_grade_last_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/eval/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Summary */
         get: operations["summary_api_v1_eval_summary_get"];
         put?: never;
         post?: never;
@@ -109,10 +146,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Traces
-         * @description 问答轨迹(最新在前)+ 批改轨迹。
-         */
+        /** Traces */
         get: operations["traces_api_v1_eval_traces_get"];
         put?: never;
         post?: never;
@@ -129,12 +163,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Repeats
-         * @description 同问题历史(轻量抓回归):同一问题被问多次 → 并排看答案演变是变好还是变差。
-         *
-         *     也是衍生候选信号之一:反复问同一点 = 课件那里讲不清。
-         */
+        /** Repeats */
         get: operations["repeats_api_v1_eval_repeats_get"];
         put?: never;
         post?: never;
@@ -151,13 +180,44 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Gaps
-         * @description 衍生候选:三个信号合并——联网过的问题 / 反复问的问题 / 检查点 fail 的页。
-         */
+        /** Gaps */
         get: operations["gaps_api_v1_eval_gaps_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/eval/lessons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lessons */
+        get: operations["lessons_api_v1_eval_lessons_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/eval/lessons/{lesson_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Review */
+        post: operations["review_api_v1_eval_lessons__lesson_id__review_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -272,7 +332,9 @@ export interface paths {
         put?: never;
         /**
          * Note Apply
-         * @description 确认落盘——写的是缓存里预览过的那份;没有缓存(过期/重启)则现生成。
+         * @description 确认落盘——写的是缓存里预览过的那份。缓存失效(API 重启/过期)必须重新预览,
+         *     绝不静默重生成:SSE 重构曾漏缓存回填,此路每次确认都重新蒸馏 2~3 分钟
+         *     (无反馈的「没反应」假死)且落盘的是用户没预览过的新草稿。
          */
         post: operations["note_apply_api_v1_notes_apply__course_id__post"];
         delete?: never;
@@ -301,6 +363,162 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notes/draft-stream/{course_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Draft Stream
+         * @description 沉淀草稿生成(SSE,P7 补):逐阶段推真实进度,done 事件携带草稿全文。
+         *     feedback=重蒸要求(2026-11-19):对上一版草稿的修改意见,非空时注入蒸馏 prompt。
+         */
+        get: operations["draft_stream_api_v1_notes_draft_stream__course_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outlines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Outlines */
+        get: operations["list_outlines_api_v1_outlines_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outlines/{topic}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Outline */
+        get: operations["get_outline_api_v1_outlines__topic__get"];
+        /**
+         * Save Outline
+         * @description 审阅调整(调序/删课/改字段)写回;过校验器才落盘。未知字段丢弃。
+         */
+        put: operations["save_outline_api_v1_outlines__topic__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outline-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Outline Jobs
+         * @description 大纲点单备课的任务动态(最新一条按 target 去重),生成中心「正在造」用。
+         */
+        get: operations["outline_jobs_api_v1_outline_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outlines/attribute-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Attribute All Courses
+         * @description 课件归位(P7):全局把每门已出课件归入最贴合的大纲课。幂等可重跑。
+         */
+        post: operations["attribute_all_courses_api_v1_outlines_attribute_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outlines/{topic}/prep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prep Course */
+        post: operations["prep_course_api_v1_outlines__topic__prep_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Job Log
+         * @description 尾部日志:前端轮询渲染任务实时动态(target=课表意图的 target 原串)。
+         */
+        get: operations["job_log_api_v1_jobs_log_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel
+         * @description 手动取消后台任务:SIGTERM → job_runner 收尾(清 0 节骨架/置 cancelled)。
+         */
+        post: operations["cancel_api_v1_jobs_cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -322,6 +540,33 @@ export interface components {
             written: boolean;
             /** Note Path */
             note_path: string;
+        };
+        /** Assessment */
+        Assessment: {
+            /** Verdict */
+            verdict: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Skip Reason */
+            skip_reason?: string | null;
+            /** Version */
+            version?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Selection */
+            selection?: string | null;
+            /**
+             * Elapsed S
+             * @default 0
+             */
+            elapsed_s: number;
+            /** Usage */
+            usage?: {
+                [key: string]: number;
+            };
         };
         /**
          * Catalog
@@ -365,8 +610,27 @@ export interface components {
             /**
              * Source
              * @default user
+             * @enum {string}
              */
-            source: string;
+            source: "user" | "test";
+            checkpoint?: components["schemas"]["CheckpointContext"] | null;
+        };
+        /**
+         * CheckpointContext
+         * @description 批改→答疑联动(P7 补):复述卡没过时,答疑带上检查点全上下文。
+         */
+        CheckpointContext: {
+            /** Question */
+            question: string;
+            /** Pass Rule */
+            pass_rule?: string | null;
+            /**
+             * Answer
+             * @default
+             */
+            answer: string;
+            /** Verdict */
+            verdict?: string | null;
         };
         /** CompletionState */
         CompletionState: {
@@ -378,6 +642,23 @@ export interface components {
             checkpoints_passed: number;
             /** Ready */
             ready: boolean;
+        };
+        /** CostMetrics */
+        CostMetrics: {
+            /** Avg Elapsed S */
+            avg_elapsed_s: number;
+            /** In Tokens */
+            in_tokens: number;
+            /** Out Tokens */
+            out_tokens: number;
+            /** Judge In Tokens */
+            judge_in_tokens: number;
+            /** Judge Out Tokens */
+            judge_out_tokens: number;
+            /** Judge Elapsed S */
+            judge_elapsed_s: number;
+            /** Unknown Usage */
+            unknown_usage: number;
         };
         /**
          * CourseDep
@@ -416,6 +697,91 @@ export interface components {
              */
             ready: boolean;
         };
+        /** EvalGaps */
+        EvalGaps: {
+            /** Gaps */
+            gaps: components["schemas"]["GapSignal"][];
+            /** Count */
+            count: number;
+        };
+        /** EvalLessons */
+        EvalLessons: {
+            /** Lessons */
+            lessons: components["schemas"]["Lesson"][];
+        };
+        /** EvalRepeats */
+        EvalRepeats: {
+            /** Repeats */
+            repeats: components["schemas"]["RepeatGroup"][];
+            /** Count */
+            count: number;
+        };
+        /** EvalSummary */
+        EvalSummary: {
+            /** Asks */
+            asks: number;
+            quality: components["schemas"]["QualityMetrics"];
+            cost: components["schemas"]["CostMetrics"];
+            /** Stages */
+            stages: {
+                [key: string]: components["schemas"]["StageMetrics"];
+            };
+            /** Verdict Counts */
+            verdict_counts: {
+                [key: string]: number;
+            };
+            /** Tutored Grades */
+            tutored_grades: number;
+            /**
+             * Window
+             * @default 1000
+             */
+            window: number;
+            /** Eval Version */
+            eval_version: string;
+        };
+        /** EvalTraces */
+        EvalTraces: {
+            /** Tutor */
+            tutor: components["schemas"]["TraceRecord"][];
+            /** Grade */
+            grade: components["schemas"]["TraceRecord"][];
+            /** Research */
+            research: components["schemas"]["TraceRecord"][];
+            /** Prep */
+            prep: components["schemas"]["TraceRecord"][];
+        };
+        /**
+         * FlashReportRequest
+         * @description 闪卡自评(M4):记得=pass / 忘了=fail,复用检查点掌握度排期。
+         */
+        FlashReportRequest: {
+            /** Course Id */
+            course_id: string;
+            /** Block Id */
+            block_id: string;
+            /** Remembered */
+            remembered: boolean;
+        };
+        /** GapSignal */
+        GapSignal: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "searched" | "repeated" | "checkpoint_fail";
+            /** Question */
+            question: string;
+            /** Detail */
+            detail: string;
+            /**
+             * Course Id
+             * @default
+             */
+            course_id: string;
+            /** Ts */
+            ts?: string | null;
+        };
         /** GradeRequest */
         GradeRequest: {
             /** Course Id */
@@ -424,11 +790,54 @@ export interface components {
             page_id: string;
             /** Answer */
             answer: string;
+            /**
+             * Tutored
+             * @default false
+             */
+            tutored: boolean;
+            /**
+             * Source
+             * @default user
+             * @enum {string}
+             */
+            source: "user" | "test";
         };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** Lesson */
+        Lesson: {
+            /** Id */
+            id: string;
+            /** Text */
+            text: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "approved" | "rejected";
+            /** Run Id */
+            run_id: string | null;
+            /** Evidence */
+            evidence: {
+                [key: string]: unknown;
+            };
+            /** Created At */
+            created_at: string;
+            /** Reviewed At */
+            reviewed_at: string | null;
+        };
+        /** LessonReview */
+        LessonReview: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "rejected";
+            /** Text */
+            text?: string | null;
         };
         /** NoteDraft */
         NoteDraft: {
@@ -460,6 +869,72 @@ export interface components {
             requested: boolean;
             /** Status */
             status?: string | null;
+        };
+        /** OutlineEdit */
+        OutlineEdit: {
+            /** Courses */
+            courses: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** OutlinePrepReq */
+        OutlinePrepReq: {
+            /** Title */
+            title: string;
+        };
+        /** QualityMetrics */
+        QualityMetrics: {
+            /** Answers */
+            answers: number;
+            /** Checked */
+            checked: number;
+            /** Coverage Pct */
+            coverage_pct: number | null;
+            /** Support Rate Pct */
+            support_rate_pct: number | null;
+            /** Assessment Counts */
+            assessment_counts: {
+                [key: string]: number;
+            };
+            /** Skip Reasons */
+            skip_reasons: {
+                [key: string]: number;
+            };
+            /** Citation Checks */
+            citation_checks: number;
+            /** Valid Citation Pct */
+            valid_citation_pct: number | null;
+            /** Citation Unknown */
+            citation_unknown: number;
+            /** Guard Violations */
+            guard_violations: number;
+            /** Reteach */
+            reteach: number;
+            /** Tool Used */
+            tool_used: number;
+            /** Tool Error */
+            tool_error: number;
+            /** Searched */
+            searched: number;
+            /** Soft Landed */
+            soft_landed: number;
+            /** Truncated */
+            truncated: number;
+        };
+        /** RepeatGroup */
+        RepeatGroup: {
+            /** Question */
+            question: string;
+            /** Course Id */
+            course_id: string;
+            /** Page Id */
+            page_id: string | null;
+            /** Count */
+            count: number;
+            /** Comparable */
+            comparable: boolean;
+            /** History */
+            history: components["schemas"]["TraceRecord"][];
         };
         /**
          * ReviewDue
@@ -557,6 +1032,15 @@ export interface components {
              */
             confirmed: boolean;
         };
+        /** StageMetrics */
+        StageMetrics: {
+            /** Total */
+            total: number;
+            /** Statuses */
+            statuses: {
+                [key: string]: number;
+            };
+        };
         /** TodoEdit */
         TodoEdit: {
             /** File */
@@ -584,6 +1068,139 @@ export interface components {
             requested: boolean;
             /** Status */
             status?: string | null;
+        };
+        /** ToolCall */
+        ToolCall: {
+            /** Name */
+            name: string;
+            /** Args */
+            args?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Ms
+             * @default 0
+             */
+            ms: number;
+            /** Error */
+            error?: string | null;
+            /** Result */
+            result?: string | null;
+            /** Feedback */
+            feedback?: string | null;
+        };
+        /** TraceRecord */
+        TraceRecord: {
+            /** Run Id */
+            run_id?: string | null;
+            /**
+             * Ts
+             * @default
+             */
+            ts: string;
+            /**
+             * Stage
+             * @default
+             */
+            stage: string;
+            /**
+             * Status
+             * @default unknown
+             */
+            status: string;
+            /**
+             * Source
+             * @default user
+             */
+            source: string;
+            /**
+             * Course Id
+             * @default
+             */
+            course_id: string;
+            /** Page Id */
+            page_id?: string | null;
+            /**
+             * Question
+             * @default
+             */
+            question: string;
+            /**
+             * Answer
+             * @default
+             */
+            answer: string;
+            /** Tool Calls */
+            tool_calls?: components["schemas"]["ToolCall"][];
+            /** Cited Pages */
+            cited_pages?: number[];
+            /** Citation Valid */
+            citation_valid?: boolean | null;
+            /**
+             * Tool Error
+             * @default false
+             */
+            tool_error: boolean;
+            /**
+             * Searched
+             * @default false
+             */
+            searched: boolean | number;
+            /**
+             * Soft Landed
+             * @default false
+             */
+            soft_landed: boolean;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            /** Turns */
+            turns?: number | null;
+            /**
+             * Elapsed S
+             * @default 0
+             */
+            elapsed_s: number;
+            /** Usage */
+            usage?: {
+                [key: string]: number;
+            };
+            /** Versions */
+            versions?: {
+                [key: string]: string;
+            };
+            self_eval?: components["schemas"]["Assessment"] | null;
+            /** Guard Violations */
+            guard_violations?: string[];
+            /** Reteach */
+            reteach?: string[];
+            /** Error */
+            error?: string | null;
+            /**
+             * Topic
+             * @default
+             */
+            topic: string;
+            /**
+             * Subtopic
+             * @default
+             */
+            subtopic: string;
+            /** Verdict */
+            verdict?: string | null;
+            /** Score */
+            score?: number | null;
+            /** Raw Score */
+            raw_score?: number | null;
+            /**
+             * Tutored
+             * @default false
+             */
+            tutored: boolean;
+        } & {
+            [key: string]: unknown;
         };
         /** ValidationError */
         ValidationError: {
@@ -768,6 +1385,75 @@ export interface operations {
             };
         };
     };
+    flash_report_api_v1_flash_report_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FlashReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    grade_last_api_v1_grade_last_get: {
+        parameters: {
+            query: {
+                course_id: string;
+                page_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     summary_api_v1_eval_summary_get: {
         parameters: {
             query?: {
@@ -785,9 +1471,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["EvalSummary"];
                 };
             };
             /** @description Validation Error */
@@ -819,9 +1503,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["EvalTraces"];
                 };
             };
             /** @description Validation Error */
@@ -852,9 +1534,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["EvalRepeats"];
                 };
             };
             /** @description Validation Error */
@@ -885,9 +1565,62 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["EvalGaps"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lessons_api_v1_eval_lessons_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalLessons"];
+                };
+            };
+        };
+    };
+    review_api_v1_eval_lessons__lesson_id__review_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                lesson_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LessonReview"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lesson"];
                 };
             };
             /** @description Validation Error */
@@ -1094,6 +1827,281 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReviewDue"];
+                };
+            };
+        };
+    };
+    draft_stream_api_v1_notes_draft_stream__course_id__get: {
+        parameters: {
+            query?: {
+                feedback?: string;
+            };
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_outlines_api_v1_outlines_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    get_outline_api_v1_outlines__topic__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                topic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_outline_api_v1_outlines__topic__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                topic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OutlineEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    outline_jobs_api_v1_outline_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    attribute_all_courses_api_v1_outlines_attribute_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    prep_course_api_v1_outlines__topic__prep_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                topic: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OutlinePrepReq"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    job_log_api_v1_jobs_log_get: {
+        parameters: {
+            query: {
+                kind: "request_prep" | "request_research" | "outline_prep";
+                target: string;
+                tail?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_api_v1_jobs_cancel_post: {
+        parameters: {
+            query: {
+                kind: "request_prep" | "request_research" | "outline_prep";
+                target: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

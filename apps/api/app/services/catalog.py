@@ -4,7 +4,7 @@
 - 在学的   courses/*.csl.json(已出课)
 - 能学的   vault 笔记(有内容、未被任何课的 source_notes 覆盖)
 - 想学的   各 *待探.md 里未打勾的 `- [ ]` 项(顺序=文件内排列,规则二)
-- 刚冒出的 trace 里 web_search 触发过的问题(课件答不了=天然候选)+ 候选池状态
+- 刚冒出的 trace 里 web_search 触发过的问题(待人确认的检索线索)+ 候选池状态
 
 vault 只读(边界铁律 5):本模块只 walk/read,绝不写。
 规则一(哪些笔记算数):排除 `00-`/`_`/`.` 开头、根目录管理文件、99-System、待探索引。
@@ -19,6 +19,7 @@ from pathlib import Path
 
 from app.core.catalog_store import action_index
 from app.core.config import settings
+from app.core.learning_store import last_result, passed_checkpoints
 from app.core.progress import completion, done_map
 from app.core.trace import read_traces
 from app.schemas.catalog import Catalog, CourseItem, NoteItem, SparkItem, TodoItem
@@ -115,15 +116,10 @@ def _load_courses() -> tuple[list[CourseItem], set[str]]:
 def student_course_map() -> str:
     """学员课程地图(注入答疑 system,跨课融通用):一门一行 id | 标题 | 主题 | 状态 | 大纲。
 
-    轻量读法(与逐课 completion() 的区别:它每次重读 grade.jsonl,17 门=17 次):
-    课件裸 json 逐个(只要 id/标题/主题/节标题,不走 parse_course)、
-    grade.jsonl 一次(全库检查点通过集)、course_progress 一次(done 集)。
+    课件裸 json 逐个,SQLite 一次查询全库检查点通过集,再读一次 done 集。
     状态三档与 completion() 的 ready 语义对齐:done 且检查点全过=已学完。
     """
-    passed: dict[str, set[str]] = {}
-    for g in read_traces("grade.jsonl", limit=500):
-        if g.get("verdict") == "pass":
-            passed.setdefault(str(g.get("course_id", "")), set()).add(str(g.get("page_id")))
+    passed = passed_checkpoints()
     done = done_map()
     lines: list[str] = []
     for p in sorted(settings.courses_dir.glob("*.csl.json")):
@@ -171,10 +167,7 @@ def mastered_concepts(exclude_course_id: str = "") -> list[str]:
     事实清单**而非背景地图——把「查地图推理」这个不可靠环节从模型手里拿走。
     词形:节标题的冒号前段(≤10 字);排除当前课(当前课概念正在学,不算已掌握)。
     """
-    passed: dict[str, set[str]] = {}
-    for g in read_traces("grade.jsonl", limit=500):
-        if g.get("verdict") == "pass":
-            passed.setdefault(str(g.get("course_id", "")), set()).add(str(g.get("page_id")))
+    passed = passed_checkpoints()
     done = done_map()
     out: list[str] = []
     for p in sorted(settings.courses_dir.glob("*.csl.json")):
@@ -225,14 +218,8 @@ def session_state_note(session_id: str, course_id: str) -> str | None:
     else:
         prev_cp, prev_done, prev_n_terms = snap
         if st.checkpoints_passed > prev_cp:
-            # 刚通过的题目:grade trace 最新一条 pass(给老师「刚过了什么」的具体语境)
-            last_q = ""
-            for g in read_traces("grade.jsonl", limit=50):
-                if g.get("course_id") == course_id and g.get("verdict") == "pass":
-                    last_q = str(g.get("comment", "")).split("\n")[0][:24] or str(
-                        g.get("page_id", "")
-                    )
-                    break
+            g = last_result(course_id, passed=True)
+            last_q = str(g.get("comment", "")).split("\n")[0][:24] or str(g.get("page_id", ""))
             notes.append(
                 "你刚通过了一个检查点"
                 + (f"(「{last_q}」)" if last_q else "")
@@ -315,7 +302,7 @@ def _scan_todos(research: set[str], status_of: dict[str, str]) -> list[TodoItem]
 
 
 def _sparks(confirmed: set[str], dismissed: set[str]) -> list[SparkItem]:
-    """刚冒出的:trace 里 web_search 触发过的问题(课件答不了),按最新去重。"""
+    """刚冒出的:检索触发线索,按最新去重。检索也可能只是核实,不直接判课程缺口。"""
     rows = [
         r
         for r in read_traces("tutor.jsonl", limit=1000)  # read_traces 已最新在前

@@ -22,6 +22,7 @@ from typing import Any
 
 from app.agent.tools import TOOLS, execute_tool
 from app.core.config import settings
+from app.core.lessons import approved_lessons
 from app.core.llm import get_llm_client
 from app.core.memory import append_turn, load_messages
 from app.core.prompts import CHAT_NARROW_RULE, CITE_COURSE_RULE, CITE_WEB_RULE
@@ -85,9 +86,7 @@ def build_system(course_text: str, course_map: str = "") -> list[dict]:
     ]
     if course_map:
         blocks.append({"type": "text", "text": f"## 学员的课程地图\n{course_map}"})
-    # agent 教训账本(经验级 memory,2026-11-18):自评抓到的编造案例自动记
-    # data/agent_lessons.md(人可审可删),每次开局注入——「上一轮犯过的错这一轮
-    # 少犯」。排最后,同样不碰缓存前缀;文件不存在或为空则不注入
+    # 仅注入人工确认的教训;自动候选在 Eval 页审核,不自行改变 Runtime。
     lessons = _load_agent_lessons()
     if lessons:
         blocks.append({"type": "text", "text": f"## 你自己的教训账本(曾经答错过的)\n{lessons}"})
@@ -95,26 +94,7 @@ def build_system(course_text: str, course_map: str = "") -> list[dict]:
 
 
 def _load_agent_lessons() -> str:
-    """读教训账本正文(跳过 # 行与 <!-- --> 块注释)。账本是人的可审层:删一行=撤销教训。"""
-    p = settings.data_dir / "agent_lessons.md"
-    try:
-        raw = p.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return ""
-    lines: list[str] = []
-    in_comment = False
-    for ln in raw:
-        if in_comment:
-            if "-->" in ln:
-                in_comment = False
-            continue
-        if ln.strip().startswith("<!--"):
-            if "-->" not in ln:
-                in_comment = True
-            continue
-        if ln.strip() and not ln.lstrip().startswith("#"):
-            lines.append(ln)
-    return "\n".join(f"- {ln.strip().removeprefix('- ').strip()}" for ln in lines[:20])
+    return approved_lessons()
 
 
 def trace(question: str, tool_calls: list[dict], answer: str, elapsed: float) -> None:
@@ -188,6 +168,10 @@ def run_tutor(
     first_user = "\n\n".join([*context_parts, question])
     history = load_messages(session_id)
     messages: list[dict] = [*history, {"role": "user", "content": first_user}]
+    system = build_system(course_text, course_map)
+    # 内部观测事件,路由不转发给学员。保存实际初始上下文供复盘/裁判使用。
+    yield {"type": "context", "system": system, "messages": messages,
+           "tools": TOOLS, "parameters": {"max_tokens": 8192, "max_turns": MAX_TURNS}}
     append_turn(session_id, course_id, "user", question, page_id=current_page)
     tool_calls: list[dict] = []
     usage_total = {"input_tokens": 0, "output_tokens": 0, "cache_read": 0}
@@ -196,6 +180,7 @@ def run_tutor(
 
     try:
         for turn in range(MAX_TURNS):
+            yield {"type": "iteration", "turns": turn + 1}
             last_turn = turn == MAX_TURNS - 1
             # 兜底终止的「软着陆」:最后一轮不给工具,逼模型用已查到的信息收尾。
             if last_turn and isinstance(messages[-1].get("content"), list):
@@ -215,7 +200,7 @@ def run_tutor(
                 # 5.3 起思考常开且与答案共吃预算:1024 会被思考烧光→答案必残缺,
                 # 8192=单轮思考+完整作答的余量(交互护栏靠 MAX_TURNS,不靠这里)
                 max_tokens=8192,
-                system=build_system(course_text, course_map),
+                system=system,
                 messages=messages,
                 tools=[] if last_turn else TOOLS,
             ) as stream:
@@ -238,6 +223,7 @@ def run_tutor(
             usage_total["input_tokens"] += getattr(u, "input_tokens", 0) or 0
             usage_total["output_tokens"] += getattr(u, "output_tokens", 0) or 0
             usage_total["cache_read"] += getattr(u, "cache_read_input_tokens", 0) or 0
+            yield {"type": "usage", "usage": dict(usage_total)}
 
             if final.stop_reason != "tool_use":  # 终止:模型不再要工具
                 answer = "".join(answer_parts)
@@ -270,6 +256,7 @@ def run_tutor(
                 tc = {
                     "name": block.name, "args": dict(block.input),
                     "ms": round((time.time() - t0) * 1000), "error": err,
+                    "result": result,
                 }
                 tool_calls.append(tc)
                 yield {"type": "tool_call", **tc}  # 实时:老师正在查

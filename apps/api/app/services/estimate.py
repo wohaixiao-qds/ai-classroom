@@ -21,12 +21,15 @@ _DEFAULTS: dict[str, dict[str, float]] = {
 def _stage_stats(filename: str) -> dict[str, float] | None:
     """最近 5 次 ok 轮的耗时(分钟)与调用轮数均值;无历史返回 None。"""
         # read_traces 最新在前:[:5] 即最近 5 次 ok 轮
-    rows = [r for r in read_traces(filename, limit=12) if r.get("ok")][:5]
+    rows = [r for r in read_traces(filename, limit=12)
+            if r.get("ok") and r.get("status") in ("succeeded", "unknown")
+            and r.get("source") != "test"][:5]
     if not rows:
         return None
     return {
         "min": round(mean(float(r.get("elapsed_s", 0)) for r in rows) / 60, 1),
-        "calls": round(mean(len(r.get("tool_calls", [])) + 1 for r in rows)),
+        "calls": round(mean(r["turns"] for r in rows if r.get("turns")))
+        if any(r.get("turns") for r in rows) else _DEFAULTS[filename.split(".")[0]]["calls"],
         "n": float(len(rows)),
     }
 

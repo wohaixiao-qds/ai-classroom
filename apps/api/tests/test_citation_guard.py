@@ -19,6 +19,10 @@ class CitationGuardTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.courses_dir = Path(tmp.name)
+        for name in ("data_dir", "traces_dir"):
+            storage = patch.object(settings, name, self.courses_dir / name)
+            storage.start()
+            self.addCleanup(storage.stop)
         patcher = patch.object(settings, "courses_dir", self.courses_dir)
         patcher.start()
         self.addCleanup(patcher.stop)

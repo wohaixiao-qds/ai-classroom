@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -15,7 +17,7 @@ class ChatRequest(BaseModel):
     current_page: str | None = None  # 学员当前页 id,回答可贴着进度
     question: str = Field(min_length=1, max_length=2000)
     session_id: str | None = None  # 会话 id;缺省则后端新建(记忆归后端,前端不递历史)
-    source: str = "user"  # user=真实使用 / test=调试(观测统计默认只算 user)
+    source: Literal["user", "test"] = "user"
     checkpoint: CheckpointContext | None = None  # 复述卡没过→答疑带上下文
 
 
@@ -24,6 +26,7 @@ class GradeRequest(BaseModel):
     page_id: str
     answer: str = Field(min_length=1, max_length=2000)
     tutored: bool = False  # 问过 AI 老师后再复述:保底 70(P7)
+    source: Literal["user", "test"] = "user"  # test 不进入学习状态或复习排期
 
 
 class CheckpointContext(BaseModel):

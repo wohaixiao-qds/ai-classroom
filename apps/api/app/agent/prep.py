@@ -31,7 +31,7 @@ from app.agent.tools import emit_call, read_notes
 from app.core.config import settings
 from app.core.llm import get_llm_client
 from app.core.prompts import DEV_LANDING_RULE, OFF_THE_SHELF_RULE, PITFALL_RULE
-from app.core.trace import trace_prep
+from app.core.trace import observed, run_context, trace_prep, update_run
 from app.schemas.csl import Section
 from app.services.csl_validator import validate_course
 
@@ -583,10 +583,12 @@ pass_rule 写具体可判标准。
 # ---------- 主循环 ----------
 
 
+@observed("prep")
 def run_prep(
     material: dict[str, Any],
     prev_subtopic: str | None = None,
     resume_course_id: str | None = None,
+    *, source: str = "user",
 ) -> dict[str, Any]:
     tools, dispatch, state = _make_tools(
         material.get("sources") or [],
@@ -640,6 +642,9 @@ def run_prep(
     validate_failures = 0
     text_out = ""
     t0 = time.perf_counter()
+    run_context(prompt=prompt, tools=tools,
+                parameters={"max_tokens": 16384, "max_turns": MAX_TURNS})
+    update_run(subtopic=str(material.get("subtopic", "")))
 
     def final_check() -> list[str] | None:
         """天然收笔后的强校验:不过打回(None=通过)。终止客观化的关键一步。"""
@@ -652,6 +657,7 @@ def run_prep(
         return None if r["ok"] else r["errors"]
 
     for turn in range(MAX_TURNS):
+        update_run(turns=turn + 1)
         last_turn = turn == MAX_TURNS - 1
         resp = client.messages.create(
             model=settings.llm_model,
@@ -663,6 +669,7 @@ def run_prep(
         u = resp.usage
         usage["input_tokens"] += getattr(u, "input_tokens", 0) or 0
         usage["output_tokens"] += getattr(u, "output_tokens", 0) or 0
+        update_run(usage=usage)
         text_out = "".join(b.text for b in resp.content if b.type == "text")
 
         if resp.stop_reason != "tool_use":
@@ -687,6 +694,7 @@ def run_prep(
                     return {"ok": True, "course": course, "report": text_out, "usage": usage}
                 errs = ["课件文件读不回"]  # 校验过了文件却没了,罕见,打回重建
             validate_failures += 1
+            update_run(validate_failures=validate_failures, validation_errors=errs)
             messages.append({"role": "assistant", "content": "…"})
             messages.append(
                 {
@@ -715,6 +723,7 @@ def run_prep(
                     "feedback": str(out)[:300],  # 观测:工具回了什么(打回原因就在这)
                 }
             )
+            update_run(tool_calls=tool_calls, course_id=state["course_id"] or "")
             print(f"  [{b.name}] {str(out)[:200]}")  # CLI 实时可见,复盘不用翻盘上文件
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": out})
         messages.append({"role": "user", "content": results})

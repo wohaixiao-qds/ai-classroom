@@ -1,0 +1,527 @@
+[
+  {
+    "id": "tutor-known",
+    "agent": "tutor",
+    "input": {
+      "course_index": "[第1节]\n[第2节]\n[第3节]",
+      "materials": "第2节:侧信道只追加状态变化,不替换历史。",
+      "history": [],
+      "question": "侧信道如何更新状态?"
+    },
+    "expect": {
+      "required_terms": [
+        "变化"
+      ]
+    },
+    "rubric": {
+      "supported": "实质断言均有课件依据",
+      "direct": "直接回答状态如何更新"
+    },
+    "reference": {
+      "answer": "只追加变化,不覆盖历史,见课件第2节。"
+    },
+    "counterexample": {
+      "answer": "重写全部历史,见课件第99节。"
+    }
+  },
+  {
+    "id": "tutor-unknown",
+    "agent": "tutor",
+    "input": {
+      "course_index": "[第1节]\n[第2节]\n[第3节]",
+      "materials": "第2节:侧信道只追加状态变化,不替换历史。",
+      "history": [],
+      "question": "2030年的 API 价格是多少?"
+    },
+    "expect": {
+      "required_terms": [
+        "不确定"
+      ]
+    },
+    "rubric": {
+      "honesty": "不编造未来价格,说明信息边界"
+    },
+    "reference": {
+      "answer": "课件没讲未来价格,我不确定。"
+    },
+    "counterexample": {
+      "answer": "课件第9节说2030年每次调用0.01元。"
+    }
+  },
+  {
+    "id": "tutor-checkpoint",
+    "agent": "tutor",
+    "input": {
+      "course_index": "[第1节]\n[第2节]\n[第3节]",
+      "materials": "第2节:侧信道只追加状态变化,不替换历史。",
+      "history": [],
+      "question": "复述没过,请帮我理解",
+      "checkpoint": {
+        "question": "状态如何更新",
+        "answer": "全量替换"
+      }
+    },
+    "expect": {
+      "required_terms": [
+        "变化"
+      ],
+      "forbidden_terms": [
+        "标准答案："
+      ]
+    },
+    "rubric": {
+      "scaffold": "点出全量替换的误解,给引导而不直接代答完整标准答案"
+    },
+    "reference": {
+      "answer": "你说的全量替换会动到旧历史。先想想:这次新增了哪些变化?"
+    },
+    "counterexample": {
+      "answer": "标准答案：只追加变化,不替换历史。"
+    }
+  },
+  {
+    "id": "tutor-notes",
+    "agent": "tutor",
+    "input": {
+      "course_index": "[第1节]\n[第2节]\n[第3节]",
+      "materials": "第2节:侧信道只追加状态变化,不替换历史。",
+      "history": [],
+      "question": "和笔记中的增量更新有什么关系?",
+      "tool_results": [
+        {
+          "name": "read_notes",
+          "result": "增量更新只处理差异。"
+        }
+      ]
+    },
+    "expect": {
+      "required_terms": [
+        "增量"
+      ]
+    },
+    "rubric": {
+      "uses_evidence": "正确衔接笔记,不声称笔记证明额外断言",
+      "least_privilege": "仅使用答疑工具"
+    },
+    "reference": {
+      "answer": "与笔记中的增量更新相通,都是只补变化。",
+      "tool_calls": [
+        {
+          "name": "read_notes"
+        }
+      ]
+    },
+    "counterexample": {
+      "answer": "增量更新后我替你改课件。",
+      "tool_calls": [
+        {
+          "name": "write_section"
+        }
+      ]
+    }
+  },
+  {
+    "id": "research-dag",
+    "agent": "research",
+    "input": {
+      "topic": "状态管理",
+      "level": "零基础"
+    },
+    "expect": {},
+    "rubric": {
+      "complete_route": "从零基础出发形成可学习的完整路线",
+      "goals": "学习目标可验证"
+    },
+    "reference": {
+      "topic": "状态管理",
+      "courses": [
+        {
+          "id": "c1",
+          "title": "状态边界",
+          "goal": "画出状态归属图",
+          "origin": "map",
+          "prereqs": []
+        },
+        {
+          "id": "c2",
+          "title": "增量更新",
+          "goal": "演示增量合并",
+          "origin": "map",
+          "prereqs": [
+            "c1"
+          ]
+        },
+        {
+          "id": "c3",
+          "title": "验证",
+          "goal": "用测试验证合并结果",
+          "origin": "map",
+          "prereqs": [
+            "c2"
+          ]
+        }
+      ]
+    },
+    "counterexample": {
+      "topic": "状态管理",
+      "courses": [
+        {
+          "id": "c1",
+          "title": "状态边界",
+          "goal": "画出状态归属图",
+          "origin": "map",
+          "prereqs": [
+            "c3"
+          ]
+        },
+        {
+          "id": "c2",
+          "title": "增量更新",
+          "goal": "演示增量合并",
+          "origin": "map",
+          "prereqs": [
+            "c1"
+          ]
+        },
+        {
+          "id": "c3",
+          "title": "验证",
+          "goal": "用测试验证合并结果",
+          "origin": "map",
+          "prereqs": [
+            "c2"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "research-sources",
+    "agent": "material",
+    "input": {
+      "topic": "状态管理",
+      "fetched": [
+        "https://example.org/1",
+        "https://example.org/2",
+        "https://example.org/3"
+      ]
+    },
+    "expect": {},
+    "rubric": {
+      "faithful": "每条要点被所标来源的原文支持,摘要与原文不混淆"
+    },
+    "reference": {
+      "sources": [
+        {
+          "id": 1,
+          "title": "官方资料1",
+          "url": "https://example.org/1"
+        },
+        {
+          "id": 2,
+          "title": "官方资料2",
+          "url": "https://example.org/2"
+        },
+        {
+          "id": 3,
+          "title": "官方资料3",
+          "url": "https://example.org/3"
+        }
+      ],
+      "groups": [
+        {
+          "heading": "状态与增量",
+          "points": [
+            {
+              "text": "要点0",
+              "source_id": 1
+            },
+            {
+              "text": "要点1",
+              "source_id": 2
+            },
+            {
+              "text": "要点2",
+              "source_id": 3
+            },
+            {
+              "text": "要点3",
+              "source_id": 1
+            },
+            {
+              "text": "要点4",
+              "source_id": 2
+            },
+            {
+              "text": "要点5",
+              "source_id": 3
+            },
+            {
+              "text": "要点6",
+              "source_id": 1
+            },
+            {
+              "text": "要点7",
+              "source_id": 2
+            }
+          ]
+        }
+      ]
+    },
+    "counterexample": {
+      "sources": [
+        {
+          "id": 1,
+          "title": "官方资料1",
+          "url": "https://example.org/1"
+        },
+        {
+          "id": 2,
+          "title": "官方资料2",
+          "url": "https://example.org/2"
+        },
+        {
+          "id": 3,
+          "title": "官方资料3",
+          "url": "https://example.org/3"
+        }
+      ],
+      "groups": [
+        {
+          "heading": "状态与增量",
+          "points": [
+            {
+              "text": "要点0",
+              "source_id": 99
+            },
+            {
+              "text": "要点1",
+              "source_id": 2
+            },
+            {
+              "text": "要点2",
+              "source_id": 3
+            },
+            {
+              "text": "要点3",
+              "source_id": 1
+            },
+            {
+              "text": "要点4",
+              "source_id": 2
+            },
+            {
+              "text": "要点5",
+              "source_id": 3
+            },
+            {
+              "text": "要点6",
+              "source_id": 1
+            },
+            {
+              "text": "要点7",
+              "source_id": 2
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "prep-v2",
+    "agent": "prep",
+    "input": {
+      "topic": "增量更新",
+      "materials": "第2节:侧信道只追加状态变化,不替换历史。"
+    },
+    "expect": {
+      "min_quizzes": 3
+    },
+    "rubric": {
+      "teaching": "节顺序合理,先解释再应用",
+      "quiz": "问题和通过标准可判,无内容漂移"
+    },
+    "reference": {
+      "version": 2,
+      "id": "eval-course",
+      "title": "增量更新",
+      "scenario": "自学",
+      "meta": {
+        "source_notes": [
+          "offline-eval"
+        ]
+      },
+      "sections": [
+        {
+          "id": "s1",
+          "heading": "增量更新1",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "只追加变化,不替换历史。"
+            },
+            {
+              "type": "quiz",
+              "id": "q1",
+              "question": "为什么只追加变化",
+              "pass_rule": "指出保持旧上下文且只附加增量"
+            }
+          ]
+        },
+        {
+          "id": "s2",
+          "heading": "增量更新2",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "只追加变化,不替换历史。"
+            },
+            {
+              "type": "quiz",
+              "id": "q2",
+              "question": "为什么只追加变化",
+              "pass_rule": "指出保持旧上下文且只附加增量"
+            }
+          ]
+        },
+        {
+          "id": "s3",
+          "heading": "增量更新3",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "只追加变化,不替换历史。"
+            },
+            {
+              "type": "quiz",
+              "id": "q3",
+              "question": "为什么只追加变化",
+              "pass_rule": "指出保持旧上下文且只附加增量"
+            }
+          ]
+        }
+      ]
+    },
+    "counterexample": {
+      "version": 2,
+      "id": "eval-course",
+      "title": "增量更新",
+      "scenario": "自学",
+      "meta": {
+        "source_notes": [
+          "offline-eval"
+        ]
+      },
+      "sections": [
+        {
+          "id": "s1",
+          "heading": "增量更新1",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "只追加变化,不替换历史。"
+            },
+            {
+              "type": "quiz",
+              "id": "q1",
+              "question": "为什么只追加变化",
+              "pass_rule": "指出保持旧上下文且只附加增量"
+            }
+          ]
+        },
+        {
+          "id": "s2",
+          "heading": "增量更新2",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "只追加变化,不替换历史。"
+            },
+            {
+              "type": "quiz",
+              "id": "q1",
+              "question": "为什么只追加变化",
+              "pass_rule": "指出保持旧上下文且只附加增量"
+            }
+          ]
+        },
+        {
+          "id": "s3",
+          "heading": "增量更新3",
+          "blocks": [
+            {
+              "type": "p",
+              "text": "只追加变化,不替换历史。"
+            },
+            {
+              "type": "quiz",
+              "id": "q3",
+              "question": "为什么只追加变化",
+              "pass_rule": "指出保持旧上下文且只附加增量"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "grade-weak",
+    "agent": "grade",
+    "input": {
+      "materials": "第2节:侧信道只追加状态变化,不替换历史。",
+      "pass_rule": "指出追加变化且保留历史",
+      "answer": "全量覆盖历史",
+      "tutored": false
+    },
+    "expect": {
+      "raw_score_range": [
+        0,
+        39
+      ],
+      "verdict": "fail"
+    },
+    "rubric": {
+      "calibrated": "识别回答说反,点评指出关键错误"
+    },
+    "reference": {
+      "raw_score": 20,
+      "score": 20,
+      "verdict": "fail"
+    },
+    "counterexample": {
+      "raw_score": 90,
+      "score": 90,
+      "verdict": "pass"
+    }
+  },
+  {
+    "id": "grade-tutored",
+    "agent": "grade",
+    "input": {
+      "materials": "第2节:侧信道只追加状态变化,不替换历史。",
+      "pass_rule": "指出追加变化且保留历史",
+      "answer": "全量覆盖历史",
+      "tutored": true
+    },
+    "expect": {
+      "raw_score_range": [
+        0,
+        39
+      ],
+      "verdict": "pass"
+    },
+    "rubric": {
+      "raw_independent": "原始分忠实于回答质量,辅导保底只改变应用分"
+    },
+    "reference": {
+      "raw_score": 20,
+      "score": 70,
+      "verdict": "pass"
+    },
+    "counterexample": {
+      "raw_score": 70,
+      "score": 70,
+      "verdict": "pass"
+    }
+  }
+]

@@ -30,7 +30,7 @@ from app.agent.tools import (  # noqa: F401  # web_search 供 _require_search �
 from app.core.config import settings
 from app.core.llm import get_llm_client
 from app.core.prompts import parse_json_reply
-from app.core.trace import trace_research
+from app.core.trace import observed, run_context, trace_research, update_run
 
 MAX_TURNS = 16
 
@@ -302,11 +302,13 @@ def _user_seed(topic: str) -> str:
     return "用户的既有足迹(待探清单,顺序即用户意愿):\n" + "\n".join(lines[:30])
 
 
+@observed("research")
 def _loop(
     prompt: str,
     validator: Callable[[dict[str, Any], set[str] | None], list[str]],
     topic: str,
     phase: str,
+    *, source: str = "user",
 ) -> dict[str, Any]:
     """调研循环:工具轮 → 最终交付 JSON → 校验,不过则反馈重交。校验通过才返回。"""
     # 离线批量循环放宽单次超时(与 prep.py 同因:长交付在中转慢速时 60s 不够)
@@ -316,8 +318,11 @@ def _loop(
     usage = {"input_tokens": 0, "output_tokens": 0}
     t0 = time.perf_counter()
     last_err: list[str] = []
+    run_context(prompt=prompt, tools=RESEARCH_TOOLS,
+                parameters={"max_tokens": 16384, "max_turns": MAX_TURNS})
 
     for turn in range(MAX_TURNS):
+        update_run(turns=turn + 1)
         last_turn = turn == MAX_TURNS - 1
         resp = client.messages.create(
             model=settings.llm_model,
@@ -329,6 +334,7 @@ def _loop(
         u = resp.usage
         usage["input_tokens"] += getattr(u, "input_tokens", 0) or 0
         usage["output_tokens"] += getattr(u, "output_tokens", 0) or 0
+        update_run(usage=usage)
 
         if resp.stop_reason != "tool_use":
             d = parse_json_reply("".join(b.text for b in resp.content if b.type == "text"))
@@ -357,6 +363,7 @@ def _loop(
                 )
                 return d
             last_err = errs
+            update_run(validation_errors=errs)
             messages.append({"role": "assistant", "content": "…"})
             messages.append(
                 {
@@ -384,8 +391,10 @@ def _loop(
                     "args": dict(b.input),
                     "ms": round((time.time() - ts) * 1000),
                     "error": err,
+                    "result": out,
                 }
             )
+            update_run(tool_calls=tool_calls)
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": out})
         messages.append({"role": "user", "content": results})
 
@@ -515,7 +524,7 @@ def clear_research_cache(topic: str, subtopic: str | None = None) -> int:
     return n
 
 
-def research_framework(topic: str) -> dict[str, Any]:
+def research_framework(topic: str, *, source: str = "user") -> dict[str, Any]:
     """阶段1:学习框架(双源合流)。产出交用户审——缺口补不补、子题选哪个,人拍板。"""
     _require_search()
     d = _loop(
@@ -523,12 +532,13 @@ def research_framework(topic: str) -> dict[str, Any]:
         validate_framework,
         topic,
         "framework",
+        source=source,
     )
     _save(d, f"{_slug(topic)}.framework.json")
     return d
 
 
-def research_material(topic: str, subtopic: str) -> dict[str, Any]:
+def research_material(topic: str, subtopic: str, *, source: str = "user") -> dict[str, Any]:
     """阶段2:选定子题的带来源原料(备课 agent 的输入)。"""
     _require_search()
     d = _loop(
@@ -536,6 +546,7 @@ def research_material(topic: str, subtopic: str) -> dict[str, Any]:
         validate_material,
         topic,
         f"material:{subtopic}",
+        source=source,
     )
     path = f"{_slug(topic)}.{_slug(subtopic)}.material.json"
     _save(d, path)

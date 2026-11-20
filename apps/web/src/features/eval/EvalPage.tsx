@@ -1,330 +1,275 @@
-/** Eval 观测页 —— 只管 agent 质量（学习进度归课表页）。
- *  三块：防假性完成指标 / 同问题历史(轻量抓回归) / 衍生候选。 */
-import { ChevronDown, Compass, FlaskConical, History, MessageSquareText, Repeat, Search, CircleX } from "lucide-react";
+/** Eval 观测:行为、规则与证据评价分别展示,所有 API 类型来自生成契约。 */
+import { ChevronDown, Compass, FlaskConical, History, ListChecks, Repeat } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
-import { EmptyState } from "../../components/PageState";
-import { SectionHeader } from "../../components/SectionHeader";
 import { Collapse } from "../../components/Collapse";
+import { EmptyState, PageError, PageLoading } from "../../components/PageState";
+import { SectionHeader } from "../../components/SectionHeader";
 import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
-import { useCountUp } from "../../hooks/useCountUp";
+import { Textarea } from "../../components/ui/textarea";
 import { cn } from "../../lib/utils";
+import type { components } from "../../types/api.gen";
 
-interface Summary {
-  asks: number;
-  quality: {
-    grounded_rate: number;
-    cited_rate: number;
-    searched: number;
-    unsourced_long: number;
-    tool_error: number;
-    soft_landed: number;
-    truncated: number;
-    self_eval_checked: number;
-    self_eval_fabricated: number;
-    self_eval_partial: number;
-  };
-  cost: {
-    avg_elapsed_s: number;
-    slowest_s: number;
-    in_tokens: number;
-    out_tokens: number;
-    cache_hit_rounds: number;
-  };
-  verdict_counts: Record<string, number>;
+type Schemas = components["schemas"];
+type Trace = Schemas["TraceRecord"];
+type Lesson = Schemas["Lesson"];
+type Data = {
+  summary: Schemas["EvalSummary"];
+  traces: Schemas["EvalTraces"];
+  repeats: Schemas["EvalRepeats"];
+  gaps: Schemas["EvalGaps"];
+  lessons: Schemas["EvalLessons"];
+};
+
+async function read<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, init);
+  if (!response.ok) throw new Error(`请求失败 (${response.status})`);
+  return response.json() as Promise<T>;
 }
 
-interface TutorTrace {
-  ts: string;
-  question: string;
-  answer: string;
-  answer_len: number | null;
-  cited_pages: number[];
-  tool_calls: { name: string; args: Record<string, unknown>; ms: number; error: string | null }[];
-  searched: boolean;
-  grounded: boolean;
-  tool_error: boolean;
-  soft_landed: boolean;
-  truncated: boolean;
-  elapsed_s: number;
-  usage: { input_tokens?: number; output_tokens?: number; cache_read?: number };
-}
-
-interface RepeatGroup {
-  question: string;
-  count: number;
-  history: {
-    ts: string;
-    answer: string;
-    answer_len: number | null;
-    cited_pages: number[];
-    grounded: boolean;
-    elapsed_s: number;
-  }[];
-}
-
-interface Gap {
-  kind: "searched" | "repeated" | "checkpoint_fail";
-  ts?: string;
-  question: string;
-  detail: string;
-}
-
-const GAP_META = {
-  searched: { icon: Search, text: "课件未覆盖（联网查了）" },
-  repeated: { icon: Repeat, text: "反复问（课件讲不清）" },
-  checkpoint_fail: { icon: CircleX, text: "检查点未通过" },
-} as const;
+const STAGES = { tutor: "答疑", grade: "批改", research: "调研", prep: "备课" } as const;
+const STATUS: Record<string, string> = {
+  running: "执行中", succeeded: "已完成", failed: "失败", cancelled: "已取消",
+  interrupted: "异常中断", unknown: "旧记录·状态未知",
+};
+const VERDICT: Record<string, string> = {
+  supported: "证据支持", partial: "部分缺证据", unsupported: "缺少证据支持",
+  uncertain: "无法判断", skipped: "未评", grounded: "旧版有据信号", fabricated: "旧版疑似编造",
+};
+const SKIP: Record<string, string> = {
+  not_sampled: "未命中抽样", judge_error: "裁判调用失败", invalid_judge_output: "裁判输出无效",
+  incomplete_execution: "执行未完成", legacy_or_missing: "旧版或缺少评价",
+  pending: "等待补评", assessment_error: "补评异常", no_assessment: "缺少裁判结果",
+};
+const percent = (value: number | null | undefined) => value == null ? "—" : `${value}%`;
+const countText = (counts: Record<string, number>, names: Record<string, string>) =>
+  Object.entries(counts).map(([key, n]) => `${names[key] ?? key} ${n}`).join(" · ");
 
 export function EvalPage() {
-  const [sum, setSum] = useState<Summary | null>(null);
-  const [tutor, setTutor] = useState<TutorTrace[]>([]);
-  const [repeats, setRepeats] = useState<RepeatGroup[]>([]);
-  const [gaps, setGaps] = useState<Gap[]>([]);
-  const [openTrace, setOpenTrace] = useState<number | null>(null);
-  const [openRepeat, setOpenRepeat] = useState<number | null>(null);
+  const [data, setData] = useState<Data | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [includeTest, setIncludeTest] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const [stage, setStage] = useState<keyof typeof STAGES>("tutor");
+  const [busyLesson, setBusyLesson] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
     const q = `?include_test=${includeTest}`;
-    void fetch(`/api/v1/eval/summary${q}`).then((r) => r.json()).then(setSum);
-    void fetch(`/api/v1/eval/traces${q}&limit=50`)
-      .then((r) => r.json())
-      .then((d: { tutor: TutorTrace[] }) => setTutor(d.tutor ?? []));
-    void fetch(`/api/v1/eval/repeats${q}`)
-      .then((r) => r.json())
-      .then((d: { repeats: RepeatGroup[] }) => setRepeats(d.repeats ?? []));
-    void fetch(`/api/v1/eval/gaps${q}`)
-      .then((r) => r.json())
-      .then((d: { gaps: Gap[] }) => setGaps(d.gaps ?? []));
-  }, [includeTest]);
+    const init = { signal: controller.signal };
+    void Promise.all([
+      read<Data["summary"]>(`/api/v1/eval/summary${q}`, init),
+      read<Data["traces"]>(`/api/v1/eval/traces${q}&limit=50`, init),
+      read<Data["repeats"]>(`/api/v1/eval/repeats${q}`, init),
+      read<Data["gaps"]>(`/api/v1/eval/gaps${q}`, init),
+      read<Data["lessons"]>("/api/v1/eval/lessons", init),
+    ]).then(([summary, traces, repeats, gaps, lessons]) => {
+      if (!controller.signal.aborted) setData({ summary, traces, repeats, gaps, lessons });
+    }).catch((e: unknown) => {
+      if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "加载失败");
+    }).finally(() => {
+      if (!controller.signal.aborted) setLoading(false);
+    });
+    return () => controller.abort();
+  }, [includeTest, revision]);
 
-  const q = sum?.quality;
-  const c = sum?.cost;
-  const vc = sum?.verdict_counts;
+  function refresh() {
+    setLoading(true);
+    setError(null);
+    setRevision((n) => n + 1);
+  }
 
+  async function review(lesson: Lesson, status: "approved" | "rejected") {
+    setBusyLesson(lesson.id);
+    setReviewError(null);
+    try {
+      const updated = await read<Lesson>(`/api/v1/eval/lessons/${encodeURIComponent(lesson.id)}/review`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, ...(status === "approved" ? {
+          text: (drafts[lesson.id] ?? lesson.text).trim(),
+        } : {}) }),
+      });
+      setData((current) => current && ({ ...current, lessons: {
+        lessons: current.lessons.lessons.map((item) => item.id === updated.id ? updated : item),
+      } }));
+    } catch (e) {
+      setReviewError(e instanceof Error ? e.message : "审核失败");
+    } finally {
+      setBusyLesson(null);
+    }
+  }
+
+  const q = data?.summary.quality;
+  const c = data?.summary.cost;
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
-      <header className="mb-6 flex items-baseline justify-between">
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Eval 观测</h1>
-          <p className="mt-1 text-sm text-muted-foreground">只看 agent 质量：答得有据吗、改了有没有变差、该补什么课</p>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+            看执行是否完成、规则是否遵守、证据是否支撑回答。模型审查结果需结合原文复核。
+          </p>
         </div>
-        <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={includeTest}
-            onChange={(e) => setIncludeTest(e.target.checked)}
-            className="accent-primary"
-          />
-          含调试调用
-        </label>
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+            <input type="checkbox" checked={includeTest} onChange={(e) => {
+              setLoading(true);
+              setError(null);
+              setIncludeTest(e.target.checked);
+            }} />
+            含调试调用
+          </label>
+          <Button variant="secondary" className="min-h-11" onClick={refresh}>刷新</Button>
+        </div>
       </header>
+      {loading ? <PageLoading label="读取执行与评价记录…" /> : error ? (
+        <PageError message={error} onRetry={refresh} />
+      ) : data && q && c ? <>
+        <section className="mb-8">
+          <SectionHeader icon={FlaskConical} title="答疑评价" count={data.summary.asks} hint={`每类最近 ${data.summary.window} 次执行`} />
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Metric label="语义审查覆盖率" value={percent(q.coverage_pct)} hint={`已评 ${q.checked} / 已作答 ${q.answers}`} />
+            <Metric label="已评答案证据支持率" value={percent(q.support_rate_pct)} hint="仅含新规则下能判断的已评答案;未知不计通过" />
+            <Metric label="引用存在性合格率" value={percent(q.valid_citation_pct)} hint={`已查 ${q.citation_checks} 条;旧引用未核验 ${q.citation_unknown} 条`} />
+            <Metric label="引用规则违规" value={q.guard_violations} warn={q.guard_violations > 0} hint="章节或来源编号不存在;与语义支撑分开" />
+            <Metric label="工具使用 / 报错" value={`${q.tool_used} / ${q.tool_error}`} hint="使用工具本身不能证明回答有据" />
+            <Metric label="疑似重复教学" value={q.reteach} hint="规则命中,需结合学员提问人工复核" />
+            <Metric label="预算收尾 / 截断" value={`${q.soft_landed} / ${q.truncated}`} />
+            <Metric label="缺证据 / 部分缺证据" value={`${q.assessment_counts.unsupported ?? 0} / ${q.assessment_counts.partial ?? 0}`} hint="证据不足不能直接判定事实编造" />
+          </div>
+          <div className="mt-3 space-y-1 text-sm leading-relaxed text-muted-foreground">
+            <p>未评原因：{countText(q.skip_reasons, SKIP) || "无"}。高风险全评，其余固定 20% 抽样。</p>
+            <p>执行均耗时 {c.avg_elapsed_s}s · 已知用量 in {c.in_tokens} / out {c.out_tokens} tokens · {c.unknown_usage} 次缺用量。</p>
+            <p>裁判另计 in {c.judge_in_tokens} / out {c.judge_out_tokens} tokens · 累计 {c.judge_elapsed_s}s。答疑与裁判共用模型，结果有同源偏差。</p>
+            <p>批改结果：{countText(data.summary.verdict_counts, { pass: "通过", warn: "存疑", fail: "未过" }) || "暂无"}；其中辅导保底 {data.summary.tutored_grades} 次。此分布反映学员表现，不代表批改准确率。</p>
+          </div>
+        </section>
 
-      {/* 防假性完成 */}
-      <section className="mb-8">
-        <SectionHeader icon={FlaskConical} title="防假性完成" count={sum?.asks ?? 0} hint="共 N 问的口径见各项" />
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Metric label="有据率" value={q ? `${q.grounded_rate}%` : "—"} hint="引了课件或联网查过" />
-          <Metric label="引用课件率" value={q ? `${q.cited_rate}%` : "—"} />
-          <Metric
-            label="无据长答"
-            value={q?.unsourced_long ?? "—"}
-            warn={(q?.unsourced_long ?? 0) > 0}
-            hint="没引课件没联网还长篇 → 可疑瞎编"
-          />
-          <Metric label="工具报错" value={q?.tool_error ?? "—"} warn={(q?.tool_error ?? 0) > 0} />
-          <Metric label="软着陆" value={q?.soft_landed ?? "—"} hint="撞查询上限硬答" />
-          <Metric label="被截断" value={q?.truncated ?? "—"} warn={(q?.truncated ?? 0) > 0} />
-          <Metric label="联网次数" value={q?.searched ?? "—"} />
-          <Metric
-            label="自评瞎编"
-            value={q?.self_eval_fabricated ?? "—"}
-            warn={(q?.self_eval_fabricated ?? 0) > 0}
-            hint={`可疑答案自评判「编造」数(下限);已评 ${q?.self_eval_checked ?? 0} · 存疑 ${q?.self_eval_partial ?? 0}`}
-          />
-          <Metric
-            label="批改结果"
-            value={
-              vc && Object.keys(vc).length
-                ? [
-                    ["pass", "通过", "success"],
-                    ["warn", "存疑", "warning"],
-                    ["fail", "不过", "destructive"],
-                  ]
-                    .filter(([k]) => vc[k])
-                    .map(([k, label, variant]) => (
-                      <Badge key={k} variant={variant as "success" | "warning" | "destructive"}>
-                        {label} {vc[k]}
-                      </Badge>
-                    ))
-                : "—"
-            }
-          />
-        </div>
-        <p className="mt-3 font-mono text-xs text-muted-foreground">
-          均 {c?.avg_elapsed_s ?? "—"}s · 最慢 {c?.slowest_s ?? "—"}s · in{" "}
-          {c?.in_tokens ?? 0}/out {c?.out_tokens ?? 0} tokens
-          {c?.cache_hit_rounds ? ` · 缓存命中 ${c.cache_hit_rounds} 轮` : " · 缓存未命中(智谱不支持)"}
-        </p>
-      </section>
-
-      {/* 同问题历史 = 轻量抓回归 */}
-      <section className="mb-8">
-        <SectionHeader icon={Repeat} title="同问题历史" count={repeats.length} hint="抓回归:对比改动前后答案变好还是变差" />
-        {repeats.length ? (
-          <ul className="space-y-2">
-            {repeats.map((r, i) => (
-              <li key={i}>
-                <Card className="overflow-hidden">
-                  <button
-                    onClick={() => setOpenRepeat(openRepeat === i ? null : i)}
-                    className="flex w-full items-baseline gap-3 px-4 py-3 text-left text-sm outline-none hover:bg-accent/50"
-                  >
-                    <Badge variant="default" className="font-mono">×{r.count}</Badge>
-                    <span className="min-w-0 flex-1 truncate">{r.question}</span>
-                    <span className="shrink-0 text-xs text-muted-foreground">对比答案演变</span>
-                    <ChevronDown
-                      size={14}
-                      className={cn("shrink-0 text-muted-foreground transition-transform", openRepeat === i && "rotate-180")}
-                    />
-                  </button>
-                  <Collapse open={openRepeat === i}>
-                    <div className="space-y-3 border-t border-border px-4 py-3">
-                      {r.history.map((h, j) => (
-                        <div key={j} className="text-sm">
-                          <p className="mb-1 font-mono text-xs text-muted-foreground">
-                            {h.ts?.slice(5, 16).replace("T", " ")} · {h.answer_len ?? "?"}字 · {h.grounded ? "有据" : "无据"} · {h.elapsed_s}s
-                            {h.cited_pages.length > 0 && ` · 引第${h.cited_pages.join(",")}页`}
-                          </p>
-                          <p className="leading-relaxed whitespace-pre-wrap">{h.answer}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </Collapse>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState icon={Repeat} title="还没有重复提问" hint="同一问题问过两次以上才会出现——用于对比改动前后答案变好还是变差" />
-        )}
-      </section>
-
-      {/* 衍生候选 */}
-      <section className="mb-8">
-        <SectionHeader icon={Compass} title="衍生候选" count={gaps.length} hint="该补什么课" />
-        {gaps.length ? (
-          <ul className="space-y-2">
-            {gaps.map((g, i) => {
-              const m = GAP_META[g.kind];
-              const GIcon = m?.icon ?? Compass;
-              return (
-                <li key={i} className="rounded-lg border border-border bg-card p-3 text-sm">
-                  <p className="flex items-start gap-2">
-                    <GIcon size={14} className="mt-0.5 shrink-0 text-primary" />
-                    {g.question}
-                  </p>
-                  <p className="mt-1 pl-6 font-mono text-xs text-muted-foreground">
-                    {m?.text} · {g.detail}
-                    {g.ts && ` · ${g.ts.slice(5, 16).replace("T", " ")}`}
-                  </p>
-                </li>
-              );
+        <section className="mb-8">
+          <SectionHeader icon={History} title="执行轨迹" hint="每类最近 50 次,旧记录的执行状态保持未知" />
+          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="执行类型">
+            {Object.entries(STAGES).map(([key, name]) => {
+              const metrics = data.summary.stages[key];
+              return <Button key={key} variant={stage === key ? "default" : "outline"}
+                className="h-auto min-h-11 flex-col items-start gap-1 whitespace-normal p-3 text-left"
+                aria-pressed={stage === key} onClick={() => setStage(key as keyof typeof STAGES)}>
+                <span>{name} · {metrics?.total ?? 0}</span>
+                <span className="text-xs font-normal leading-relaxed">{countText(metrics?.statuses ?? {}, STATUS) || "暂无执行"}</span>
+              </Button>;
             })}
-          </ul>
-        ) : (
-          <EmptyState icon={Compass} title="没有待补的口子" hint="三个信号来源：联网查过的问题 / 反复问的问题 / 检查点未通过的页" />
-        )}
-      </section>
+          </div>
+          <div key={stage} className="desktop-state-arrive space-y-2">
+            {data.traces[stage].length ? data.traces[stage].map((t, i) => (
+              <TraceRow key={t.run_id ?? `${stage}-${i}`} trace={t} />
+            )) : <EmptyState icon={History} title="暂无此类轨迹" hint="运行后会显示成功、失败与取消记录" />}
+          </div>
+        </section>
 
-      {/* 问答轨迹 */}
-      <section className="mb-8">
-        <SectionHeader icon={History} title="问答轨迹" count={tutor.length} hint="最近 50 条答疑记录" />
-        {tutor.length ? (
-          <ul className="space-y-2">
-            {tutor.map((t, i) => (
-              <li key={i}>
-                <Card className="overflow-hidden">
-                  <button
-                    onClick={() => setOpenTrace(openTrace === i ? null : i)}
-                    className="flex w-full items-baseline gap-3 px-4 py-3 text-left text-sm outline-none hover:bg-accent/50"
-                  >
-                    <span className="shrink-0 font-mono text-xs text-muted-foreground">{t.ts?.slice(11, 16)}</span>
-                    <span className="min-w-0 flex-1 truncate">{t.question}</span>
-                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                      {!t.grounded && <span className="text-warning">⚠ 无据 </span>}
-                      {t.searched && <Search size={11} className="inline align-[-1px]" />}
-                      {t.cited_pages.length > 0 && ` 第${t.cited_pages.join(",")}页 · `}
-                      {t.elapsed_s}s
-                    </span>
-                    <ChevronDown
-                      size={14}
-                      className={cn("shrink-0 text-muted-foreground transition-transform", openTrace === i && "rotate-180")}
-                    />
-                  </button>
-                  <Collapse open={openTrace === i}>
-                    <div className="border-t border-border px-4 py-3 text-sm">
-                      {t.tool_calls.length > 0 && (
-                        <div className="mb-2 space-y-0.5 font-mono text-xs text-muted-foreground">
-                          {t.tool_calls.map((tc, j) => (
-                            <p key={j} className={tc.error ? "text-destructive" : undefined}>
-                              {tc.error ? "❌" : "🔍"} {tc.name}({String(Object.values(tc.args)[0])}) {tc.ms}ms
-                              {tc.error && `— ${tc.error}`}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                      <p className="leading-relaxed whitespace-pre-wrap">{t.answer}</p>
-                      <p className="mt-2 font-mono text-xs text-muted-foreground">
-                        {t.usage.input_tokens
-                          ? `in ${t.usage.input_tokens}/out ${t.usage.output_tokens ?? 0} tokens`
-                          : "（旧记录无 token 数据）"}
-                        {t.soft_landed && " · 软着陆"}
-                        {t.truncated && " · 被截断"}
-                      </p>
-                    </div>
-                  </Collapse>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState icon={MessageSquareText} title="还没有问答记录" hint="去课堂页向 AI 老师提问,轨迹会落在这里" />
-        )}
-      </section>
+        <section className="mb-8">
+          <SectionHeader icon={ListChecks} title="教训审核" count={data.lessons.lessons.filter((l) => l.status === "pending").length} hint="自动候选经人工确认后,从下一问开始生效" />
+          {reviewError && <p className="mb-3 text-sm text-destructive" role="alert">{reviewError}</p>}
+          <div className="space-y-3">
+            {data.lessons.lessons.length ? data.lessons.lessons.map((lesson) => (
+              <Card key={lesson.id} className="space-y-3 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={lesson.status === "approved" ? "success" : "secondary"}>
+                    {{ pending: "待审核·未生效", approved: "已确认·已生效", rejected: "已拒绝·未生效" }[lesson.status]}
+                  </Badge>
+                  <span className="min-w-0 break-all font-mono text-xs text-muted-foreground">{lesson.run_id ?? "旧账本导入"}</span>
+                </div>
+                {lesson.status === "pending" ? (
+                  <Textarea aria-label="待审核教训" value={drafts[lesson.id] ?? lesson.text}
+                    maxLength={1000} className="min-h-24"
+                    onChange={(e) => setDrafts((prev) => ({ ...prev, [lesson.id]: e.target.value }))} />
+                ) : <p className="text-sm leading-relaxed whitespace-pre-wrap">{lesson.text}</p>}
+                <details className="text-sm text-muted-foreground">
+                  <summary className="flex min-h-11 cursor-pointer items-center">查看候选依据</summary>
+                  <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(lesson.evidence, null, 2)}</pre>
+                </details>
+                <div className="flex flex-wrap gap-2">
+                  {lesson.status !== "approved" && <Button className="min-h-11" disabled={busyLesson !== null || !(drafts[lesson.id] ?? lesson.text).trim()}
+                    onClick={() => void review(lesson, "approved")}>{busyLesson === lesson.id ? "提交中…" : "确认并生效"}</Button>}
+                  {lesson.status !== "rejected" && <Button variant="outline" className="min-h-11" disabled={busyLesson !== null}
+                    onClick={() => void review(lesson, "rejected")}>{lesson.status === "approved" ? "撤销生效" : "拒绝候选"}</Button>}
+                </div>
+              </Card>
+            )) : <EmptyState icon={ListChecks} title="暂无教训候选" hint="证据审查发现问题后会提出候选,候选不会自动进入答疑上下文" />}
+          </div>
+        </section>
+
+        <section className="mb-8">
+          <SectionHeader icon={Repeat} title="同问题历史" count={data.repeats.count} hint="按课程和当前节分组;上下文变化时仅供浏览" />
+          <div className="space-y-2">
+            {data.repeats.repeats.length ? data.repeats.repeats.map((group, i) => (
+              <details key={i} className="rounded-lg border border-border bg-card p-4">
+                <summary className="min-h-11 cursor-pointer text-sm leading-relaxed">
+                  {group.question} · {group.course_id} · {group.count} 次
+                  <span className="mt-1 block text-muted-foreground">{group.comparable ? "初始上下文与模型一致,仍需人工判断质量变化" : "上下文或版本不同/缺失,不能直接据此判定回归"}</span>
+                </summary>
+                <div className="mt-3 space-y-2">{group.history.map((t, j) => <TraceRow key={j} trace={t} />)}</div>
+              </details>
+            )) : <EmptyState icon={Repeat} title="暂无同课同节的重复提问" />}
+          </div>
+        </section>
+
+        <section>
+          <SectionHeader icon={Compass} title="待复核线索" count={data.gaps.count} hint="查询、重复或未通过都只是线索,不自动判定为课程缺口" />
+          <ul className="space-y-2">{data.gaps.gaps.slice(0, 50).map((g, i) => (
+            <li key={i} className="rounded-lg border border-border bg-card p-4 text-sm">
+              <p className="break-words">{g.question}</p>
+              <p className="mt-1 leading-relaxed text-muted-foreground">{g.course_id} · {g.detail}</p>
+            </li>
+          ))}</ul>
+          {!data.gaps.count && <EmptyState icon={Compass} title="暂无线索" />}
+          {data.gaps.count > 50 && <p className="mt-2 text-sm text-muted-foreground">展示最近窗口内前 50 条线索。</p>}
+        </section>
+      </> : null}
     </div>
   );
 }
 
-function Metric({
-  label,
-  value,
-  hint,
-  warn,
-}: {
-  label: string;
-  value: ReactNode;
-  hint?: string;
-  warn?: boolean;
-}) {
-  // 纯数字(可带 %)才参与滚动;Badge 组/「—」等原样渲染
-  const m =
-    typeof value === "number" || typeof value === "string"
-      ? String(value).match(/^(\d+(?:\.\d+)?)(%)?$/)
-      : null;
-  const shown = useCountUp(m ? Number(m[1]) : null);
-  return (
-    <Card
-      className={cn("px-4 py-3", warn && "border-warning/40 bg-warning/5")}
-      title={hint}
-    >
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={cn("mt-1 font-mono text-lg font-bold", warn ? "text-warning" : undefined)}>
-        {m ? `${Math.round((shown ?? 0) * 10) / 10}${m[2] ?? ""}` : value}
-      </p>
-    </Card>
-  );
+function TraceRow({ trace: t }: { trace: Trace }) {
+  const [open, setOpen] = useState(false);
+  return <Card className="overflow-hidden">
+    <button className="flex min-h-11 w-full items-start gap-3 p-4 text-left text-sm hover:bg-accent/50"
+      aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+      <span className="min-w-0 flex-1">
+        <span className="block break-words">{t.question || t.subtopic || t.topic || `${t.course_id} · ${t.page_id ?? ""}`}</span>
+        <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{t.ts} · {STATUS[t.status ?? "unknown"] ?? t.status} · {t.elapsed_s}s · 循环 {t.turns ?? "未知"} 次</span>
+      </span>
+      <ChevronDown size={16} className={cn("mt-1 shrink-0 transition-transform", open && "rotate-180")} />
+    </button>
+    <Collapse open={open}>
+      <div className="space-y-3 border-t border-border p-4 text-sm">
+        {t.error && <p className="break-words text-destructive">{t.error}</p>}
+        {!!t.guard_violations?.length && <p className="text-destructive">引用违规：{t.guard_violations.join("；")}</p>}
+        {!!t.reteach?.length && <p className="text-warning">重复教学信号：{t.reteach.join("；")}</p>}
+        <p className="text-muted-foreground">评价：{VERDICT[t.self_eval?.verdict ?? "skipped"] ?? "旧版/未知"}
+          {t.self_eval?.skip_reason && ` · ${SKIP[t.self_eval.skip_reason] ?? t.self_eval.skip_reason}`}
+          {t.self_eval?.reason && ` · ${t.self_eval.reason}`}</p>
+        {!!t.tool_calls?.length && <ul className="space-y-2">{t.tool_calls.map((tool, i) => (
+          <li key={i} className={cn("break-words text-xs", tool.error ? "text-destructive" : "text-muted-foreground")}>
+            {tool.name} · {tool.ms}ms · {tool.error ?? "调用完成(不等于答案有据)"}
+          </li>
+        ))}</ul>}
+        {t.verdict && <p>批改：{t.verdict} · 原始分 {t.raw_score ?? "未知"} / 应用分 {t.score ?? "未知"}{t.tutored && " · 辅导保底"}</p>}
+        <p className="break-words leading-relaxed whitespace-pre-wrap">{t.answer || "本记录无答案正文"}</p>
+        <p className="break-all font-mono text-xs text-muted-foreground">run {t.run_id ?? "旧记录"} · 模型 {t.versions?.model ?? "未知"} · 规则 {t.versions?.eval ?? "未知"}<br />prompt {t.versions?.prompt_hash?.slice(0, 12) ?? "未知"} · context {t.versions?.context_hash?.slice(0, 12) ?? "未知"} · source {t.source}</p>
+      </div>
+    </Collapse>
+  </Card>;
+}
+
+function Metric({ label, value, hint, warn }: { label: string; value: ReactNode; hint?: string; warn?: boolean }) {
+  return <Card className={cn("min-w-0 p-4", warn && "border-warning/40 bg-warning/5")}>
+    <p className="text-sm text-muted-foreground">{label}</p>
+    <p className={cn("mt-1 break-words font-mono text-xl font-bold", warn && "text-warning")}>{value}</p>
+    {hint && <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{hint}</p>}
+  </Card>;
 }

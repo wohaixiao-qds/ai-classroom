@@ -13,9 +13,10 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
+from app.core.learning_store import record_result
 from app.core.llm import get_llm_client
 from app.core.prompts import GRADE_OUTPUT_SPEC, parse_json_reply
-from app.core.trace import trace_grade
+from app.core.trace import current_run, observed, run_context, trace_grade, update_run
 
 GRADE_PROMPT = (
     """你是学习督导,批改学员对刚学内容的复述,并给出百分制评分。
@@ -61,12 +62,14 @@ def _locate_v2(d: dict[str, Any], page_id: str) -> tuple[dict[str, Any], str]:
     raise KeyError(msg)
 
 
+@observed("grade")
 def grade_recitation(
     course_id: str,
     page_id: str,
     answer: str,
     *,
     tutored: bool = False,
+    source: str = "user",
 ) -> dict[str, Any]:
     """批改一次复述,返回 {score, verdict, comment, precise}。
 
@@ -93,10 +96,13 @@ def grade_recitation(
         pass_rule=cp.get("pass_rule") or "核心概念说清即可",
         answer=answer,
     )
+    run_context(prompt=prompt, tools=[], parameters={"max_tokens": 16384})
+    update_run(answer=answer, tutored=tutored, source=source)
     t0 = time.perf_counter()
     resp = None
     last_err: Exception | None = None
     for attempt in range(_ATTEMPTS):
+        update_run(turns=attempt + 1)
         # 中转间歇 502/坏 JSON 常见:学员坐在弹层里等,一次坏响应就 502 太脆
         try:
             resp = client.messages.create(
@@ -106,6 +112,10 @@ def grade_recitation(
                 max_tokens=16384,
                 messages=[{"role": "user", "content": prompt}],
             )
+            update_run(usage={
+                "input_tokens": getattr(resp.usage, "input_tokens", 0) or 0,
+                "output_tokens": getattr(resp.usage, "output_tokens", 0) or 0,
+            })
             break
         except Exception as e:  # noqa: BLE001
             last_err = e
@@ -128,10 +138,17 @@ def grade_recitation(
         score = max(0, min(100, int(result.get("score", 0))))
     except (TypeError, ValueError):
         score = 0
+    raw_score = score
     if tutored:
         score = max(score, 70)  # 已在答疑里学过一轮:核心说清即过
     result["score"] = score
     result["verdict"] = "pass" if score >= 70 else "fail"
+    result["raw_score"] = raw_score
+    result["tutored"] = tutored
+    run = current_run()
+    # Runtime 先保存结果;观测或裁判失败不能抹掉已交付的学习状态。
+    record_result(course_id, page_id, answer, result, source=source,
+                  run_id=run.id if run else None)
     trace_grade(
         course_id=course_id,
         page_id=page_id,
@@ -141,5 +158,8 @@ def grade_recitation(
         elapsed_s=time.perf_counter() - t0,
         score=score,
         precise=str(result.get("precise", "")),
+        raw_score=raw_score,
+        tutored=tutored,
+        source=source,
     )
     return result

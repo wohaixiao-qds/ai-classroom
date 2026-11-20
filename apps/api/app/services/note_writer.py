@@ -17,9 +17,9 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
+from app.core.learning_store import grade_history
 from app.core.llm import get_llm_client
 from app.core.memory import list_sessions, session_history
-from app.core.trace import read_traces
 
 # ---------- 收集:三源会话事实 ----------
 
@@ -89,9 +89,7 @@ def _render_dialogs(course_id: str, limit: int = 10) -> str:
 def _render_grades(course_id: str) -> str:
     """检查点批改(哪里被纠偏——最值得复习的地方)。"""
     out = []
-    for g in read_traces("grade.jsonl", limit=200):
-        if g.get("course_id") != course_id:
-            continue
+    for g in grade_history(course_id):
         score = g.get("score")
         score_s = f"{score}分 · " if score is not None else ""
         precise = str(g.get("precise") or "")[:150]
