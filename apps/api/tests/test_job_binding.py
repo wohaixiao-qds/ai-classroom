@@ -249,7 +249,7 @@ class JobBindingTests(unittest.TestCase):
             self.assertEqual(job_runner._run(), binding["course_id"])
         research_framework.assert_not_called()
         research_material.assert_not_called()
-        cached.assert_called_once_with(target, "共同课名")
+        cached.assert_not_called()  # Once bound, only the saved job snapshot may be used.
         self.assertEqual(model.call_args.args[0]["_outline_course_id"], "intro")
 
     def test_catalog_route_does_not_launch_duplicate_job(self) -> None:

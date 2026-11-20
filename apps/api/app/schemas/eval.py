@@ -25,6 +25,30 @@ class ToolCall(BaseModel):
     error: str | None = None
     result: str | None = None
     feedback: str | None = None
+    reused_from_call: int | None = None
+
+
+class ResearchEvidence(BaseModel):
+    matched: int
+    total: int
+    reviewed: int
+    review_error: str | None = None
+    verdicts: dict[str, int]
+
+
+class ResearchCost(BaseModel):
+    generation_s: float
+    tool_s: float
+    review_s: float
+    generation_usage: dict[str, int]
+    review_usage: dict[str, int]
+    total_usage: dict[str, int]
+
+
+class ResearchOutline(BaseModel):
+    courses: int
+    sourced_courses: int
+    sources: int
 
 
 class TraceRecord(BaseModel):
@@ -50,6 +74,12 @@ class TraceRecord(BaseModel):
     usage: dict[str, int] = Field(default_factory=dict)
     versions: dict[str, str] = Field(default_factory=dict)
     self_eval: Assessment | None = None
+    research_evidence: ResearchEvidence | None = None
+    research_cost: ResearchCost | None = None
+    research_outline: ResearchOutline | None = None
+    validation_errors: list[str] = Field(default_factory=list)
+    material_path: str | None = None
+    fetched: int = 0
     guard_violations: list[str] = Field(default_factory=list)
     reteach: list[str] = Field(default_factory=list)
     error: str | None = None

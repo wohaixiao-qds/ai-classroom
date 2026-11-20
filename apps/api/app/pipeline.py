@@ -63,6 +63,8 @@ def run_pipeline(
         cached_framework,
         cached_material,
         clear_research_cache,
+        course_research_context,
+        require_reviewed_material,
         research_framework,
         research_material,
     )
@@ -85,10 +87,14 @@ def run_pipeline(
     else:
         subtopic, prev = pick_subtopic(fw, auto)
 
-    print("\n② 子题原料(带来源硬闸)…")
-    material = (reuse and subtopic and cached_material(topic, subtopic)) or research_material(
-        topic, subtopic
+    selected: dict[str, Any] = next((c for c in fw["courses"] if c["title"] == subtopic), {})
+    research_context = course_research_context(fw, selected) if selected else None
+    print("\n② 子题原料(按课程目标调研,带来源硬闸)…")
+    material = (
+        (reuse and subtopic and cached_material(topic, subtopic, research_context=research_context))
+        or research_material(topic, subtopic, research_context=research_context)
     )
+    require_reviewed_material(material)
     # 大纲→vault 目录同步(全自动跟随)+ 写回落点=大纲篇目录
     from app.services.vault_sync import sync_outline, theme_area
 
@@ -109,7 +115,6 @@ def run_pipeline(
     print(f"原料:{n_pts} 条要点 / {len(material['sources'])} 个来源")
 
     print("\n③ 备课循环(写→验→改,客观终止)…")
-    selected: dict[str, Any] = next((c for c in fw["courses"] if c["title"] == subtopic), {})
     goal = str(selected.get("goal") or "")
     prereqs = [c["title"] for c in fw["courses"] if c["id"] in selected.get("prereqs", [])]
     r = run_prep(material, prev_subtopic=prev, learning_goal=goal, prerequisite_titles=prereqs)

@@ -10,6 +10,7 @@ import { JobFeed } from "../../components/JobFeed";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
+import type { components } from "../../types/api.gen";
 
 interface OutlineItem {
   topic: string;
@@ -18,24 +19,8 @@ interface OutlineItem {
   prepared?: number; // 已有课件的课数(列表端点出课判定)
 }
 
-interface OutlineCourse {
-  id: string;
-  title: string;
-  goal: string;
-  why?: string;
-  prereqs: string[];
-  part?: string;
-  prereq_titles?: string[];
-  origin?: string;
-  course_file_id?: string | null;
-  prep_status?: string | null;
-}
-
-interface OutlineDetail {
-  topic: string;
-  domain: string;
-  courses: OutlineCourse[];
-}
+type OutlineCourse = components["schemas"]["OutlineCourse"];
+type OutlineDetail = components["schemas"]["OutlineDetail"];
 
 export function OutlinePanel() {
   const [outlines, setOutlines] = useState<OutlineItem[] | null>(null);
@@ -233,6 +218,24 @@ export function OutlinePanel() {
                   </Button>
                 </div>
               </div>
+              {detail.source_status === "historical_unrecorded" && (
+                <p className="mb-3 text-xs text-muted-foreground">
+                  历史大纲缺少调研来源记录。
+                </p>
+              )}
+              {detail.source_evidence?.length > 0 && (
+                <details className="mb-3 text-xs text-muted-foreground">
+                  <summary className="cursor-pointer">调研原文摘录</summary>
+                  {detail.source_evidence.map((source) => (
+                    <blockquote key={source.id} className="my-2 break-words border-l border-border pl-3">
+                      <a href={source.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                        {source.title}
+                      </a>
+                      <p className="mt-1 whitespace-pre-wrap">{source.excerpt}</p>
+                    </blockquote>
+                  ))}
+                </details>
+              )}
               {(() => {
                 const groups: { part: string; items: { c: OutlineCourse; i: number }[] }[] = [];
                 for (let i = 0; i < detail.courses.length; i++) {
@@ -279,6 +282,31 @@ export function OutlinePanel() {
                           <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground">
                             {c.goal}
                           </p>
+                        )}
+                        {c.scope && (
+                          <p className="mt-0.5 text-[11px] leading-5 text-muted-foreground">
+                            范围:{c.scope}
+                          </p>
+                        )}
+                        {c.source_ids && c.source_ids.length > 0 && (
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                            <span>依据:</span>
+                            {c.source_ids.map((sourceId) => {
+                              const source = detail.source_evidence?.find((item) => item.id === sourceId);
+                              return source ? (
+                                <a
+                                  key={sourceId}
+                                  href={source.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title={`抓取于 ${source.fetched_at} · SHA-256 ${source.snapshot_sha256}`}
+                                  className="max-w-48 truncate text-primary underline-offset-2 hover:underline"
+                                >
+                                  {source.title}
+                                </a>
+                              ) : null;
+                            })}
+                          </div>
                         )}
                         {c.prereq_titles && c.prereq_titles.length > 0 && (
                           <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">

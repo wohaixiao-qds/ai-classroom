@@ -89,6 +89,20 @@ def _bound_prep(kind: str, target: str, material: dict[str, Any],
     return result
 
 
+def _assert_material_context(material: dict[str, Any], context: dict[str, Any]) -> None:
+    """Keep old fixed bindings readable; reject only a known changed contract."""
+    from app.core.trace import digest
+
+    saved_hash = material.get("research_context_hash")
+    if saved_hash is None:
+        print("兼容旧任务绑定原料:未记录大纲上下文,沿用固定材料且不静默重调研")
+    elif saved_hash != digest(context):
+        raise ValueError(
+            "绑定材料所依据的大纲目标或范围已变化,拒绝静默续写;"
+            "请人工审阅后重建材料"
+        )
+
+
 def _apply_outline_contract(course: dict[str, Any], framework: dict[str, Any],
                             entry: dict[str, Any], topic: str) -> None:
     """显式 refs 优先,再按同领域的大纲 id 查找;不按全库同名猜测。"""
@@ -143,6 +157,8 @@ def _run() -> str:
         from app.agent.research import (
             cached_framework,
             cached_material,
+            course_research_context,
+            require_reviewed_material,
             research_framework,
             research_material,
         )
@@ -158,12 +174,17 @@ def _run() -> str:
         if outline_course is None:
             raise ValueError(f"大纲里没有这门课: {course_title}")
         binding = get_binding(kind, target)
-        cached = cached_material(topic, course_title)
-        material = cached if cached is not None else (
-            json.loads(binding["material_json"]) if binding else
-            research_material(topic, course_title)
-        )
+        research_context = course_research_context(fw, outline_course)
+        if binding:
+            material = json.loads(binding["material_json"])
+            _assert_material_context(material, research_context)
+        else:
+            cached = cached_material(topic, course_title, research_context=research_context)
+            material = cached if cached is not None else research_material(
+                topic, course_title, research_context=research_context
+            )
         material = dict(material, _outline_course_id=outline_course["id"], _outline_topic=topic)
+        require_reviewed_material(material)
         # 写回落点=大纲篇目录:topic = 领域/主题/篇(归一后即 vault 真实目录)
         area = theme_area(fw)
         if area:
@@ -189,16 +210,25 @@ def _run() -> str:
         from app.agent.research import (
             cached_framework,
             cached_material,
+            course_research_context,
+            require_reviewed_material,
             research_framework,
             research_material,
         )
         from app.services.vault_sync import sync_outline, theme_area
 
         binding = get_binding(kind, target)
-        fw = (cached_framework(target) if binding else None) or research_framework(target)
+        previous = json.loads(binding["material_json"]) if binding else {}
+        cached_fw = cached_framework(target)
+        if cached_fw is None:
+            if binding:
+                raise ValueError("绑定任务的大纲已丢失或损坏，拒绝重新调研后续写")
+            fw = research_framework(target)
+        else:
+            fw = cached_fw
         # 大纲→vault 目录同步(全自动跟随)
         sync_outline(fw, topic=target)
-        original = json.loads(binding["material_json"]) if binding else {}
+        original = previous
         original_id = original.get("_outline_course_id")
         entry = (next((c for c in fw["courses"] if c.get("id") == original_id), None)
                  if original_id else fw["courses"][0])
@@ -206,12 +236,17 @@ def _run() -> str:
             raise ValueError("原任务绑定的大纲课程已被移除,拒绝改备另一门课")
         entry_title = str(entry.get("title", target))
         print(f"样课先行:大纲 {len(fw['courses'])} 门,先备入口课「{entry_title}」")
-        cached = cached_material(target, entry_title) if binding else None
-        material = cached if cached is not None else (
-            json.loads(binding["material_json"]) if binding else
-            research_material(target, entry_title)
-        )
+        research_context = course_research_context(fw, entry)
+        if binding:
+            material = json.loads(binding["material_json"])
+            _assert_material_context(material, research_context)
+        else:
+            cached = cached_material(target, entry_title, research_context=research_context)
+            material = cached if cached is not None else research_material(
+                target, entry_title, research_context=research_context
+            )
         material = dict(material, _outline_course_id=entry["id"], _outline_topic=target)
+        require_reviewed_material(material)
         # 写回落点=大纲篇目录;vault 不可用时退回待探行归位(老机制)
         area = theme_area(fw)
         part = str(entry.get("part") or "").strip()

@@ -15,25 +15,10 @@ import { PageError, PageLoading } from "../../components/PageState";
 import { Button } from "../../components/ui/button";
 import { cn } from "../../lib/utils";
 import { fetchAllCourses } from "../../lib/learningPath";
+import type { components } from "../../types/api.gen";
 
-interface OutlineCourse {
-  id: string;
-  title: string;
-  goal: string;
-  why?: string; // 具体学习障碍或应用问题;模型弱点只用于适用领域
-  part?: string;
-  prereq_titles?: string[];
-  course_file_id?: string | null;
-  course_file_ids?: string[];
-  course_file_titles?: string[];
-  prep_status?: string | null;
-}
-
-interface OutlineDetail {
-  topic: string;
-  domain: string;
-  courses: OutlineCourse[];
-}
+type OutlineCourse = components["schemas"]["OutlineCourse"];
+type OutlineDetail = components["schemas"]["OutlineDetail"];
 
 export function BookPage() {
   const { topic = "" } = useParams();
@@ -164,6 +149,34 @@ export function BookPage() {
         </p>
       )}
 
+      {detail.source_status === "historical_unrecorded" ? (
+        <p className="mb-5 text-xs text-muted-foreground">
+          这本旧大纲没有保存调研来源记录。
+        </p>
+      ) : detail.source_evidence?.length ? (
+        <section className="mb-6 rounded-xl border border-border bg-card/70 p-4">
+          <h2 className="mb-2 text-xs font-medium text-foreground">大纲调研来源</h2>
+          <ul className="flex flex-wrap gap-x-4 gap-y-2 text-xs">
+            {detail.source_evidence.map((source) => (
+              <li key={source.id}>
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={`网页快照指纹 ${source.snapshot_sha256 ?? "未提供"}`}
+                  className="text-primary underline-offset-2 hover:underline"
+                >
+                  {source.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            来源记录用于追溯课程设计依据，不代表已验证先修关系或内容质量。
+          </p>
+        </section>
+      ) : null}
+
       {groups.map((g) => (
         <section key={g.part} className="mb-8">
           {g.part !== "正文" && (
@@ -241,6 +254,29 @@ export function BookPage() {
                       学习动机：{c.why}
                     </p>
                   )}
+                  {c.source_ids?.length ? (
+                    <p className="mt-1 pl-[26px] text-[11px] text-muted-foreground">
+                      调研依据:{" "}
+                      {c.source_ids.map((id, index) => {
+                        const source = detail.source_evidence?.find((item) => item.id === id);
+                        if (!source) return null;
+                        return (
+                          <span key={id}>
+                            {index > 0 ? " · " : ""}
+                            <a
+                              href={source.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={`抓取时间 ${source.fetched_at ?? "未知"} · 指纹 ${source.snapshot_sha256 ?? "未知"}`}
+                              className="text-primary underline-offset-2 hover:underline"
+                            >
+                              {source.title}
+                            </a>
+                          </span>
+                        );
+                      })}
+                    </p>
+                  ) : null}
                   {/* 挂接课件平铺:真实课件标题,一门大纲课可能收编多门旧课 */}
                   {refs.length > 0 && (
                     <ul className="mt-2 space-y-0.5 pl-[26px]">

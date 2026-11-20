@@ -25,7 +25,10 @@ unsupported=缺少主要依据或与原文冲突;uncertain=资料不足/无法�
 """
 
 
-def review_claims(claims: list[dict[str, Any]], *, course_mode: bool = False) -> dict[str, Any]:
+def review_claims(
+    claims: list[dict[str, Any]], *, course_mode: bool = False,
+    previous: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """小批审查;成功项保留,失败项最多单独重试一次。诊断不记录原始模型正文。"""
     prompt = _PROMPT
     verdicts = _VERDICTS
@@ -51,6 +54,13 @@ def review_claims(claims: list[dict[str, Any]], *, course_mode: bool = False) ->
     if len(set(ids)) != len(ids):
         raise ValueError("待审输入 id 必须唯一")
     results: dict[str, dict[str, Any]] = {}
+    if previous and all(previous.get(k) == base[k] for k in (
+        "reviewer", "input_hash", "prompt_hash",
+    )):
+        for item in previous.get("items", []):
+            if (item.get("id") in ids and item.get("verdict") in verdicts
+                    and isinstance(item.get("reason"), str) and item["reason"].strip()):
+                results[item["id"]] = item
 
     def attempt(batch: list[dict[str, Any]]) -> list[dict[str, Any]]:
         diagnostic: dict[str, Any] = {"ids": [c["id"] for c in batch]}
@@ -109,6 +119,8 @@ def review_claims(claims: list[dict[str, Any]], *, course_mode: bool = False) ->
     batch: list[dict[str, Any]] = []
     size = 0
     for claim in claims:
+        if claim["id"] in results:
+            continue
         length = len(json.dumps(claim, ensure_ascii=False))
         if batch and (len(batch) >= 4 or size + length > 20000):
             batches.append(batch)

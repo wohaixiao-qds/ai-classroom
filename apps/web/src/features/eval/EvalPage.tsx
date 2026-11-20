@@ -1,5 +1,15 @@
 /** Eval 观测:行为、规则与证据评价分别展示,所有 API 类型来自生成契约。 */
-import { ChevronDown, Compass, FlaskConical, History, ListChecks, Repeat } from "lucide-react";
+import {
+  ChevronDown,
+  Compass,
+  FlaskConical,
+  History,
+  ListChecks,
+  Repeat,
+  Search,
+  ShieldCheck,
+  Timer,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
@@ -37,7 +47,8 @@ const STATUS: Record<string, string> = {
 };
 const VERDICT: Record<string, string> = {
   supported: "证据支持", partial: "部分缺证据", unsupported: "缺少证据支持",
-  uncertain: "无法判断", skipped: "未评", grounded: "旧版有据信号", fabricated: "旧版疑似编造",
+  uncertain: "无法判断", unreviewed: "待审查", skipped: "未评", grounded: "旧版有据信号",
+  fabricated: "旧版疑似编造",
 };
 const SKIP: Record<string, string> = {
   not_sampled: "未命中抽样", judge_error: "裁判调用失败", invalid_judge_output: "裁判输出无效",
@@ -151,6 +162,8 @@ export function EvalPage() {
           </div>
         </section>
 
+        <ResearchSection traces={data.traces.research} />
+
         <section className="mb-8">
           <SectionHeader icon={History} title="执行轨迹" hint="每类最近 50 次,旧记录的执行状态保持未知" />
           <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="执行类型">
@@ -248,6 +261,7 @@ function TraceRow({ trace: t }: { trace: Trace }) {
     <Collapse open={open}>
       <div className="space-y-3 border-t border-border p-4 text-sm">
         {t.error && <p className="break-words text-destructive">{t.error}</p>}
+        {!!t.validation_errors?.length && <p className="break-words text-destructive">交付校验：{t.validation_errors.join("；")}</p>}
         {!!t.guard_violations?.length && <p className="text-destructive">引用违规：{t.guard_violations.join("；")}</p>}
         {!!t.reteach?.length && <p className="text-warning">重复教学信号：{t.reteach.join("；")}</p>}
         <p className="text-muted-foreground">评价：{VERDICT[t.self_eval?.verdict ?? "skipped"] ?? "旧版/未知"}
@@ -255,15 +269,70 @@ function TraceRow({ trace: t }: { trace: Trace }) {
           {t.self_eval?.reason && ` · ${t.self_eval.reason}`}</p>
         {!!t.tool_calls?.length && <ul className="space-y-2">{t.tool_calls.map((tool, i) => (
           <li key={i} className={cn("break-words text-xs", tool.error ? "text-destructive" : "text-muted-foreground")}>
-            {tool.name} · {tool.ms}ms · {tool.error ?? "调用完成(不等于答案有据)"}
+            {tool.name}{tool.args?.url ? ` · ${String(tool.args.url)}` : ""} · {tool.ms}ms
+            {tool.reused_from_call != null ? ` · 复用第 ${tool.reused_from_call + 1} 次抓取` : ""}
+            {tool.error ? ` · ${tool.error}` : " · 调用完成(不等于答案有据)"}
           </li>
         ))}</ul>}
         {t.verdict && <p>批改：{t.verdict} · 原始分 {t.raw_score ?? "未知"} / 应用分 {t.score ?? "未知"}{t.tutored && " · 辅导保底"}</p>}
-        <p className="break-words leading-relaxed whitespace-pre-wrap">{t.answer || "本记录无答案正文"}</p>
+        {t.research_outline && <p>大纲：{t.research_outline.sourced_courses} / {t.research_outline.courses} 门课有来源 · {t.research_outline.sources} 个来源</p>}
+        {t.research_evidence && <p>原料证据：{t.research_evidence.matched} / {t.research_evidence.total} 条引用命中正文 · 已审 {t.research_evidence.reviewed} 条 · {countText(t.research_evidence.verdicts, VERDICT)}{t.research_evidence.review_error && ` · 审查错误: ${t.research_evidence.review_error}`}</p>}
+        {t.research_cost && <p>调研成本：模型 {t.research_cost.generation_s}s · 工具 {t.research_cost.tool_s}s · 审查 {t.research_cost.review_s}s · in {t.research_cost.total_usage.input_tokens ?? 0} / out {t.research_cost.total_usage.output_tokens ?? 0} tokens</p>}
+        {!!t.answer && <p className="break-words leading-relaxed whitespace-pre-wrap">{t.answer}</p>}
         <p className="break-all font-mono text-xs text-muted-foreground">run {t.run_id ?? "旧记录"} · 模型 {t.versions?.model ?? "未知"} · 规则 {t.versions?.eval ?? "未知"}<br />prompt {t.versions?.prompt_hash?.slice(0, 12) ?? "未知"} · context {t.versions?.context_hash?.slice(0, 12) ?? "未知"} · source {t.source}</p>
       </div>
     </Collapse>
   </Card>;
+}
+
+function ResearchSection({ traces }: { traces: Trace[] }) {
+  const evidence = traces.flatMap((trace) => trace.research_evidence ? [trace.research_evidence] : []);
+  const costs = traces.flatMap((trace) => trace.research_cost ? [trace.research_cost] : []);
+  const outlines = traces.flatMap((trace) => trace.research_outline ? [trace.research_outline] : []);
+  const verdicts = evidence.reduce<Record<string, number>>((all, item) => {
+    Object.entries(item.verdicts).forEach(([key, value]) => { all[key] = (all[key] ?? 0) + value; });
+    return all;
+  }, {});
+  const matched = evidence.reduce((sum, item) => sum + item.matched, 0);
+  const total = evidence.reduce((sum, item) => sum + item.total, 0);
+  const reviewed = evidence.reduce((sum, item) => sum + item.reviewed, 0);
+  const reviewErrors = evidence.filter((item) => item.review_error).length;
+  const sourcedCourses = outlines.reduce((sum, item) => sum + item.sourced_courses, 0);
+  const outlineCourses = outlines.reduce((sum, item) => sum + item.courses, 0);
+  const sourceCount = outlines.reduce((sum, item) => sum + item.sources, 0);
+  const generationS = costs.reduce((sum, item) => sum + item.generation_s, 0);
+  const toolS = costs.reduce((sum, item) => sum + item.tool_s, 0);
+  const reviewS = costs.reduce((sum, item) => sum + item.review_s, 0);
+  const inputTokens = costs.reduce((sum, item) => sum + (item.total_usage.input_tokens ?? 0), 0);
+  const outputTokens = costs.reduce((sum, item) => sum + (item.total_usage.output_tokens ?? 0), 0);
+  const toolCalls = traces.flatMap((trace) => trace.tool_calls ?? []);
+  const fetchCalls = toolCalls.filter((tool) => tool.name === "fetch_page");
+  const reusedFetches = fetchCalls.filter((tool) => tool.reused_from_call != null).length;
+  const failedFetches = fetchCalls.filter((tool) => tool.error).length;
+
+  return (
+    <section className="mb-8">
+      <SectionHeader icon={Search} title="Research 调研评价" count={traces.length} hint="大纲与课程原料分开观察；证据命中和模型审查都不替代人工事实核验" />
+      {!traces.length ? <EmptyState icon={Search} title="暂无调研轨迹" hint="运行领域大纲或课程调研后会显示来源、证据审查和成本" /> : (
+        <>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Metric label="大纲来源覆盖" value={outlineCourses ? `${sourcedCourses} / ${outlineCourses}` : "—"} hint="有实际抓取来源的课程数" warn={outlineCourses > 0 && sourcedCourses < outlineCourses} />
+            <Metric label="原文引用命中" value={total ? `${matched} / ${total}` : "—"} hint="引用片段在 fetch_page 正文快照中找到" warn={total > 0 && matched < total} />
+            <Metric label="语义审查完成" value={total ? `${reviewed} / ${total}` : "—"} hint={reviewErrors ? `${reviewErrors} 次审查有错误` : "只统计已落盘原料"} warn={reviewErrors > 0} />
+            <Metric label="审查结论" value={countText(verdicts, VERDICT) || "—"} hint="supported 仍需人工抽查，不等于事实已证实" />
+            <Metric label="抓取复用 / 失败" value={`${reusedFetches} / ${failedFetches}`} hint={`${fetchCalls.length} 次 fetch_page；同轮重复 URL 会复用快照`} />
+            <Metric label="来源快照" value={sourceCount || "—"} hint="大纲阶段记录的 URL 与正文 SHA-256" />
+            <Metric label="总模型用量" value={`${inputTokens} / ${outputTokens}`} hint="Research generation + evidence review · in / out tokens" />
+            <Metric label="耗时拆分" value={`${generationS.toFixed(1)}s`} hint={`模型 ${generationS.toFixed(1)}s · 工具 ${toolS.toFixed(1)}s · 审查 ${reviewS.toFixed(1)}s`} />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-1"><ShieldCheck size={14} /> 证据审查是发布前质量门，不会自动替代作者确认</span>
+            <span className="inline-flex items-center gap-1"><Timer size={14} /> 已记录 {costs.length} 次调研成本</span>
+          </div>
+        </>
+      )}
+    </section>
+  );
 }
 
 function Metric({ label, value, hint, warn }: { label: string; value: ReactNode; hint?: string; warn?: boolean }) {

@@ -412,7 +412,7 @@ export interface paths {
         get: operations["get_outline_api_v1_outlines__topic__get"];
         /**
          * Save Outline
-         * @description 审阅调整(调序/删课/改字段)写回;过校验器才落盘。未知字段丢弃。
+         * @description 审阅调整(调序/删课/改字段)写回;过校验器才落盘。保留服务端生成的来源快照。
          */
         put: operations["save_outline_api_v1_outlines__topic__put"];
         post?: never;
@@ -870,6 +870,57 @@ export interface components {
             /** Status */
             status?: string | null;
         };
+        /** OutlineCourse */
+        OutlineCourse: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Goal */
+            goal: string;
+            /** Why */
+            why?: string | null;
+            /** Scope */
+            scope?: string | null;
+            /** Origin */
+            origin?: string | null;
+            /** Part */
+            part?: string | null;
+            /** Prereqs */
+            prereqs?: string[];
+            /** Source Ids */
+            source_ids?: number[];
+            /** Course Ref */
+            course_ref?: string | null;
+            /** Course Refs */
+            course_refs?: string[] | null;
+            /** Prereq Titles */
+            prereq_titles: string[];
+            /** Course File Id */
+            course_file_id: string | null;
+            /** Course File Ids */
+            course_file_ids: string[];
+            /** Course File Titles */
+            course_file_titles: string[];
+            /** Prep Status */
+            prep_status: string | null;
+        };
+        /** OutlineDetail */
+        OutlineDetail: {
+            /** Topic */
+            topic: string;
+            /** Domain */
+            domain: string;
+            /** Courses */
+            courses: components["schemas"]["OutlineCourse"][];
+            /** Source Evidence */
+            source_evidence: components["schemas"]["OutlineSource"][];
+            /**
+             * Source Status
+             * @enum {string}
+             */
+            source_status: "recorded" | "historical_unrecorded";
+        };
         /** OutlineEdit */
         OutlineEdit: {
             /** Courses */
@@ -881,6 +932,24 @@ export interface components {
         OutlinePrepReq: {
             /** Title */
             title: string;
+        };
+        /** OutlineSource */
+        OutlineSource: {
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+            /**
+             * Url
+             * Format: uri
+             */
+            url: string;
+            /** Fetched At */
+            fetched_at: string;
+            /** Snapshot Sha256 */
+            snapshot_sha256: string;
+            /** Excerpt */
+            excerpt: string;
         };
         /** QualityMetrics */
         QualityMetrics: {
@@ -935,6 +1004,51 @@ export interface components {
             comparable: boolean;
             /** History */
             history: components["schemas"]["TraceRecord"][];
+        };
+        /** ResearchCost */
+        ResearchCost: {
+            /** Generation S */
+            generation_s: number;
+            /** Tool S */
+            tool_s: number;
+            /** Review S */
+            review_s: number;
+            /** Generation Usage */
+            generation_usage: {
+                [key: string]: number;
+            };
+            /** Review Usage */
+            review_usage: {
+                [key: string]: number;
+            };
+            /** Total Usage */
+            total_usage: {
+                [key: string]: number;
+            };
+        };
+        /** ResearchEvidence */
+        ResearchEvidence: {
+            /** Matched */
+            matched: number;
+            /** Total */
+            total: number;
+            /** Reviewed */
+            reviewed: number;
+            /** Review Error */
+            review_error?: string | null;
+            /** Verdicts */
+            verdicts: {
+                [key: string]: number;
+            };
+        };
+        /** ResearchOutline */
+        ResearchOutline: {
+            /** Courses */
+            courses: number;
+            /** Sourced Courses */
+            sourced_courses: number;
+            /** Sources */
+            sources: number;
         };
         /**
          * ReviewDue
@@ -1088,6 +1202,8 @@ export interface components {
             result?: string | null;
             /** Feedback */
             feedback?: string | null;
+            /** Reused From Call */
+            reused_from_call?: number | null;
         };
         /** TraceRecord */
         TraceRecord: {
@@ -1172,6 +1288,18 @@ export interface components {
                 [key: string]: string;
             };
             self_eval?: components["schemas"]["Assessment"] | null;
+            research_evidence?: components["schemas"]["ResearchEvidence"] | null;
+            research_cost?: components["schemas"]["ResearchCost"] | null;
+            research_outline?: components["schemas"]["ResearchOutline"] | null;
+            /** Validation Errors */
+            validation_errors?: string[];
+            /** Material Path */
+            material_path?: string | null;
+            /**
+             * Fetched
+             * @default 0
+             */
+            fetched: number;
             /** Guard Violations */
             guard_violations?: string[];
             /** Reteach */
@@ -1903,9 +2031,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["OutlineDetail"];
                 };
             };
             /** @description Validation Error */

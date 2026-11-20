@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, HttpUrl
 
 from app.agent.research import validate_framework
 from app.core.catalog_store import record_action
@@ -24,7 +24,8 @@ from app.services.publication import is_review_draft
 router = APIRouter(prefix="/api/v1", tags=["outline"])
 
 _KNOWN_COURSE_KEYS = {
-    "id", "title", "goal", "why", "prereqs", "part", "course_ref", "course_refs", "origin"
+    "id", "title", "goal", "why", "scope", "prereqs", "part", "course_ref",
+    "course_refs", "origin", "source_ids",
 }
 
 
@@ -153,7 +154,43 @@ def list_outlines() -> list[dict[str, Any]]:
     return out
 
 
-@router.get("/outlines/{topic}")
+class OutlineSource(BaseModel):
+    id: int
+    title: str
+    url: HttpUrl
+    fetched_at: str
+    snapshot_sha256: str
+    excerpt: str
+
+
+class OutlineCourse(BaseModel):
+    id: str
+    title: str
+    goal: str
+    why: str | None = None
+    scope: str | None = None
+    origin: str | None = None
+    part: str | None = None
+    prereqs: list[str] = Field(default_factory=list)
+    source_ids: list[int] = Field(default_factory=list)
+    course_ref: str | None = None
+    course_refs: list[str] | None = None
+    prereq_titles: list[str]
+    course_file_id: str | None
+    course_file_ids: list[str]
+    course_file_titles: list[str]
+    prep_status: str | None
+
+
+class OutlineDetail(BaseModel):
+    topic: str
+    domain: str
+    courses: list[OutlineCourse]
+    source_evidence: list[OutlineSource]
+    source_status: Literal["recorded", "historical_unrecorded"]
+
+
+@router.get("/outlines/{topic}", response_model=OutlineDetail)
 def get_outline(topic: str) -> dict[str, Any]:
     d = _load_outline(topic)
     titles_by_id = {str(c.get("id")): str(c.get("title")) for c in d["courses"]}
@@ -179,6 +216,8 @@ def get_outline(topic: str) -> dict[str, Any]:
         "topic": str(d.get("topic", topic)),
         "domain": str(d.get("domain", "")),
         "courses": courses,
+        "source_evidence": d.get("source_evidence", []),
+        "source_status": "recorded" if d.get("source_evidence") else "historical_unrecorded",
     }
 
 
@@ -188,9 +227,21 @@ class OutlineEdit(BaseModel):
 
 @router.put("/outlines/{topic}")
 def save_outline(topic: str, body: OutlineEdit) -> dict[str, Any]:
-    """审阅调整(调序/删课/改字段)写回;过校验器才落盘。未知字段丢弃。"""
+    """审阅调整(调序/删课/改字段)写回;过校验器才落盘。保留服务端生成的来源快照。"""
     d = _load_outline(topic)
-    d["courses"] = [{k: c[k] for k in _KNOWN_COURSE_KEYS if k in c} for c in body.courses]
+    previous = {c["id"]: c for c in d["courses"]}
+    courses = []
+    for c in body.courses:
+        old = previous.get(str(c.get("id")), {})
+        updated = {k: c[k] for k in _KNOWN_COURSE_KEYS if k in c and c[k] is not None}
+        if c.get("source_ids", old.get("source_ids", [])) != old.get("source_ids", []):
+            raise HTTPException(422, "大纲来源编号由调研生成，不能在编辑大纲时修改")
+        if "source_ids" in old:
+            updated["source_ids"] = old["source_ids"]
+        else:
+            updated.pop("source_ids", None)
+        courses.append(updated)
+    d["courses"] = courses
     errs = validate_framework(d)
     if errs:
         raise HTTPException(422, ";".join(errs[:5]))
