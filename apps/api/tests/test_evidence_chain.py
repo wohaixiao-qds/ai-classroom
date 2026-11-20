@@ -291,6 +291,51 @@ class EvidenceChainTests(unittest.TestCase):
             result = evidence_review.review_claims(claims)
         self.assertEqual(result["error"], "TimeoutError")
 
+    def test_review_checkpoint_recovers_only_completed_claims_after_interrupt(self) -> None:
+        claims = [{"id": str(i), "text": f"断言{i}"} for i in range(5)]
+        client = MagicMock()
+        client.with_options.return_value = client
+        completed = {"items": [{"id": str(i), "verdict": "supported", "reason": "支持"}
+                               for i in range(4)]}
+        client.messages.create.side_effect = [text_reply(completed), KeyboardInterrupt()]
+        saved: list[dict[str, Any]] = []
+        with patch.object(evidence_review, "get_llm_client", return_value=client):
+            with self.assertRaises(KeyboardInterrupt):
+                evidence_review.review_claims(claims, checkpoint=lambda r: saved.append(
+                    copy.deepcopy(r)))
+        self.assertEqual(len(saved[-1]["items"]), 4)
+        client.messages.create.side_effect = None
+        client.messages.create.reset_mock()
+        client.messages.create.return_value = text_reply({"items": [
+            {"id": "4", "verdict": "supported", "reason": "支持"}]})
+        with patch.object(evidence_review, "get_llm_client", return_value=client):
+            result = evidence_review.review_claims(claims, previous=saved[-1])
+        self.assertEqual(client.messages.create.call_count, 1)
+        payload = client.messages.create.call_args.kwargs["messages"][0]["content"]
+        self.assertNotIn('"id": "0"', payload)
+        self.assertTrue(all(i["verdict"] == "supported" for i in result["items"]))
+
+    def test_review_reuse_invalidates_changed_claim_model_and_prompt(self) -> None:
+        claims = [{"id": "a", "text": "原断言"}, {"id": "b", "text": "保留断言"}]
+        client = MagicMock()
+        client.with_options.return_value = client
+        client.messages.create.return_value = text_reply({"items": [
+            {"id": cid, "verdict": "supported", "reason": "支持"} for cid in ("a", "b")]})
+        with patch.object(evidence_review, "get_llm_client", return_value=client):
+            previous = evidence_review.review_claims(claims)
+            claims[0]["text"] = "改变断言"
+            client.messages.create.reset_mock()
+            evidence_review.review_claims(claims, previous=previous)
+            payload = client.messages.create.call_args.kwargs["messages"][0]["content"]
+            self.assertIn('"id": "a"', payload)
+            self.assertNotIn('"id": "b"', payload)
+            for key in ("reviewer", "prompt_hash"):
+                invalid = {**previous, key: "changed"}
+                client.messages.create.reset_mock()
+                evidence_review.review_claims(claims, previous=invalid)
+                payload = client.messages.create.call_args.kwargs["messages"][0]["content"]
+                self.assertIn('"id": "b"', payload)
+
     def test_research_collects_actual_pages_rejects_forged_quote_and_records_review(self) -> None:
         calls = []
         for i, url in enumerate(self.pages):

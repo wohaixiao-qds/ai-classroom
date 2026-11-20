@@ -1,9 +1,7 @@
-"""后台任务观测路由(P4 第五轮追加):把备课/调研子进程的处理消息暴露给页面。
+"""后台任务列表、持久事件及停止/继续/删除入口。
 
-任务由 executor.start_job 派子进程跑,stdout/stderr 落 data/logs/*.log——
-agent 循环的阶段消息(submit_plan 规划 / init_course 建骨架 / write_section 逐节写 /
-validate_csl 终验)与失败原因都在里面。本路由只做只读 tail,不碰 agent 代码。
-路径拼装与 executor.log_path_for 同源,杜绝两处漂移。
+路由负责参数和 HTTP 错误映射，生命周期操作委托 service。
+保留旧日志 tail 端点，路径与 executor.log_path_for 同源。
 """
 
 from __future__ import annotations
@@ -11,8 +9,10 @@ from __future__ import annotations
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from app.core.catalog_store import set_status
+from app.services import job_lifecycle
 from app.services.executor import cancel_job, log_path_for
 
 router = APIRouter(prefix="/api/v1", tags=["jobs"])
@@ -42,3 +42,73 @@ def cancel(kind: Kind, target: str) -> dict[str, object]:
         set_status(target, "cancelled", str(r.get("note", "手动取消")),
                    action_id=int(action_id) if isinstance(action_id, int) else None)
     return r
+
+
+class JobSummary(BaseModel):
+    id: int
+    kind: Kind
+    target: str
+    label: str | None
+    status: str
+    detail: str | None
+    created_at: str
+    course_id: str | None
+    can_resume: bool
+
+
+class JobEvent(BaseModel):
+    id: int
+    action_id: int
+    stage: str
+    status: str
+    detail: str
+    created_at: str
+    current: int | None
+    total: int | None
+
+
+class JobDetail(BaseModel):
+    job: JobSummary
+    events: list[JobEvent]
+    attempts: int
+    history_recorded: bool
+
+
+class JobOperation(BaseModel):
+    ok: bool
+    status: str
+    note: str
+    action_id: int | None
+
+
+@router.get("/jobs", response_model=list[JobSummary])
+def jobs(limit: int = 100) -> list[dict[str, object]]:
+    if not 1 <= limit <= 200:
+        raise HTTPException(status_code=422, detail="limit 取值 1~200")
+    return job_lifecycle.list_jobs(limit)
+
+
+@router.get("/jobs/detail", response_model=JobDetail)
+def job_detail(kind: Kind, target: str) -> dict[str, object]:
+    try:
+        return job_lifecycle.detail_job(kind, target)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/jobs/resume", response_model=JobOperation)
+def job_resume(kind: Kind, target: str) -> dict[str, object]:
+    try:
+        return job_lifecycle.resume_job(kind, target)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.delete("/jobs", response_model=JobOperation)
+def job_delete(kind: Kind, target: str) -> dict[str, object]:
+    try:
+        return job_lifecycle.delete_job(kind, target)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

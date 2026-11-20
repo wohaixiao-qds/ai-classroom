@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Callable
 from typing import Any
 
 from app.core.config import settings
@@ -28,6 +29,7 @@ unsupported=缺少主要依据或与原文冲突;uncertain=资料不足/无法�
 def review_claims(
     claims: list[dict[str, Any]], *, course_mode: bool = False,
     previous: dict[str, Any] | None = None,
+    checkpoint: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """小批审查;成功项保留,失败项最多单独重试一次。诊断不记录原始模型正文。"""
     prompt = _PROMPT
@@ -54,11 +56,16 @@ def review_claims(
     if len(set(ids)) != len(ids):
         raise ValueError("待审输入 id 必须唯一")
     results: dict[str, dict[str, Any]] = {}
+    claim_hashes = {c["id"]: digest(c) for c in claims}
+    base["claim_hashes"] = claim_hashes
     if previous and all(previous.get(k) == base[k] for k in (
-        "reviewer", "input_hash", "prompt_hash",
+        "reviewer", "prompt_hash",
     )):
         for item in previous.get("items", []):
             if (item.get("id") in ids and item.get("verdict") in verdicts
+                    and (previous.get("input_hash") == base["input_hash"]
+                         or previous.get("claim_hashes", {}).get(item["id"])
+                         == claim_hashes[item["id"]])
                     and isinstance(item.get("reason"), str) and item["reason"].strip()):
                 results[item["id"]] = item
 
@@ -112,6 +119,8 @@ def review_claims(
         except Exception as exc:  # noqa: BLE001 保留未评状态及异常类别
             diagnostic["error"] = type(exc).__name__
         base["attempts"].append(diagnostic)
+        if checkpoint is not None:
+            checkpoint({**base, "items": list(results.values())})
         return [c for c in batch if c["id"] not in results]
 
     # 同时控制条数和输入体积;单条过大仍独立审查,不截断证据。
@@ -132,6 +141,11 @@ def review_claims(
     for batch in batches:
         for failed in attempt(batch):
             attempt([failed])
+        from app.core.job_progress import emit_progress
+
+        emit_progress("review" if course_mode else "material", "running",
+                      "最终课件自动语义审查" if course_mode else "原料自动语义审查",
+                      current=len(results), total=len(ids))
     pending = [cid for cid in ids if cid not in results]
     if pending:
         base["error"] = next(

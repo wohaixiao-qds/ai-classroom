@@ -519,6 +519,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Jobs */
+        get: operations["jobs_api_v1_jobs_get"];
+        put?: never;
+        post?: never;
+        /** Job Delete */
+        delete: operations["job_delete_api_v1_jobs_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Job Detail */
+        get: operations["job_detail_api_v1_jobs_detail_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Job Resume */
+        post: operations["job_resume_api_v1_jobs_resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/trust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Job Trust */
+        get: operations["job_trust_api_v1_jobs_trust_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -806,6 +875,112 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** JobDetail */
+        JobDetail: {
+            job: components["schemas"]["JobSummary"];
+            /** Events */
+            events: components["schemas"]["JobEvent"][];
+            /** Attempts */
+            attempts: number;
+            /** History Recorded */
+            history_recorded: boolean;
+        };
+        /** JobEvent */
+        JobEvent: {
+            /** Id */
+            id: number;
+            /** Action Id */
+            action_id: number;
+            /** Stage */
+            stage: string;
+            /** Status */
+            status: string;
+            /** Detail */
+            detail: string;
+            /** Created At */
+            created_at: string;
+            /** Current */
+            current: number | null;
+            /** Total */
+            total: number | null;
+        };
+        /** JobOperation */
+        JobOperation: {
+            /** Ok */
+            ok: boolean;
+            /** Status */
+            status: string;
+            /** Note */
+            note: string;
+            /** Action Id */
+            action_id: number | null;
+        };
+        /** JobSummary */
+        JobSummary: {
+            /** Id */
+            id: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "request_prep" | "request_research" | "outline_prep";
+            /** Target */
+            target: string;
+            /** Label */
+            label: string | null;
+            /** Status */
+            status: string;
+            /** Detail */
+            detail: string | null;
+            /** Created At */
+            created_at: string;
+            /** Course Id */
+            course_id: string | null;
+            /** Can Resume */
+            can_resume: boolean;
+        };
+        /** JobTrustReport */
+        JobTrustReport: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "request_prep" | "request_research" | "outline_prep";
+            /** Target */
+            target: string;
+            /** Topic */
+            topic: string;
+            /** Course Id */
+            course_id?: string | null;
+            /** Outline Hash */
+            outline_hash?: string | null;
+            /** Material Hash */
+            material_hash?: string | null;
+            /** Content Hash */
+            content_hash?: string | null;
+            /** Sources */
+            sources?: components["schemas"]["TrustSource"][];
+            /** Checks */
+            checks?: components["schemas"]["TrustCheck"][];
+            /** Mappings */
+            mappings?: components["schemas"]["TrustMapping"][];
+            /** Reviews */
+            reviews?: components["schemas"]["TrustReview"][];
+            /** Limitations */
+            limitations?: string[];
+            /**
+             * Human Review
+             * @default not_recorded
+             * @constant
+             */
+            human_review: "not_recorded";
+            /**
+             * Publication Status
+             * @default unknown
+             * @enum {string}
+             */
+            publication_status: "allowed" | "blocked" | "unknown";
         };
         /** Lesson */
         Lesson: {
@@ -1329,6 +1504,103 @@ export interface components {
             tutored: boolean;
         } & {
             [key: string]: unknown;
+        };
+        /** TrustCheck */
+        TrustCheck: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "passed" | "failed" | "unknown";
+            /**
+             * Provider
+             * @default program
+             * @constant
+             */
+            provider: "program";
+            /** Detail */
+            detail: string;
+        };
+        /** TrustMapping */
+        TrustMapping: {
+            /** Course Id */
+            course_id: string;
+            /** Title */
+            title: string;
+            /** Source Ids */
+            source_ids?: number[];
+            /**
+             * Goal
+             * @default
+             */
+            goal: string;
+            /**
+             * Scope
+             * @default
+             */
+            scope: string;
+        };
+        /** TrustReview */
+        TrustReview: {
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "material" | "publication";
+            /** Status */
+            status: string;
+            /** Reviewer */
+            reviewer: string;
+            /** Input Hash */
+            input_hash?: string | null;
+            /** Prompt Hash */
+            prompt_hash?: string | null;
+            /** Reviewed At */
+            reviewed_at?: string | null;
+            /** Items */
+            items?: components["schemas"]["TrustReviewItem"][];
+        };
+        /** TrustReviewItem */
+        TrustReviewItem: {
+            /** Id */
+            id: string;
+            /** Verdict */
+            verdict: string;
+            /** Reason */
+            reason: string;
+        };
+        /** TrustSource */
+        TrustSource: {
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "outline" | "material";
+            /** Id */
+            id: string;
+            /** Url */
+            url: string;
+            /** Title */
+            title: string;
+            /** Fetched At */
+            fetched_at?: string | null;
+            /** Sha256 */
+            sha256?: string | null;
+            /**
+             * Excerpt
+             * @default
+             */
+            excerpt: string;
+            /**
+             * Identity Status
+             * @default unverified
+             * @constant
+             */
+            identity_status: "unverified";
         };
         /** ValidationError */
         ValidationError: {
@@ -2219,6 +2491,165 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    jobs_api_v1_jobs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    job_delete_api_v1_jobs_delete: {
+        parameters: {
+            query: {
+                kind: "request_prep" | "request_research" | "outline_prep";
+                target: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOperation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    job_detail_api_v1_jobs_detail_get: {
+        parameters: {
+            query: {
+                kind: "request_prep" | "request_research" | "outline_prep";
+                target: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    job_resume_api_v1_jobs_resume_post: {
+        parameters: {
+            query: {
+                kind: "request_prep" | "request_research" | "outline_prep";
+                target: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOperation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    job_trust_api_v1_jobs_trust_get: {
+        parameters: {
+            query: {
+                kind: "request_prep" | "request_research" | "outline_prep";
+                target: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobTrustReport"];
                 };
             };
             /** @description Validation Error */

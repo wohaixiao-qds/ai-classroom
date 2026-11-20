@@ -18,6 +18,7 @@ from typing import Any
 
 from app.core.catalog_store import _conn, latest_job, set_status
 from app.core.config import settings
+from app.core.job_progress import emit_progress, reset_job_context, set_job_context
 from app.core.job_store import bind_material, check_plan, ensure_active, get_binding
 
 
@@ -81,6 +82,8 @@ def _bound_prep(kind: str, target: str, material: dict[str, Any],
         if course.get("id") != cid or (owner and owner != binding["id"]):
             raise ValueError("绑定课件归属不匹配,拒绝续写")
         print(f"恢复绑定课件 {cid} (binding={binding['id']})")
+    emit_progress("material", "completed", "课程材料已绑定；恢复时沿用固定材料")
+    emit_progress("plan", "running", "核对已有规划并准备课程章节" if resume else "规划课程章节")
     result = run_prep(material, prev_subtopic=prev, resume_course_id=resume, job_binding=binding,
                       learning_goal=learning_goal, prerequisite_titles=prerequisite_titles)
     ensure_active(binding)
@@ -142,12 +145,24 @@ def _on_cancel(signum: int, _frame: Any) -> None:
 
 
 def _run() -> str:
+    token = set_job_context(sys.argv[1], sys.argv[2], _action_id())
+    try:
+        return _run_task()
+    finally:
+        reset_job_context(token)
+
+
+def _run_task() -> str:
     kind, target = sys.argv[1], sys.argv[2]
     set_status(target, "running", action_id=_action_id())
+    emit_progress("scope", "completed", f"学习主题：{target}；沿用已选学习目标")
     result: dict[str, Any]
     if kind == "request_prep":
         from app.agent.prep import _material_from_note
 
+        emit_progress("research", "skipped", "笔记备课沿用指定笔记，不开展领域调研")
+        emit_progress("outline", "skipped", "笔记备课不新建领域大纲")
+        emit_progress("material", "running", "读取指定笔记作为课程材料")
         material = _material_from_note(target)
         material["_material_path"] = target  # vault 相对路径,课表关联靠它
         result = _bound_prep(kind, target, material)
@@ -163,7 +178,10 @@ def _run() -> str:
             research_material,
         )
 
+        emit_progress("research", "running", "读取已有参考体系或开展领域调研")
         fw = cached_framework(topic) or research_framework(topic)
+        emit_progress("research", "completed", "大纲参考调研已返回；来源核验状态见可信依据")
+        emit_progress("outline", "completed", f"大纲已就绪：{len(fw['courses'])} 门课")
         # 大纲→vault 目录同步(全自动跟随):主题/篇目录 + 大纲.md 快照,绑定写回 framework
         from app.services.vault_sync import sync_outline, theme_area
 
@@ -175,6 +193,7 @@ def _run() -> str:
             raise ValueError(f"大纲里没有这门课: {course_title}")
         binding = get_binding(kind, target)
         research_context = course_research_context(fw, outline_course)
+        emit_progress("material", "running", f"准备课程材料：{course_title}")
         if binding:
             material = json.loads(binding["material_json"])
             _assert_material_context(material, research_context)
@@ -220,12 +239,15 @@ def _run() -> str:
         binding = get_binding(kind, target)
         previous = json.loads(binding["material_json"]) if binding else {}
         cached_fw = cached_framework(target)
+        emit_progress("research", "running", "读取已有参考体系或开展领域调研")
         if cached_fw is None:
             if binding:
                 raise ValueError("绑定任务的大纲已丢失或损坏，拒绝重新调研后续写")
             fw = research_framework(target)
         else:
             fw = cached_fw
+        emit_progress("research", "completed", "大纲参考调研已返回；来源核验状态见可信依据")
+        emit_progress("outline", "completed", f"大纲已就绪：{len(fw['courses'])} 门课")
         # 大纲→vault 目录同步(全自动跟随)
         sync_outline(fw, topic=target)
         original = previous
@@ -237,6 +259,7 @@ def _run() -> str:
         entry_title = str(entry.get("title", target))
         print(f"样课先行:大纲 {len(fw['courses'])} 门,先备入口课「{entry_title}」")
         research_context = course_research_context(fw, entry)
+        emit_progress("material", "running", f"准备首课材料：{entry_title}")
         if binding:
             material = json.loads(binding["material_json"])
             _assert_material_context(material, research_context)
@@ -275,6 +298,8 @@ def _run() -> str:
         # 软着陆只保留中间产物,不等于合格交付;由入口统一记 failed。
         raise RuntimeError("备课未通过校验(软着陆),产物在 courses/ 可人工接着审")
     course = result["course"]
+    emit_progress("write", "completed", "规划章节已交付，结构验收通过",
+                  current=len(course.get("sections", [])), total=len(course.get("sections", [])))
 
     # 两个入口共用大纲权威先修,包括显式的空列表。
     if kind in ("outline_prep", "request_research"):
@@ -289,6 +314,7 @@ def _run() -> str:
     from app.services.publication import ensure_publication
     from app.services.tts_compile import publish_courses
 
+    emit_progress("review", "running", "开始最终课件证据与自动语义审查")
     course = ensure_publication(
         course, material,
         learning_goal=str(outline_course.get("goal") or "")
@@ -301,7 +327,10 @@ def _run() -> str:
     binding = get_binding(kind, target)
     if binding:
         ensure_active({**binding, "action_id": _action_id()})
+    emit_progress("review", "completed", "发布规则验收通过；自动语义审查不等于人工审核")
+    emit_progress("publish", "running", "发布已通过验收的课程")
     publish_courses(str(course["id"]))
+    emit_progress("publish", "completed", f"课程已发布：{course['id']}")
 
     # 出课自动归位(P7):新课与旧课都进最贴合的大纲位置(一次 LLM 调用;
     # 失败不影响交付,下次出课或手动「归位旧课」会再试)
@@ -325,6 +354,14 @@ def _main() -> int:
         try:
             detail = _run()
         except Exception as e:  # noqa: BLE001 后台任务异常必须落状态
+            from app.core.job_events import events_for, record_event
+
+            events = events_for(sys.argv[1], sys.argv[2])
+            current = next((event for event in reversed(events)
+                            if event["action_id"] == action_id), None)
+            if current and current["status"] != "completed":
+                record_event(sys.argv[1], sys.argv[2], current["stage"], "failed", str(e),
+                             action_id=action_id)
             set_status(sys.argv[2], "failed", str(e)[:200], action_id=action_id)
             print(f"FAILED: {e}")
             return 1

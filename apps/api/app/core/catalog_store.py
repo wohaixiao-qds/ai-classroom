@@ -81,7 +81,9 @@ def set_status(target: str, status: str, detail: str | None = None,
             "SELECT id,status FROM catalog_actions WHERE id=? AND target=?", (action_id, target)
         ).fetchone()
         if row:
-            if row["status"] == "cancelled" and status != "cancelled":
+            if row["status"] == "deleted" or (
+                row["status"] == "cancelled" and status != "cancelled"
+            ):
                 return
             c.execute(
                 "UPDATE catalog_actions SET status=?, detail=? WHERE id=?",

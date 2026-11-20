@@ -116,7 +116,24 @@ def review_course(
             for b in evidence_report["blocks"]
         ]
         print(f"发布审查:最终课件 {len(claims)} 块逐项核对", flush=True)
-        review = review_claims(claims, course_mode=True)
+        checkpoint_path = report_path(str(course["id"])).with_suffix(".checkpoint.json")
+        previous = None
+        if checkpoint_path.exists():
+            try:
+                previous = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                previous = None
+
+        def checkpoint(value: dict[str, Any]) -> None:
+            from app.core.job_progress import ensure_job_active
+
+            ensure_job_active()
+            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = checkpoint_path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+            temporary.replace(checkpoint_path)
+
+        review = review_claims(claims, course_mode=True, previous=previous, checkpoint=checkpoint)
         expected = {c["id"] for c in claims}
         actual = [i["id"] for i in review["items"]]
         if set(actual) != expected or len(actual) != len(expected):
@@ -140,6 +157,9 @@ def review_course(
         "items": review["items"],
         "model_review": review,
     }
+    from app.core.job_progress import ensure_job_active
+
+    ensure_job_active()
     path = report_path(str(course["id"]))
     path.parent.mkdir(parents=True, exist_ok=True)
     # 保存历次失败便于定位,最新报告用于发布校验。
@@ -184,6 +204,10 @@ def ensure_publication(
             ensure_active(job_binding)
         if report["status"] == "model_reviewed":
             assert_publishable(course)
+            if attempt == 0:
+                from app.core.job_progress import emit_progress
+
+                emit_progress("revision", "skipped", "本次审查通过，无需定点修订")
             return course
         # 审查服务失败不能让作者猜着改,保留草稿供恢复审查。
         if (
@@ -193,6 +217,10 @@ def ensure_publication(
         ):
             break
         print(f"发布审查未通过,定点修订 {attempt + 1}/2", flush=True)
+        from app.core.job_progress import emit_progress
+
+        emit_progress("revision", "running", f"定点修订 {attempt + 1}/2："
+                      f"{len(report['errors'])} 项待处理意见")
         result = run_prep(
             material,
             resume_course_id=str(course["id"]),
@@ -203,5 +231,6 @@ def ensure_publication(
         )
         if not result.get("ok"):
             break
+        emit_progress("revision", "completed", "修订章节已保存，等待重新审查")
         course = result["course"]
     raise PublicationBlocked(f"课程未发布:最终课件审查未通过;报告 {report_path(str(course['id']))}")

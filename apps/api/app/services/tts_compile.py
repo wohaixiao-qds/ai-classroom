@@ -63,6 +63,7 @@ def compile_course_audio(course_id: str, provider: TTSProvider | None = None) ->
 
 def publish_courses(course_id: str | None = None) -> None:
     """课件+音频 → 前端 public(全量镜像,幂等)。"""
+    from app.core.job_progress import ensure_job_active
     from app.core.job_store import incomplete_course_ids
     from app.services.publication import PublicationBlocked, assert_publishable
 
@@ -87,6 +88,7 @@ def publish_courses(course_id: str | None = None) -> None:
             continue
         temp = dst / (path.name + ".tmp")
         shutil.copy2(path, temp)
+        ensure_job_active()
         temp.replace(dst / path.name)
     for directory in ("assets", "audio"):
         source = settings.courses_dir / directory

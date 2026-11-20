@@ -196,6 +196,32 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(old.read_text(), "previous published version")
         self.assertFalse(report_path("sample").exists())
 
+    def test_stopped_task_cannot_replace_published_course(self) -> None:
+        with patch("app.services.publication.review_claims", side_effect=self.approve):
+            review_course(self.course, self.material)
+        dst = settings.data_dir / "published"
+        dst.mkdir()
+        old = dst / self.path.name
+        old.write_text("previous published version")
+        with (
+            patch.object(type(settings), "web_public_courses", new_callable=PropertyMock,
+                         return_value=dst),
+            patch("app.core.job_store.incomplete_course_ids", return_value=set()),
+            patch("app.core.job_progress.ensure_job_active", side_effect=ValueError("已停止")),
+        ):
+            with self.assertRaisesRegex(ValueError, "已停止"):
+                publish_courses("sample")
+        self.assertEqual(old.read_text(), "previous published version")
+
+    def test_stopped_task_cannot_save_final_review(self) -> None:
+        with (
+            patch("app.services.publication.review_claims", side_effect=self.approve),
+            patch("app.core.job_progress.ensure_job_active", side_effect=ValueError("已停止")),
+        ):
+            with self.assertRaisesRegex(ValueError, "已停止"):
+                review_course(self.course, self.material)
+        self.assertFalse(report_path("sample").exists())
+
     def test_linked_factual_block_cannot_be_exempted_as_example(self) -> None:
         def exempt(claims: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
             result = self.approve(claims, **kwargs)

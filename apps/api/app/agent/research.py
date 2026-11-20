@@ -28,6 +28,7 @@ from app.agent.tools import (  # noqa: F401  # web_search 供 _require_search �
     web_search,
 )
 from app.core.config import settings
+from app.core.job_progress import emit_progress
 from app.core.llm import get_llm_client
 from app.core.prompts import parse_json_reply
 from app.core.trace import digest, observed, run_context, trace_research, update_run
@@ -704,6 +705,9 @@ def _loop(
                 url = str(b.input.get("url", ""))
                 if url not in successful_fetches:
                     successful_fetches[url] = {"result": out, "call_index": len(tool_calls) - 1}
+                emit_progress("material" if phase.startswith("material:") else "research",
+                              "running", f"已读取来源正文：{url}",
+                              current=len(successful_fetches))
             update_run(tool_calls=tool_calls)
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": out,
                             "is_error": bool(err)})

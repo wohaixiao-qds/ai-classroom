@@ -30,6 +30,7 @@ from typing import Any
 
 from app.agent.tools import emit_call, read_notes
 from app.core.config import settings
+from app.core.job_progress import emit_progress
 from app.core.llm import get_llm_client
 from app.core.prompts import DEV_LANDING_RULE, OFF_THE_SHELF_RULE, PITFALL_RULE
 from app.core.trace import observed, run_context, trace_prep, update_run
@@ -369,6 +370,8 @@ def _make_tools(
         if state["course_id"]:
             _save_plan(state["course_id"], plan, groups, job_binding, learning_goal)
         state["plan"] = plan
+        emit_progress("plan", "completed", f"规划通过：{len(plan)} 节、{n_quiz} 个检查点",
+                      current=len(plan), total=len(plan))
         return (
             f"规划通过({len(plan)} 节 / {n_quiz} 检查点)。"
             + ("继续:write_section 按规划补齐。" if state["course_id"]
@@ -512,6 +515,9 @@ def _make_tools(
             _op_log(cid, "replace", f"{sid} {str(section.get('heading', ''))[:24]}")
         course["sections"].sort(key=lambda s: plan_ids.index(s["id"]))
         p.write_text(json.dumps(course, ensure_ascii=False, indent=2), encoding="utf-8")
+        emit_progress("write", "completed" if len(course["sections"]) == len(state["plan"])
+                      else "running", msg, current=len(course["sections"]),
+                      total=len(state["plan"]))
         return msg
 
     def validate_csl() -> str:
@@ -894,6 +900,9 @@ def run_prep(
     run_context(prompt=prompt, tools=tools,
                 parameters={"max_tokens": 16384, "max_turns": MAX_TURNS})
     update_run(subtopic=str(material.get("subtopic", "")))
+    if state.get("plan"):
+        emit_progress("plan", "completed", "已恢复有效课程规划",
+                      current=len(state["plan"]), total=len(state["plan"]))
 
     def final_check() -> list[str] | None:
         """天然收笔后的强校验:不过打回(None=通过)。终止客观化的关键一步。"""
