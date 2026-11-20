@@ -34,9 +34,11 @@ def job_log(kind: Kind, target: str, tail: int = 40) -> dict[str, object]:
 
 @router.post("/jobs/cancel")
 def cancel(kind: Kind, target: str) -> dict[str, object]:
-    """手动取消后台任务:SIGTERM → job_runner 收尾(清 0 节骨架/置 cancelled)。"""
+    """手动取消后台任务:SIGTERM → job_runner 保留恢复产物并置 cancelled。"""
     r = cancel_job(kind, target)
     if r["cancelled"]:
         # 状态置 cancelled(信号钩子也会置,双保险防钩子前窗口)
-        set_status(target, "cancelled", str(r.get("note", "手动取消")))
+        action_id = r.get("action_id")
+        set_status(target, "cancelled", str(r.get("note", "手动取消")),
+                   action_id=int(action_id) if isinstance(action_id, int) else None)
     return r

@@ -61,11 +61,22 @@ def compile_course_audio(course_id: str, provider: TTSProvider | None = None) ->
     return asyncio.run(_gen(provider or EdgeTTSProvider(), path))
 
 
-def publish_courses() -> None:
+def publish_courses(course_id: str | None = None) -> None:
     """课件+音频 → 前端 public(全量镜像,幂等)。"""
     dst = settings.web_public_courses
     dst.parent.mkdir(parents=True, exist_ok=True)
     if dst.exists():
         shutil.rmtree(dst)
-    shutil.copytree(settings.courses_dir, dst)
+    from app.core.job_store import incomplete_course_ids
+
+    pending = incomplete_course_ids()
+    pending.discard(course_id or "")  # 当前课程已终验,发布成功后 runner 才置 done
+
+    def ignore(directory: str, names: list[str]) -> set[str]:
+        if Path(directory) != settings.courses_dir:
+            return set()
+        return {name for name in names if name.endswith(".csl.json")
+                and name.removesuffix(".csl.json") in pending}
+
+    shutil.copytree(settings.courses_dir, dst, ignore=ignore)
     print(f"✅ 已发布到前端: {dst}")

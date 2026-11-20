@@ -9,6 +9,8 @@ from unittest.mock import MagicMock, patch
 
 from app import job_runner
 from app.core import catalog_store
+from app.core.config import settings
+from app.core.job_store import bind_material
 
 
 class JobRunnerTests(unittest.TestCase):
@@ -16,11 +18,19 @@ class JobRunnerTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.tmp_dir = Path(tmp.name)
+        for name in ("courses_dir", "data_dir", "traces_dir"):
+            directory = self.tmp_dir / name
+            directory.mkdir()
+            directory_patch = patch.object(settings, name, directory)
+            directory_patch.start()
+            self.addCleanup(directory_patch.stop)
         db_patch = patch.object(catalog_store, "_DB", self.tmp_dir / "classroom.db")
         db_patch.start()
         self.addCleanup(db_patch.stop)
         self.target = "测试笔记.md"
         catalog_store.record_action("request_prep", self.target)
+        bind_material("request_prep", self.target, {"_material_path": self.target},
+                      legacy_course_id="test-course")
         # 已有产物供失败后续写,失败路径不得清掉它。
         self.partial_path = self.tmp_dir / "partial.csl.json"
         self.partial = json.dumps({"id": "partial", "sections": [{"id": "s1"}]})
@@ -54,7 +64,8 @@ class JobRunnerTests(unittest.TestCase):
             return job_runner._main()
 
     def test_success_is_done_only_after_publish(self) -> None:
-        def publish() -> None:
+        def publish(course_id: str) -> None:
+            self.assertEqual(course_id, "test-course")
             self.assertEqual(self._status(), ("running", None))
 
         self.publish.side_effect = publish
@@ -63,7 +74,7 @@ class JobRunnerTests(unittest.TestCase):
         self.publish.assert_called_once()
 
     def test_failed_validation_is_failed_and_preserves_partial(self) -> None:
-        self.prep.return_value = {"ok": False, "course": {"id": "partial"}}
+        self.prep.return_value = {"ok": False, "course": {"id": "test-course"}}
         self.assertEqual(self._run(), 1)
         status, detail = self._status()
         self.assertEqual(status, "failed")

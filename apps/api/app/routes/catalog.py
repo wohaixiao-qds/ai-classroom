@@ -24,13 +24,15 @@ def catalog() -> Catalog:
 @router.post("/catalog/action", response_model=ActionResult)
 def catalog_action(req: CatalogAction) -> ActionResult:
     """记录课表点击意图。备课/调研类(M5)顺手派后台任务,按钮即刻变真。"""
-    row = record_action(req.kind, req.target, req.label)
     if req.kind in ("request_prep", "request_research"):
-        from app.core.catalog_store import action_index
-        from app.services.executor import start_job
+        from app.services.executor import reconcile_job, start_job
 
-        if action_index()["status_of"].get(req.target) != "running":  # 防重复派活
-            log = start_job(req.kind, req.target)
+        reconcile_job(req.kind, req.target)
+        row = record_action(req.kind, req.target, req.label)
+        if row["created"]:
+            log = start_job(req.kind, req.target, action_id=row["id"])
             row["status"] = "running"
             row["detail"] = f"后台执行中,日志: {log}"
+    else:
+        row = record_action(req.kind, req.target, req.label)
     return ActionResult(**row)

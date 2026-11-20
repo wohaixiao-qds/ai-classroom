@@ -18,7 +18,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.agent import prep, research, tutor
-from app.core import learning_store, lessons, memory, progress, trace
+from app.core import catalog_store, learning_store, lessons, memory, progress, trace
 from app.core.config import settings
 from app.routes import chat
 from app.routes import eval as eval_routes
@@ -39,7 +39,7 @@ class EvalTests(unittest.TestCase):
         db = patch.object(progress, "_DB", settings.data_dir / "classroom.db")
         db.start()
         self.addCleanup(db.stop)
-        for module in (memory, mastery):
+        for module in (memory, mastery, catalog_store):
             store = patch.object(module, "_DB", settings.data_dir / "classroom.db")
             store.start()
             self.addCleanup(store.stop)

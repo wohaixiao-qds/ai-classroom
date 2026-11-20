@@ -91,11 +91,18 @@ def _load_courses() -> tuple[list[CourseItem], set[str]]:
     items: list[CourseItem] = []
     covered: set[str] = set()
     vault_map = _vault_map()
+    from app.core.job_store import incomplete_course_ids
+
+    pending = incomplete_course_ids()
     for p in sorted(settings.courses_dir.glob("*.csl.json")):
+        if p.name.removesuffix(".csl.json") in pending:
+            continue
         try:
             course = parse_course(p.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001 单个坏课件不该拖垮整张课表
             continue
+        if not (getattr(course, "sections", None) or getattr(course, "pages", None)):
+            continue  # 取消后保留的恢复骨架不是可学习课程
         items.append(
             CourseItem(
                 id=course.id,

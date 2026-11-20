@@ -16,7 +16,8 @@ from pydantic import BaseModel
 from app.agent.research import validate_framework
 from app.core.catalog_store import record_action
 from app.core.config import settings
-from app.services.executor import start_job
+from app.core.job_store import get_binding, incomplete_course_ids
+from app.services.executor import reconcile_job, start_job
 from app.services.outline_attribution import _load_outline, _outline_path
 
 router = APIRouter(prefix="/api/v1", tags=["outline"])
@@ -26,15 +27,27 @@ _KNOWN_COURSE_KEYS = {
 }
 
 
-def _existing_courses_index() -> tuple[dict[str, list[str]], dict[str, str], set[str]]:
+def _existing_courses_index(
+    topic: str | None = None,
+) -> tuple[dict[str, list[str]], dict[str, str], set[str]]:
     """扫描课件目录:课名 → [课件id](同名课多门都保留)、id → 课名、全量 id 集。"""
     by_title: dict[str, list[str]] = {}
     id_title: dict[str, str] = {}
     all_ids: set[str] = set()
+    pending = incomplete_course_ids()
     for p in sorted(settings.courses_dir.glob("*.csl.json")):
+        if p.name.removesuffix(".csl.json") in pending:
+            continue
         try:
             d = json.loads(p.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001 坏课件不挡列表
+            continue
+        if not (d.get("sections") or d.get("pages")):
+            continue
+        meta = d.get("meta") or {}
+        if topic is not None and meta.get("job_kind") == "outline_prep" and not str(
+            meta.get("job_target", "")
+        ).startswith(topic + "::"):
             continue
         cid = str(d.get("id", ""))
         title = str(d.get("title", ""))
@@ -44,12 +57,20 @@ def _existing_courses_index() -> tuple[dict[str, list[str]], dict[str, str], set
     return by_title, id_title, all_ids
 
 
-def _outline_linked_ids() -> dict[str, str]:
+def _outline_linked_ids(topic: str | None = None) -> dict[str, str]:
     """大纲课 id → 已出课件 id(出课时写进 meta.outline_course_id 的精确链)。"""
     out: dict[str, str] = {}
+    pending = incomplete_course_ids()
     for p in sorted(settings.courses_dir.glob("*.csl.json")):
+        if p.name.removesuffix(".csl.json") in pending:
+            continue
         try:
             d = json.loads(p.read_text(encoding="utf-8"))
+            meta = d.get("meta") or {}
+            if topic is not None and meta.get("job_kind") == "outline_prep" and not str(
+                meta.get("job_target", "")
+            ).startswith(topic + "::"):
+                continue
             oid = str(d.get("meta", {}).get("outline_course_id", "") or "")
             if oid:
                 out[oid] = str(d.get("id", ""))
@@ -100,8 +121,6 @@ def _prep_status(topic: str, titles: list[str]) -> dict[str, str]:
 
 @router.get("/outlines")
 def list_outlines() -> list[dict[str, Any]]:
-    by_title, id_title, all_ids = _existing_courses_index()
-    linked = _outline_linked_ids()
     out: list[dict[str, Any]] = []
     for p in sorted((settings.data_dir / "research").glob("*.framework.json")):
         try:
@@ -110,6 +129,9 @@ def list_outlines() -> list[dict[str, Any]]:
             continue
         if not isinstance(d, dict):
             continue
+        topic = str(d.get("topic", p.stem))
+        by_title, id_title, all_ids = _existing_courses_index(topic)
+        linked = _outline_linked_ids(topic)
         courses = d.get("courses") or d.get("subtopics") or []
         # 已有课件的课数:chips 上直接亮「已出 N」,不用点开逐个数
         prepared = sum(
@@ -130,8 +152,8 @@ def list_outlines() -> list[dict[str, Any]]:
 def get_outline(topic: str) -> dict[str, Any]:
     d = _load_outline(topic)
     titles_by_id = {str(c.get("id")): str(c.get("title")) for c in d["courses"]}
-    by_title, id_title, all_ids = _existing_courses_index()
-    linked = _outline_linked_ids()
+    by_title, id_title, all_ids = _existing_courses_index(topic)
+    linked = _outline_linked_ids(topic)
     status = _prep_status(topic, [str(c.get("title")) for c in d["courses"]])
     courses = []
     for c in d["courses"]:
@@ -227,23 +249,21 @@ def prep_course(topic: str, req: OutlinePrepReq) -> dict[str, Any]:
     d = _load_outline(topic)
     if not any(str(c.get("title")) == req.title for c in d["courses"]):
         raise HTTPException(404, f"大纲里没有「{req.title}」")
-    by_title, _, _ = _existing_courses_index()
-    if req.title in by_title:
-        # 骨架课(0 节,取消/失败残留)放行重新点单;有内容的才挡
-        skeleton = [
-            cid
-            for cid in by_title[req.title]
-            if not json.loads(
-                (settings.courses_dir / f"{cid}.csl.json").read_text(encoding="utf-8")
-            ).get("sections")
-        ]
-        if not skeleton:
-            cid0 = by_title[req.title][0]
-            raise HTTPException(409, f"这门课已出过(course: {cid0});要重做先删旧课件")
-        # 删骨架:点单后 outline_prep 会走续写模式(0 节=全新写)
-        for cid in skeleton:
-            (settings.courses_dir / f"{cid}.csl.json").unlink(missing_ok=True)
     target = f"{topic}::{req.title}"
-    record_action("outline_prep", target, req.title)
-    log = start_job("outline_prep", target)
+    binding = get_binding("outline_prep", target)
+    from app.core.catalog_store import latest_job
+
+    previous = latest_job("outline_prep", target)
+    if binding and previous and previous["status"] == "done":
+        raise HTTPException(409, f"这门课已交付(course: {binding['course_id']})")
+    entry = next(c for c in d["courses"] if str(c.get("title")) == req.title)
+    # 大纲明确挂接的课件才拦截;全库同名课不构成任务归属证据。
+    refs = [*(entry.get("course_refs") or []), entry.get("course_ref")]
+    if not binding and any(
+        ref and (settings.courses_dir / f"{ref}.csl.json").exists() for ref in refs
+    ):
+        raise HTTPException(409, "大纲此处已有挂接课件,请先审阅现有内容")
+    reconcile_job("outline_prep", target)
+    row = record_action("outline_prep", target, req.title)
+    log = (start_job("outline_prep", target, action_id=row["id"]) if row["created"] else "")
     return {"queued": True, "target": target, "log": log}

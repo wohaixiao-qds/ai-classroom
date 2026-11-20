@@ -168,11 +168,18 @@ def _plan_path(course_id: str) -> Path:
     return settings.data_dir / "research" / f"{course_id}.plan.json"
 
 
-def _save_plan(course_id: str, plan: list[dict[str, Any]], groups: list[str]) -> None:
+def _save_plan(course_id: str, plan: list[dict[str, Any]], groups: list[str],
+               binding: dict[str, Any] | None = None) -> None:
     """规划独立于发布课件,原子替换避免中断留下半份 JSON。"""
     path = _plan_path(course_id)
+    if binding:
+        from app.core.job_store import ensure_active
+
+        ensure_active(binding)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {"version": 1, "course_id": course_id, "sections": plan, "groups": groups}
+    if binding:
+        payload.update(job_binding_id=binding["id"], material_hash=binding["material_hash"])
     with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
                                      delete=False) as file:
         temp = Path(file.name)
@@ -182,6 +189,10 @@ def _save_plan(course_id: str, plan: list[dict[str, Any]], groups: list[str]) ->
             temp.replace(path)
         finally:
             temp.unlink(missing_ok=True)
+    if binding:
+        from app.core.job_store import record_plan
+
+        record_plan(str(binding["id"]), path)
 
 
 def _plan_delivery_errors(course: dict[str, Any], plan: list[dict[str, Any]] | None) -> list[str]:
@@ -231,6 +242,7 @@ def _make_tools(
     material_path: str | None = None,
     material_topic: str | None = None,
     material_groups: list[str] | None = None,
+    job_binding: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
     groups = material_groups or []
     state: dict[str, Any] = {"course_id": None, "plan": None, "plan_reviews": 0}
@@ -307,7 +319,7 @@ def _make_tools(
                 state["plan_reviews"] += 1
                 return f"(学员对规划有意见,按它重排后再 submit_plan):{raw}"
         if state["course_id"]:
-            _save_plan(state["course_id"], plan, groups)
+            _save_plan(state["course_id"], plan, groups, job_binding)
         state["plan"] = plan
         return (
             f"规划通过({len(plan)} 节 / {n_quiz} 检查点)。"
@@ -324,6 +336,8 @@ def _make_tools(
     ) -> str:
         if state["plan"] is None:
             return "(还没 submit_plan,先规划再建课件)"
+        if job_binding:
+            id = str(job_binding["course_id"])  # 后台任务预留,不靠模型命名辨认归属
         p = _course_path(id)
         if p.exists():
             return f"(课件 {id} 已存在,换个 id 或先删旧文件)"
@@ -358,7 +372,7 @@ def _make_tools(
         # 确定性覆盖:模型爱填小节标题之类的噪音,一律不认(实测踩过)
         if material_path:
             source_notes = [material_path]
-        course = {
+        course: dict[str, Any] = {
             "id": id,
             "title": title,
             "scenario": scenario,
@@ -378,7 +392,10 @@ def _make_tools(
             "sections": [],
         }
         p.parent.mkdir(parents=True, exist_ok=True)
-        _save_plan(id, state["plan"], groups)
+        if job_binding:
+            course["meta"].update(job_binding_id=job_binding["id"],
+                                  job_kind=job_binding["kind"], job_target=job_binding["target"])
+        _save_plan(id, state["plan"], groups, job_binding)
         p.write_text(json.dumps(course, ensure_ascii=False, indent=2), encoding="utf-8")
         state["course_id"] = id
         dep_msg = (
@@ -388,6 +405,10 @@ def _make_tools(
         return f"课件骨架已建:{p.name}。先修:{dep_msg}。现在按计划 write_section 逐节写。"
 
     def write_section(section: dict[str, Any]) -> str:
+        if job_binding:
+            from app.core.job_store import ensure_active
+
+            ensure_active(job_binding)
         cid = state["course_id"]
         if state["plan"] is None:
             return "(还没 submit_plan,先规划)"
@@ -667,12 +688,14 @@ def run_prep(
     prev_subtopic: str | None = None,
     resume_course_id: str | None = None,
     *, source: str = "user",
+    job_binding: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     tools, dispatch, state = _make_tools(
         material.get("sources") or [],
         material_path=material.get("_material_path"),
         material_topic=str(material.get("topic")) or None,
         material_groups=[str(g.get("heading", "")) for g in material.get("groups", [])],
+        job_binding=job_binding,
     )
     state["subtopic"] = str(material.get("subtopic") or "本课")  # 兜底模板用
     position = (
@@ -766,6 +789,10 @@ def run_prep(
         return errors or None
 
     for turn in range(MAX_TURNS):
+        if job_binding:
+            from app.core.job_store import ensure_active
+
+            ensure_active(job_binding)
         update_run(turns=turn + 1)
         last_turn = turn == MAX_TURNS - 1
         resp = client.messages.create(
