@@ -44,9 +44,10 @@ export function useCatalog() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
       } catch (e: unknown) {
         setErr(`操作失败:${String(e)}`);
-        return;
+        return false;
       }
       load();
+      return true;
     },
     [load],
   );

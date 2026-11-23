@@ -18,9 +18,9 @@ export function SectionHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("mb-3 flex items-center gap-2", className)}>
+    <div className={cn("mb-3 flex flex-wrap items-center gap-x-2 gap-y-1", className)}>
       <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-secondary text-primary">
-        <Icon size={15} />
+        <Icon size={15} aria-hidden="true" />
       </span>
       <h2 className="text-base font-semibold tracking-wide">{title}</h2>
       {count !== undefined && (
@@ -28,7 +28,7 @@ export function SectionHeader({
           {count}
         </span>
       )}
-      {hint && <span className="truncate text-xs text-muted-foreground">· {hint}</span>}
+      {hint && <p className="basis-full text-sm leading-relaxed text-muted-foreground sm:basis-auto sm:flex-1">{hint}</p>}
     </div>
   );
 }

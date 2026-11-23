@@ -1,46 +1,67 @@
 import { Activity, GraduationCap, Wand2 } from "lucide-react";
-import { NavLink, Outlet } from "react-router-dom";
+import type { CSSProperties } from "react";
+import { Link, Outlet, useLocation } from "react-router-dom";
 
 import { ThemeSwitcher } from "../components/ThemeSwitcher";
 import { cn } from "../lib/utils";
 
-/** 学习台与课程库合二为一(2026-11-17 拍板):课程库升级为学习主页(今日横条+封面继续读),
- *  学习台退役(/ 重定向 /courses)。导航三项:学习/生成中心/观测。 */
 const NAV = [
-  { to: "/courses", label: "学习", icon: GraduationCap, end: false },
-  { to: "/studio", label: "生成中心", icon: Wand2, end: false },
-  { to: "/eval", label: "观测", icon: Activity, end: false },
+  { to: "/courses", label: "学习", icon: GraduationCap },
+  { to: "/studio", label: "生成中心", icon: Wand2 },
+  { to: "/eval", label: "观测", icon: Activity },
 ];
+
 export function Shell() {
-  const link = ({ isActive }: { isActive: boolean }) =>
-    cn(
-      "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40",
-      isActive
-        ? "bg-primary/15 font-medium text-primary"
-        : "text-muted-foreground hover:bg-accent hover:text-foreground",
-    );
+  const { pathname } = useLocation();
+  const onBookPage = pathname.startsWith("/books/");
+  const activeIndex = NAV.findIndex(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
+  const selectedIndex = onBookPage ? 0 : activeIndex;
+
   return (
-    <div className="flex h-full flex-col bg-background text-foreground">
-      <header className="flex shrink-0 items-center gap-8 border-b border-border px-6 py-3">
-        <span className="flex items-center gap-2 font-bold tracking-wide">
-          <span className="flex size-7 items-center justify-center rounded-md bg-primary/15 text-primary">
-            <GraduationCap size={16} />
+    <div className="flex h-full flex-col bg-background text-foreground lg:flex-row">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded-md focus:bg-card focus:p-3">
+        跳到正文
+      </a>
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 border-b border-border bg-secondary/50 px-4 pt-2 lg:w-52 lg:flex-col lg:flex-nowrap lg:items-stretch lg:justify-start lg:gap-8 lg:border-r lg:border-b-0 lg:p-5">
+        <Link to="/courses" viewTransition className="flex min-h-11 w-fit items-center gap-2 rounded-md font-semibold">
+          <span className="grid size-8 place-items-center rounded-lg bg-primary/12 text-primary">
+            <GraduationCap size={18} aria-hidden="true" />
           </span>
           AI 教室
-        </span>
-        <nav className="flex gap-1">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} className={link} end={end} viewTransition>
-              <Icon size={14} />
-              {label}
-            </NavLink>
-          ))}
+        </Link>
+        <nav aria-label="主导航" className="shell-nav relative order-last grid w-full grid-cols-3 gap-1 pb-2 lg:order-none lg:grid-cols-1 lg:pb-0">
+          {selectedIndex >= 0 && (
+            <span
+              aria-hidden="true"
+              className="shell-nav-indicator pointer-events-none absolute inset-x-0 top-0 hidden rounded-lg bg-primary/12 lg:block"
+              style={{ "--nav-index": selectedIndex } as CSSProperties}
+            />
+          )}
+          {NAV.map(({ to, label, icon: Icon }, index) => {
+            const current = pathname === to;
+            const active = index === selectedIndex;
+            return (
+              <Link
+                key={to}
+                to={to}
+                viewTransition
+                aria-current={current ? "page" : active ? "location" : undefined}
+                className={cn(
+                  "relative flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 text-sm font-medium transition-colors lg:justify-start lg:px-3",
+                  active ? "bg-primary/12 text-primary lg:bg-transparent" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )}
+              >
+                <Icon size={16} aria-hidden="true" />
+                {label}
+              </Link>
+            );
+          })}
         </nav>
-        <div className="ml-auto">
+        <div className="lg:mt-auto">
           <ThemeSwitcher />
         </div>
       </header>
-      <main className="min-h-0 flex-1 overflow-y-auto">
+      <main id="main-content" tabIndex={-1} className="route-content min-h-0 min-w-0 flex-1 overflow-y-auto">
         <Outlet />
       </main>
     </div>

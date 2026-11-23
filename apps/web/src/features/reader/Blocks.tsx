@@ -30,7 +30,10 @@ function jumpToSource(n: string, e: React.MouseEvent) {
   e.preventDefault();
   const el = document.getElementById(`src-${n}`);
   if (!el) return;
-  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  const bounds = el.getBoundingClientRect();
+  const nearby = bounds.top >= -window.innerHeight && bounds.bottom <= window.innerHeight * 2;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ behavior: nearby && !reduceMotion ? "smooth" : "instant", block: "center" });
   el.classList.add("rounded", "bg-primary/10", "ring-2", "ring-primary/40");
   window.setTimeout(() => {
     el.classList.remove("rounded", "bg-primary/10", "ring-2", "ring-primary/40");
@@ -411,12 +414,12 @@ function FlashCards({
               type="button"
               onClick={() => toggle(i)}
               className="block w-full text-left [perspective:900px]"
-              title={isFlipped ? "点回正面" : "点看答案"}
+              aria-label={isFlipped ? `${c.back}。返回问题` : `${c.front}。查看答案`}
             >
               {/* 正反两面网格同格堆叠(容器高度=较高面),内层 preserve-3d 旋转翻面 */}
               <div
                 className={cn(
-                  "grid transition-transform duration-500 ease-spring transform-3d",
+                  "grid transition-transform duration-(--dur-med) ease-out transform-3d motion-reduce:transition-none",
                   isFlipped && "rotate-y-180",
                 )}
               >

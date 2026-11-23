@@ -65,11 +65,11 @@ export function StudioPage() {
   if (!cat) return <PageLoading />;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 px-6 py-8">
-      <header className="space-y-2">
+    <div className="workspace-page space-y-8">
+      <header className="workspace-header">
         <div>
-          <h1 className="text-2xl font-bold">生成中心</h1>
-          <p className="text-sm text-muted-foreground">输入想学的主题，查看生成流程与可核查依据，再按大纲逐课学习。</p>
+          <h1 className="workspace-title">生成中心</h1>
+          <p className="workspace-description">输入想学的主题，查看生成流程与可核查依据，再按大纲逐课学习。</p>
         </div>
       </header>
 
@@ -85,7 +85,7 @@ export function StudioPage() {
             className="min-h-11 min-w-0 flex-[1_1_16rem]"
           />
           <Button type="submit" className="min-h-11 lg:min-w-32" disabled={!topic.trim() || requestState === "pending"}>
-            {requestState === "pending" && requestAction === "generate" && <span className="inline-flex"><LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /></span>}
+            {requestState === "pending" && requestAction === "generate" && <span className="desktop-state-arrive inline-flex"><LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /></span>}
             {requestState === "pending" && requestAction === "generate" ? "提交中…" : "开始生成"}
           </Button>
           <Button type="button" variant="outline" className="min-h-11" disabled={!topic.trim() || requestState === "pending"} onClick={() => void submit("save")}>
@@ -94,8 +94,8 @@ export function StudioPage() {
         </form>
         <p role="status" className="text-sm text-primary">
           {requestState === "pending" && <span className="sr-only">{requestAction === "generate" ? "正在提交生成请求。" : "正在保存主题。"}</span>}
-          {requestState === "accepted" && <span className="mt-3 inline-block">已提交生成请求，对应任务已展开，可查看节点进度。</span>}
-          {requestState === "saved" && <span className="mt-3 inline-block">{saveNotice}</span>}
+          {requestState === "accepted" && <span className="anim-drop mt-3 inline-block">已提交生成请求，对应任务已展开，可查看节点进度。</span>}
+          {requestState === "saved" && <span className="anim-drop mt-3 inline-block">{saveNotice}</span>}
         </p>
         <p role="alert" className="text-sm text-destructive">
           {requestState === "failed" && <span className="mt-3 inline-block break-words">{requestError}</span>}

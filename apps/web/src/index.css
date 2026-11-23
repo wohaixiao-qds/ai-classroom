@@ -10,7 +10,7 @@
    z-index 约定:nav=30 / 悬浮条=40 / dialog=50 / tooltip=60,勿用魔数。
 
    运动纪律(P4 第五轮,借 Prompt Motion 的 direction 语法):
-   springs、最多一点点 overshoot;只动 transform/opacity/color。
+   操作反馈用短过渡，避免反弹；优先使用 transform/opacity/color。
    Banned:弹跳缓动、粒子、发光、视差、模板感动效。
    全站动效必须过 prefers-reduced-motion(见文件底部全局归零块)。
    ===================================================================== */
@@ -30,12 +30,10 @@
   --warning: #fbbf24;
   --danger: #f87171;
   --overlay: rgba(4, 8, 20, 0.72);
-  /* 动效 token:三档时长 + 两枚缓动(--ease-out 继承 deck 时代旧曲线) */
   --dur-fast: 150ms;
   --dur-med: 300ms;
-  --dur-slow: 550ms;
-  --ease-out: cubic-bezier(0.22, 0.9, 0.3, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-slow: 420ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 [data-theme="a"] {
@@ -108,9 +106,8 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* 动效:缓动暴露为 Tailwind 工具类(ease-out / ease-spring) */
+  /* 动效缓动暴露为 Tailwind 工具类。 */
   --ease-out: var(--ease-out);
-  --ease-spring: var(--ease-spring);
 }
 
 @layer base {
@@ -128,13 +125,32 @@
   }
 }
 
+/* 应用页共享版心，书页和课程详情使用较窄的阅读宽度。 */
+@layer components {
+  .workspace-page {
+    @apply mx-auto w-full max-w-6xl px-4 pt-7 pb-12 sm:px-8 sm:pt-10 lg:px-10;
+  }
+  .workspace-page--detail {
+    @apply max-w-3xl;
+  }
+  .workspace-header {
+    @apply mb-7 flex flex-wrap items-end justify-between gap-x-5 gap-y-3 border-b border-border pb-5 sm:mb-9;
+  }
+  .workspace-title {
+    @apply text-3xl font-semibold leading-tight break-words sm:text-4xl;
+  }
+  .workspace-description {
+    @apply mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground;
+  }
+}
+
 /* =====================================================================
    动效体系(CSS 打底):入场/弹现/扫光三枚 keyframes + 路由 View Transition
    ===================================================================== */
 @keyframes fade-up {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -142,12 +158,9 @@
   }
 }
 @keyframes pop {
-  0% {
+  from {
     opacity: 0;
-    transform: scale(0.6);
-  }
-  60% {
-    transform: scale(1.08);
+    transform: scale(0.9);
   }
   100% {
     opacity: 1;
@@ -192,7 +205,7 @@
   animation: fade-up var(--dur-med) var(--ease-out) both;
 }
 .anim-pop {
-  animation: pop var(--dur-med) var(--ease-spring) both;
+  animation: pop var(--dur-med) var(--ease-out) both;
 }
 .anim-drop {
   animation: fade-drop var(--dur-med) var(--ease-out) both;
@@ -200,7 +213,7 @@
 @keyframes fade-drop {
   from {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-8px);
   }
   to {
     opacity: 1;
@@ -227,22 +240,98 @@
   animation: shimmer 1.6s linear infinite;
 }
 
-/* 路由切换过渡(react-router viewTransition 触发;不支持的浏览器自动硬切) */
-::view-transition-old(root) {
-  animation: var(--dur-fast) var(--ease-out) both vt-out;
+/* 只过渡页面内容，导航栏和阅读工具栏保持稳定。 */
+:root:active-view-transition {
+  view-transition-name: none;
 }
-::view-transition-new(root) {
-  animation: var(--dur-med) var(--ease-out) both vt-in;
+:root:active-view-transition .route-content {
+  view-transition-name: route-content;
 }
-@keyframes vt-out {
-  to {
-    opacity: 0;
+::view-transition-group(route-content) {
+  animation: none;
+}
+::view-transition-old(route-content) {
+  display: none;
+}
+::view-transition-new(route-content) {
+  animation: var(--dur-med) var(--ease-out) both route-arrive;
+}
+@keyframes route-arrive {
+  from {
+    opacity: 0.8;
   }
 }
-@keyframes vt-in {
+
+@media (width >= 64rem) {
+  .shell-nav {
+    --nav-row: 2.75rem;
+    --nav-gap: 0.25rem;
+    grid-auto-rows: var(--nav-row);
+    gap: var(--nav-gap);
+  }
+  .shell-nav-indicator {
+    height: var(--nav-row);
+    transform: translateY(calc(var(--nav-index) * (var(--nav-row) + var(--nav-gap))));
+    transition: transform var(--dur-med) var(--ease-out);
+  }
+  .library-book-card__surface {
+    height: 100%;
+    transition:
+      transform var(--dur-med) var(--ease-out),
+      box-shadow var(--dur-med) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+  }
+  .library-book-card:hover .library-book-card__surface,
+  .library-book-card:focus-within .library-book-card__surface {
+    transform: translateY(-6px);
+    box-shadow: 0 18px 34px -24px rgb(0 0 0 / 0.9);
+  }
+  .desktop-book-enter {
+    animation: fade-up var(--dur-med) var(--ease-out) both;
+  }
+  ::view-transition-new(route-content) {
+    animation-duration: var(--dur-slow);
+    animation-name: desktop-route-arrive;
+  }
+  .desktop-state-arrive {
+    animation: desktop-route-arrive var(--dur-med) var(--ease-out) both;
+  }
+}
+@keyframes desktop-route-arrive {
   from {
+    opacity: 0.72;
+    transform: translateY(12px);
+  }
+}
+
+@media (width < 64rem) {
+  .reader-chat {
+    visibility: hidden;
+    interactivity: inert;
+    pointer-events: none;
+    transition: visibility var(--dur-fast) step-end;
+  }
+  .reader-chat[data-open="true"] {
+    visibility: visible;
+    interactivity: auto;
+    pointer-events: auto;
+    transition: none;
+  }
+  /* 背景留在原位，收起时正文不会透过答疑文字。 */
+  .reader-chat > aside {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
+    transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+  }
+  .reader-chat[data-open="true"] > aside {
+    opacity: 1;
+    transform: none;
+    transition-duration: var(--dur-med);
+  }
+  @supports not (interactivity: inert) {
+    .reader-chat:not([data-open="true"]) {
+      transition: none;
+    }
   }
 }
 
@@ -262,6 +351,11 @@
   ::view-transition-old(*),
   ::view-transition-new(*) {
     animation: none !important;
+  }
+  .library-book-card:hover .library-book-card__surface,
+  .library-book-card:focus-within .library-book-card__surface {
+    transform: none;
+    box-shadow: none;
   }
 }
 

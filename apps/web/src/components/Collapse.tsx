@@ -16,12 +16,12 @@ export function Collapse({
   return (
     <div
       className={cn(
-        "grid transition-[grid-template-rows] duration-300 ease-out",
+        "grid transition-[grid-template-rows] duration-(--dur-med) ease-out",
         open ? "[grid-template-rows:1fr]" : "[grid-template-rows:0fr]",
         className,
       )}
     >
-      <div className="overflow-hidden">{children}</div>
+      <div className="min-h-0 overflow-hidden" inert={!open}>{children}</div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Markdown from "react-markdown";
 import { Brain, Check, ChevronRight, Copy, History, MessageCircleQuestion, Pencil, Plus, Search, Send } from "lucide-react";
@@ -7,6 +7,7 @@ import type { Course, CourseV2 } from "../../types/csl";
 import { linkifyUrls } from "../../utils/linkify";
 import { normalizeBold } from "../../utils/md";
 import { cn } from "../../lib/utils";
+import { Collapse } from "../../components/Collapse";
 import { Button } from "../../components/ui/button";
 import { Textarea } from "../../components/ui/textarea";
 
@@ -160,6 +161,8 @@ export function ChatPanel({
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [showList, setShowList] = useState(false);
+  const historyId = useId();
+  const historyButton = useRef<HTMLButtonElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true); // 用户在底部附近才自动跟随;主动上翻阅读时不拽人
   const taRef = useRef<HTMLTextAreaElement | null>(null);
@@ -420,6 +423,7 @@ export function ChatPanel({
         <span className="text-sm font-medium">AI 老师 · 答疑</span>
         <div className="flex items-center gap-1">
           <Button
+            ref={historyButton}
             variant="ghost"
             size="icon-sm"
             onClick={() => {
@@ -427,8 +431,12 @@ export function ChatPanel({
               if (!showList) void loadSessions();
             }}
             title="历史对话"
+            aria-label="历史对话"
+            aria-controls={historyId}
+            aria-expanded={showList}
+            className={cn(showList && "lg:bg-primary/10 lg:text-primary")}
           >
-            <History size={14} />
+            <History size={14} aria-hidden="true" />
           </Button>
           <Button variant="ghost" size="icon-sm" onClick={newSession} title="开一轮新对话">
             <Plus size={14} />
@@ -436,13 +444,31 @@ export function ChatPanel({
         </div>
       </div>
 
-      {showList && (
-        <div className="max-h-48 overflow-y-auto border-b border-border bg-background/60">
+      <Collapse
+        open={showList}
+        className={cn(
+          "shrink-0 transition-none lg:transition-[grid-template-rows]",
+          !showList && "lg:duration-(--dur-fast)",
+        )}
+      >
+        <div
+          id={historyId}
+          className="max-h-48 overflow-y-auto border-b border-border bg-background/60"
+          onKeyDown={(event) => {
+            if (event.key !== "Escape") return;
+            event.stopPropagation();
+            setShowList(false);
+            historyButton.current?.focus({ preventScroll: true });
+          }}
+        >
           {sessions.length === 0 && <p className="p-3 text-xs text-muted-foreground">还没有历史对话</p>}
           {sessions.map((s) => (
             <button
               key={s.id}
-              onClick={() => void switchSession(s.id)}
+              onClick={() => {
+                historyButton.current?.focus({ preventScroll: true });
+                void switchSession(s.id);
+              }}
               className={cn(
                 "block w-full px-3 py-2 text-left text-xs transition-colors outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/40",
                 s.id === sessionId ? "text-primary" : "text-muted-foreground",
@@ -455,7 +481,7 @@ export function ChatPanel({
             </button>
           ))}
         </div>
-      )}
+      </Collapse>
 
       <div
         ref={scrollRef}

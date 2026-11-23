@@ -104,20 +104,20 @@ export function BookPage() {
   });
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
+    <div className="workspace-page workspace-page--detail">
       <Button variant="ghost" size="sm" asChild className="-ml-2 text-muted-foreground">
         <Link to="/courses" viewTransition>
           ← 书架
         </Link>
       </Button>
 
-      <header className="mt-4 mb-8">
+      <header className="mt-4 mb-8 border-b border-border pb-5">
         <p className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
           <BookOpen size={12} className="text-primary" />
           {detail.domain && `${detail.domain} · `}书 · {detail.courses.length} 课
         </p>
-        <div className="mt-2 flex items-end justify-between gap-4">
-          <h1 className="text-2xl font-bold">{detail.topic}</h1>
+        <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+          <h1 className="workspace-title min-w-0">{detail.topic}</h1>
           {cursorFile && (
             <Button size="sm" asChild className="shrink-0">
               <Link to={`/read/${cursorFile}`} viewTransition>

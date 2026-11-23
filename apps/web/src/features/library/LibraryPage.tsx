@@ -3,7 +3,7 @@
  *  旧「一页平铺所有大纲卡」换成了真实书架隐喻——目录细节下沉到书页层。 */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { BookOpen, CircleCheck, LibraryBig, LoaderCircle, Play, RotateCcw, Route, SquarePen } from "lucide-react";
+import { ArrowUpRight, BookOpen, CircleCheck, LibraryBig, LoaderCircle, Play, RotateCcw, Route, SquarePen } from "lucide-react";
 
 import { KindIcon } from "../../components/KindIcon";
 import { PageError, PageLoading } from "../../components/PageState";
@@ -133,20 +133,22 @@ export function LibraryPage() {
     .filter((c) => c.prog !== null);
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
-      <h1 className="mb-1 text-2xl font-bold">学习</h1>
-      <p className="mb-6 text-sm text-muted-foreground">
-        书架:每本大纲是一本书,封面一键继续读;点书看目录,从目录里挑课。
-      </p>
+    <div className="workspace-page">
+      <header className="workspace-header">
+        <div>
+          <h1 className="workspace-title">学习</h1>
+          <p className="workspace-description">继续上次的课程，复习到期内容，或从书架选一本书。</p>
+        </div>
+      </header>
 
       {/* 今日横条:断点继续学 + 到期复习(原学习台独有职责,合一后置顶常驻) */}
       {(continuing.length > 0 || (due && due.items.length > 0)) && (
-        <section className="mb-8 grid gap-3 sm:grid-cols-2">
+        <section aria-label="今日学习" className="mb-8 grid grid-cols-1 gap-3 sm:grid-flow-col sm:auto-cols-fr sm:grid-cols-none">
           {continuing.length > 0 &&
             (() => {
               const c = continuing[0];
               return (
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
+                <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
                   <div className="min-w-0">
                     <p className="mb-0.5 flex items-center gap-1 font-mono text-xs text-primary">
                       <Play size={11} />
@@ -166,7 +168,7 @@ export function LibraryPage() {
               );
             })()}
           {due && due.items.length > 0 && (
-            <div className="rounded-xl border border-border bg-card p-4">
+            <div className="min-w-0 rounded-xl border border-border bg-card p-4">
               <p className="mb-2 flex items-center gap-1 font-mono text-xs text-primary">
                 <RotateCcw size={11} /> 今日复习 · {due.items.length} 张到期
               </p>
@@ -197,103 +199,114 @@ export function LibraryPage() {
           )}
         </section>
       )}
-      {books.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          书架还是空的——去生成中心一句话开课,书会出现在这里。
-        </p>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {books.map((b, idx) => {
-            // 行级语义同书页(2026-11-17 拍板 A):全片读完才算行✓;游标=行内第一个未读片
-            const rowComplete = (c: ShelfBook["courses"][number]) =>
-              (c.course_file_ids ?? []).length > 0 &&
-              (c.course_file_ids ?? []).every((r) => readyById.get(r));
-            const done = b.courses.filter(rowComplete).length;
-            const cursor = b.courses.find(
-              (c) => (c.course_file_ids ?? []).length > 0 && !rowComplete(c),
-            );
-            const cursorFile =
-              cursor?.course_file_ids?.find((r) => !readyById.get(r)) ??
-              (cursor?.course_file_ids ?? [])[0];
-            const parts = new Set(b.courses.map((c) => c.part?.trim() || "正文"));
-            const busy = b.courses.some(
-              (c) => c.prep_status === "queued" || c.prep_status === "running",
-            );
-            const allDone = b.courses.length > 0 && done === b.courses.length;
-            return (
-              <div
-                key={b.topic}
-                className={cn(
-                  "relative flex aspect-[3/4] flex-col overflow-hidden rounded-lg border border-border bg-gradient-to-br shadow-md transition-all",
-                  "hover:-translate-y-1 hover:shadow-xl",
-                  COVERS[Math.abs(b.topic.length * 7 + idx) % COVERS.length],
-                )}
-              >
-                {/* 书脊:左侧高光窄条 */}
-                <span className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-foreground/25 via-foreground/10 to-transparent" />
-                {/* 书名区:整块可点,进书页目录 */}
-                <Link
-                  to={`/books/${encodeURIComponent(b.topic)}`}
-                  viewTransition
-                  className="flex min-h-0 flex-1 flex-col outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
-                  title={`打开《${b.topic}》目录`}
+      <section aria-labelledby="bookshelf-title">
+        <h2 id="bookshelf-title" className="mb-4 flex items-baseline gap-2 text-xl font-semibold">
+          书架 <span className="text-sm font-normal tabular-nums text-muted-foreground">{books.length} 本</span>
+        </h2>
+        {books.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-6 sm:p-8">
+            <p className="mb-3 text-sm text-muted-foreground">生成第一门课后，就可以在书架上打开它。</p>
+            <Button asChild size="sm"><Link to="/studio">去生成中心</Link></Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-4">
+            {books.map((b, idx) => {
+              // 行级语义同书页(2026-11-17 拍板 A):全片读完才算行✓;游标=行内第一个未读片
+              const rowComplete = (c: ShelfBook["courses"][number]) =>
+                (c.course_file_ids ?? []).length > 0 &&
+                (c.course_file_ids ?? []).every((r) => readyById.get(r));
+              const done = b.courses.filter(rowComplete).length;
+              const cursor = b.courses.find(
+                (c) => (c.course_file_ids ?? []).length > 0 && !rowComplete(c),
+              );
+              const cursorFile =
+                cursor?.course_file_ids?.find((r) => !readyById.get(r)) ??
+                (cursor?.course_file_ids ?? [])[0];
+              const parts = new Set(b.courses.map((c) => c.part?.trim() || "正文"));
+              const busy = b.courses.some(
+                (c) => c.prep_status === "queued" || c.prep_status === "running",
+              );
+              const allDone = b.courses.length > 0 && done === b.courses.length;
+              return (
+                <div
+                  key={b.topic}
+                  className="library-book-card desktop-book-enter relative min-h-48 sm:aspect-[3/4]"
+                  style={{ animationDelay: `${Math.min(idx, 6) * 35}ms` }}
                 >
-                  <span className="flex items-center gap-1 px-3 pt-3 font-mono text-[10px] tracking-widest text-muted-foreground">
-                    <BookOpen size={10} className="text-primary" />
-                    {b.domain || "书"}
-                  </span>
-                  <span className="mt-2 line-clamp-3 px-3 text-[15px] font-semibold leading-snug">
-                    {b.topic}
-                  </span>
-                  <span className="mt-auto px-3 pb-1">
-                    <span className="block font-mono text-[10px] text-muted-foreground">
-                      {parts.size} 篇 · {b.courses.length} 课
-                      {busy && (
-                        <span className="ml-1 inline-flex translate-y-0.5 align-middle text-warning">
-                          <LoaderCircle size={10} className="animate-spin" />
+                  <div
+                    className={cn(
+                      "library-book-card__surface relative flex min-h-48 flex-col overflow-hidden rounded-xl border border-border bg-gradient-to-br sm:aspect-[3/4]",
+                      "hover:border-primary/55 focus-within:border-primary/60",
+                      COVERS[Math.abs(b.topic.length * 7 + idx) % COVERS.length],
+                    )}
+                  >
+                    {/* 书名区:整块可点,进书页目录 */}
+                    <Link
+                      to={`/books/${encodeURIComponent(b.topic)}`}
+                      viewTransition
+                      className="group/cover flex min-h-0 flex-1 flex-col outline-none focus-visible:ring-[3px] focus-visible:ring-ring/70 focus-visible:ring-inset"
+                      title={`打开《${b.topic}》目录`}
+                    >
+                      <span className="flex items-center gap-1 px-3 pt-3 font-mono text-[10px] tracking-widest text-muted-foreground">
+                        <BookOpen size={10} className="text-primary" />
+                        {b.domain || "书"}
+                        <ArrowUpRight
+                          aria-hidden="true"
+                          size={14}
+                          className="ml-auto hidden shrink-0 text-primary opacity-0 transition-[opacity,translate] duration-(--dur-fast) ease-out group-hover/cover:opacity-100 group-focus-visible/cover:opacity-100 motion-safe:-translate-x-1 motion-safe:group-hover/cover:translate-x-0 motion-safe:group-focus-visible/cover:translate-x-0 lg:block"
+                        />
+                      </span>
+                      <span className="mt-2 mb-3 line-clamp-3 px-3 break-words text-[15px] font-semibold leading-snug">
+                        {b.topic}
+                      </span>
+                      <span className="mt-auto px-3 pb-1">
+                        <span className="block font-mono text-[10px] text-muted-foreground">
+                          {parts.size} 篇 · {b.courses.length} 课
+                          {busy && (
+                            <span className="ml-1 inline-flex translate-y-0.5 align-middle text-warning">
+                              <LoaderCircle size={10} className="animate-spin" />
+                            </span>
+                          )}
                         </span>
+                        <span className="mb-2 mt-1.5 block h-1 overflow-hidden rounded-full bg-foreground/10">
+                          <span
+                            className="block h-full rounded-full bg-primary transition-all"
+                            style={{
+                              width: `${b.courses.length ? Math.round((100 * done) / b.courses.length) : 0}%`,
+                            }}
+                          />
+                        </span>
+                      </span>
+                    </Link>
+                    {/* 底条:当前课 + 继续读直达(书架一步进阅读器,不必先进书页) */}
+                    <span className="flex items-center justify-between gap-2 px-3 pb-3">
+                      <span className="min-w-0 truncate text-[11px]">
+                        {allDone ? (
+                          <span className="text-success">✓ 全书读完</span>
+                        ) : cursor ? (
+                          <span className="text-muted-foreground">▶ {cursor.title}</span>
+                        ) : (
+                          <span className="text-muted-foreground/70">未开课</span>
+                        )}
+                      </span>
+                      {cursor && cursorFile && (
+                        <Link
+                          to={`/read/${cursorFile}`}
+                          viewTransition
+                          className="flex min-h-8 shrink-0 items-center rounded-md bg-primary/15 px-2 text-xs font-medium text-primary transition-colors hover:bg-primary/25"
+                          title={`继续读《${cursor.title}》`}
+                        >
+                          继续读
+                        </Link>
                       )}
                     </span>
-                    <span className="mb-2 mt-1.5 block h-1 overflow-hidden rounded-full bg-foreground/10">
-                      <span
-                        className="block h-full rounded-full bg-primary transition-all"
-                        style={{
-                          width: `${b.courses.length ? Math.round((100 * done) / b.courses.length) : 0}%`,
-                        }}
-                      />
-                    </span>
-                  </span>
-                </Link>
-                {/* 底条:当前课 + 继续读直达(书架一步进阅读器,不必先进书页) */}
-                <span className="flex items-center justify-between gap-2 px-3 pb-3">
-                  <span className="min-w-0 truncate text-[11px]">
-                    {allDone ? (
-                      <span className="text-success">✓ 全书读完</span>
-                    ) : cursor ? (
-                      <span className="text-muted-foreground">▶ {cursor.title}</span>
-                    ) : (
-                      <span className="text-muted-foreground/70">未开课</span>
-                    )}
-                  </span>
-                  {cursor && cursorFile && (
-                    <Link
-                      to={`/read/${cursorFile}`}
-                      viewTransition
-                      className="shrink-0 rounded-md bg-primary/15 px-2 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/25"
-                      title={`继续读《${cursor.title}》`}
-                    >
-                      继续读
-                    </Link>
-                  )}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      <p className="mt-6 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-        <Play size={11} /> 书内空白课到书页点「点单备课」;生成中心仍是一句话开课的入口。
-      </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -550,7 +563,7 @@ export function CourseDetailPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
+    <div className="workspace-page workspace-page--detail">
       <Button variant="ghost" size="sm" asChild className="-ml-2 text-muted-foreground">
         <Link to="/courses">← 课程库</Link>
       </Button>
@@ -559,17 +572,17 @@ export function CourseDetailPage() {
           <LibraryBig size={12} /> {course.meta.topic}
         </p>
       )}
-      <div className="mt-3 flex items-start justify-between gap-4">
+      <div className="workspace-header mt-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold">{course.title}</h1>
+          <h1 className="workspace-title">{course.title}</h1>
           <p className="mt-1 font-mono text-xs text-muted-foreground">
             {course.scenario} · {isV2(course) ? `${units.length} 节` : `${units.length} 页 · ${sumSentences(course)} 句`} · {cps.length} 检查点
           </p>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-2">
-          <Button size="lg" asChild>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild>
             <Link to={`/read/${course.id}`} viewTransition>
-              <Play size={15} /> 进阅读器
+              <Play size={15} aria-hidden="true" /> 阅读课程
             </Link>
           </Button>
           <Button

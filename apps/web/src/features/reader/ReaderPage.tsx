@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import { ArrowLeft, BookOpen, MessageSquare, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
@@ -49,7 +49,7 @@ export function ReaderPage() {
         message={`课件加载失败: ${error}`}
         back={
           <Button asChild variant="secondary" size="sm">
-            <Link to="/">← 返回学习台</Link>
+            <Link to="/courses">返回学习</Link>
           </Button>
         }
       />
@@ -60,7 +60,9 @@ export function ReaderPage() {
 
 function Reader({ course }: { course: CourseV2 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const chatToggleRef = useRef<HTMLButtonElement>(null);
   const [active, setActive] = useState(0);
+  const [showChat, setShowChat] = useState(false);
   const [invite, setInvite] = useState(false);
   const [doneState, setDoneState] = useState<CompletionState | null>(null);
   const [chatSeed, setChatSeed] = useState<
@@ -97,6 +99,7 @@ function Reader({ course }: { course: CourseV2 }) {
 
   // 批改→答疑联动:复述没过,带着检查点全上下文去问 AI 老师
   const onAskTutor = useCallback((p: CheckpointAskPayload) => {
+    setShowChat(true);
     setChatSeed({
       text: `我在复述检查点没过:「${p.question}」。我的回答:「${p.answer}」。帮我搞懂薄弱点。`,
       checkpoint: p,
@@ -105,7 +108,9 @@ function Reader({ course }: { course: CourseV2 }) {
 
   /** 答疑侧栏的进度适配器:当前节 + 跳节(引用侧「第N页」按钮沿用) */
   const jumpToPage = useCallback((n: number) => {
-    scrollRef.current?.querySelector(`#sec-${n}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setShowChat(false);
+    const scroller = scrollRef.current;
+    if (scroller) scrollToSection(scroller, n, true);
   }, []);
   const playback: ProgressLike = {
     state: { page: active },
@@ -157,7 +162,7 @@ function Reader({ course }: { course: CourseV2 }) {
         /* 坏数据当没断点 */
       }
     }
-    if (target >= 0) el.querySelector(`#sec-${target}`)?.scrollIntoView({ block: "start" });
+    if (target >= 0) scrollToSection(el, target);
     restoredRef.current = true;
     // 深链只在进入时生效一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -182,187 +187,238 @@ function Reader({ course }: { course: CourseV2 }) {
   }, [course.title]);
 
   return (
-    <div className="flex h-full">
-      {/* 划词提问:选中正文浮出「问 AI 老师」+ 面板提示条(防系统悬浮窗遮盖)——
-          都走可编辑预填:模板进输入框,用户补一句自己的话再 Enter 发 */}
-      <SelectionAsk
-        articleRef={articleRef}
-        onSelected={setSelTerm}
-        onAsk={(q) => {
-          setPrefill(q);
-          setSelTerm(null);
-        }}
-      />
-      {/* 节目录 */}
-      <nav
-        style={{ width: panels.toc }}
-        className="hidden shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-secondary/30 pl-3 pr-4 py-4 md:flex"
-      >
-        <p className="mb-2 px-2 font-mono text-[11px] tracking-widest text-muted-foreground">目录</p>
-        {course.sections.map((s, i) => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => jumpToPage(i)}
-            className={cn(
-              "relative truncate rounded-md px-2 py-1.5 text-left text-[13px] leading-6 text-muted-foreground outline-none transition-colors hover:bg-secondary focus-visible:ring-[3px] focus-visible:ring-ring/40",
-              active === i && "font-medium text-primary",
-            )}
-            title={s.heading}
-          >
-            {/* 滑动指示 pill:layoutId 让高亮底色在节间平滑迁移(motion FLIP) */}
-            {active === i && (
-              <motion.span
-                layoutId="toc-pill"
-                className="absolute inset-0 rounded-md bg-primary/10"
-                transition={{ duration: 0.25, ease: [0.22, 0.9, 0.3, 1] }}
-              />
-            )}
-            <span className="relative">
-              {i + 1}. {s.heading}
-            </span>
-          </button>
-        ))}
-      </nav>
-
-      {/* 左手柄:拖拽调目录宽,双击复位 */}
-      <ColResizeHandle
-        label="目录栏宽"
-        onDelta={(dx) =>
-          setPanels((p) => ({ ...p, toc: clampW(p.toc + dx, 160, 400) }))
-        }
-        onReset={() => setPanels((p) => ({ ...p, toc: DEFAULT_PANELS.toc }))}
-      />
-
-      {/* 正文 */}
-      <div className="relative min-w-0 flex-1">
-        <Button
-          asChild
-          variant="secondary"
-          size="sm"
-          className="absolute top-4 left-4 z-40 rounded-full bg-card/90 shadow-sm backdrop-blur"
-        >
-          <Link to="/">← 课表</Link>
+    <div className="flex h-full flex-col">
+      <header className="flex shrink-0 items-center gap-2 border-b border-border bg-secondary/50 px-3 py-2 sm:px-5">
+        <Button asChild variant="ghost" className="min-h-10 shrink-0">
+          <Link to="/courses" viewTransition><ArrowLeft aria-hidden="true" /> 学习</Link>
         </Button>
-        {invite && (
-          <div className="anim-drop absolute top-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-primary/50 bg-card/95 px-4 py-2 shadow-lg backdrop-blur">
-            <Sparkles size={14} className="shrink-0 text-primary" />
-            <span className="text-sm">这节课学完了,沉淀为笔记?</span>
-            <Button size="sm" asChild>
-              <Link to={`/courses/${course.id}?sink=1`} viewTransition>
-                生成笔记草稿
-              </Link>
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setInvite(false)}>
-              稍后
-            </Button>
-          </div>
-        )}
-        <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto">
-          <article ref={articleRef} className="mx-auto max-w-2xl px-6 py-16 font-reading [text-autospace:normal]">
-            <header className="mb-10">
-              <p className="font-mono text-xs tracking-widest text-primary">{course.scenario} · 书页版</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight">{course.title}</h1>
-            </header>
-            {course.sections.map((s, i) => (
-              <section key={s.id} id={`sec-${i}`} data-sec className="mb-12 scroll-mt-6">
-                <h2 className="mb-4 flex items-baseline gap-2.5 border-b border-border pb-2 text-xl font-medium tracking-tight">
-                  <span className="font-mono text-sm text-primary">{String(i + 1).padStart(2, "0")}</span>
-                  {s.heading}
-                </h2>
-                <Blocks
-                  blocks={s.blocks}
-                  courseId={course.id}
-                  sectionId={s.id}
-                  onAskTutor={onAskTutor}
-                />
-              </section>
-            ))}
-            <EvidencePanel course={course} />
-            {/* 来源清单:正文「源[N]」锚点按实际来源 id 跳转,旧课回落列表序号。
-                不进 sections 数组——TOC/学完进度/深链语义全部不受影响 */}
-            {(course.meta.sources?.length ?? 0) > 0 && (
-              <section id="sources" data-sec className="mb-12 scroll-mt-6">
-                <h2 className="mb-4 border-b border-border pb-2 text-lg font-medium tracking-tight text-muted-foreground">
-                  来源
-                </h2>
-                <ol className="space-y-2">
-                  {course.meta.sources!.map((s, i) => (
-                    <li key={i} id={`src-${s.id ?? i + 1}`} className="scroll-mt-16 rounded-lg p-1.5">
-                      <span className="mr-1.5 font-mono text-sm text-primary">[{s.id ?? i + 1}]</span>
-                      <a
-                        href={s.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[15px] text-primary underline decoration-dotted hover:decoration-solid"
-                        title={s.url}
-                      >
-                        {s.title}
-                      </a>
-                      {/* 完整显示(truncate 会截断长 URL 引发「链接没给全」的困惑;折行给全) */}
-                      <span className="block pl-7 text-xs break-all text-muted-foreground">{s.url}</span>
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            )}
-            <LearningQuestions courseId={course.id} sections={course.sections} />
-
-            <footer className="mt-14 border-t border-border pt-8 text-center">
-              <Button onClick={onDone}>✅ 学完了,打卡</Button>
-              {doneState && (
-                <p
-                  className={cn(
-                    "mt-3 text-[13px]",
-                    doneState.ready ? "text-success" : "text-muted-foreground",
-                  )}
-                >
-                  ✓ 已打卡 · 检查点通过 {doneState.checkpoints_passed}/
-                  {doneState.checkpoints_total}
-                  {!doneState.ready && " — 通过全部检查点后,这里会邀请你沉淀为 vault 笔记"}
-                </p>
-              )}
-            </footer>
-          </article>
-        </div>
-      </div>
-
-      {/* 右手柄:拖拽调答疑宽(向左拖=变宽),双击复位 */}
-      <ColResizeHandle
-        label="答疑栏宽"
-        onDelta={(dx) =>
-          setPanels((p) => ({ ...p, chat: clampW(p.chat - dx, 260, 560) }))
-        }
-        onReset={() => setPanels((p) => ({ ...p, chat: DEFAULT_PANELS.chat }))}
-      />
-
-      {/* 答疑 */}
-      <div style={{ width: panels.chat }} className="flex shrink-0 flex-col">
-        <div className="flex justify-end border-b border-l border-border bg-secondary/50 px-3 py-2">
+        <p className="hidden min-w-0 flex-1 truncate text-sm text-muted-foreground sm:block">{course.title}</p>
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            ref={chatToggleRef}
+            type="button"
+            variant="outline"
+            aria-controls="reader-chat"
+            aria-expanded={showChat}
+            className="min-h-10 lg:hidden"
+            onClick={() => setShowChat((open) => !open)}
+          >
+            {showChat ? <BookOpen aria-hidden="true" /> : <MessageSquare aria-hidden="true" />}
+            {showChat ? "返回阅读" : "答疑"}
+          </Button>
           <ThemeSwitcher />
         </div>
-        <ChatPanel
-          course={course}
-          playback={playback}
-          seed={chatSeed}
-          onSeedConsumed={() => setChatSeed(null)}
-          prefill={prefill}
-          onPrefillConsumed={() => setPrefill(null)}
-          selectionAsk={
-            selTerm
-              ? {
-                  text: selTerm,
-                  onAsk: () => {
-                    setPrefill(selQuestion(selTerm));
-                    setSelTerm(null);
-                  },
-                }
-              : null
-          }
+      </header>
+      <div className="route-content relative isolate flex min-h-0 flex-1 overflow-hidden">
+        {/* 划词提问:选中正文浮出「问 AI 老师」+ 面板提示条(防系统悬浮窗遮盖)——
+            都走可编辑预填:模板进输入框,用户补一句自己的话再 Enter 发 */}
+        <SelectionAsk
+          articleRef={articleRef}
+          onSelected={setSelTerm}
+          onAsk={(q) => {
+            setShowChat(true);
+            setPrefill(q);
+            setSelTerm(null);
+          }}
         />
+        {/* 节目录 */}
+        <nav
+          aria-label="课程目录"
+          style={{ width: panels.toc }}
+          className="hidden max-w-[22%] shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-secondary/30 p-4 xl:flex"
+        >
+          <p className="mb-2 px-2 font-mono text-[11px] tracking-widest text-muted-foreground">目录</p>
+          {course.sections.map((s, i) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => jumpToPage(i)}
+              aria-current={active === i ? "location" : undefined}
+              className={cn(
+                "relative truncate rounded-md px-2 py-1.5 text-left text-[13px] leading-6 text-muted-foreground outline-none transition-colors hover:bg-secondary focus-visible:ring-[3px] focus-visible:ring-ring/40",
+                active === i && "font-medium text-primary",
+              )}
+              title={s.heading}
+            >
+              {/* 滑动指示 pill:layoutId 让高亮底色在节间平滑迁移(motion FLIP) */}
+              {active === i && (
+                <motion.span
+                  layoutId="toc-pill"
+                  className="absolute inset-0 rounded-md bg-primary/10"
+                  transition={{ duration: 0.25, ease: [0.22, 0.9, 0.3, 1] }}
+                />
+              )}
+              <span className="relative">
+                {i + 1}. {s.heading}
+              </span>
+            </button>
+          ))}
+        </nav>
+
+        {/* 左手柄:拖拽调目录宽,双击复位 */}
+        <ColResizeHandle
+          label="目录栏宽"
+          className="xl:flex"
+          onDelta={(dx) =>
+            setPanels((p) => ({ ...p, toc: clampW(p.toc + dx, 160, 400) }))
+          }
+          onReset={() => setPanels((p) => ({ ...p, toc: DEFAULT_PANELS.toc }))}
+        />
+
+        <main className={cn("flex min-w-0 flex-1 flex-col", showChat && "invisible lg:visible")}>
+          {course.sections.length > 0 && (
+            <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 xl:hidden">
+              <label htmlFor="reader-section" className="shrink-0 text-sm text-muted-foreground">目录</label>
+              <select
+                id="reader-section"
+                value={Math.min(active, course.sections.length - 1)}
+                onChange={(event) => jumpToPage(Number(event.target.value))}
+                className="h-10 min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm text-foreground"
+              >
+                {course.sections.map((section, index) => (
+                  <option key={section.id} value={index}>{index + 1}. {section.heading}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {invite && (
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-primary/40 bg-card px-4 py-2">
+              <Sparkles size={14} className="shrink-0 text-primary" aria-hidden="true" />
+              <span className="mr-auto text-sm">这节课学完了，沉淀为笔记？</span>
+              <Button size="sm" asChild>
+                <Link to={`/courses/${course.id}?sink=1`} viewTransition>生成笔记草稿</Link>
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setInvite(false)}>稍后</Button>
+            </div>
+          )}
+          <div ref={scrollRef} onScroll={onScroll} className="relative min-h-0 flex-1 overflow-y-auto">
+            <article ref={articleRef} className="mx-auto max-w-2xl px-4 py-8 font-reading sm:px-8 sm:py-12 [text-autospace:normal]">
+              <header className="mb-10">
+                <p className="font-mono text-xs tracking-widest text-primary">{course.scenario} · 书页版</p>
+                <h1 className="mt-2 text-3xl font-semibold break-words sm:text-4xl">{course.title}</h1>
+              </header>
+              {course.sections.map((s, i) => (
+                <section key={s.id} id={`sec-${i}`} data-sec className="mb-12 scroll-mt-6">
+                  <h2 className={cn(
+                    "mb-4 flex items-baseline gap-2.5 border-b border-border pb-2 text-xl font-medium tracking-tight transition-colors",
+                    active === i && "border-primary/55",
+                  )}>
+                    <span className="font-mono text-sm text-primary">{String(i + 1).padStart(2, "0")}</span>
+                    {s.heading}
+                  </h2>
+                  <Blocks
+                    blocks={s.blocks}
+                    courseId={course.id}
+                    sectionId={s.id}
+                    onAskTutor={onAskTutor}
+                  />
+                </section>
+              ))}
+              <EvidencePanel course={course} />
+              {/* 来源清单:正文「源[N]」锚点按实际来源 id 跳转,旧课回落列表序号。
+                  不进 sections 数组——TOC/学完进度/深链语义全部不受影响 */}
+              {(course.meta.sources?.length ?? 0) > 0 && (
+                <section id="sources" data-sec className="mb-12 scroll-mt-6">
+                  <h2 className="mb-4 border-b border-border pb-2 text-lg font-medium tracking-tight text-muted-foreground">
+                    来源
+                  </h2>
+                  <ol className="space-y-2">
+                    {course.meta.sources!.map((s, i) => (
+                      <li key={i} id={`src-${s.id ?? i + 1}`} className="scroll-mt-16 rounded-lg p-1.5">
+                        <span className="mr-1.5 font-mono text-sm text-primary">[{s.id ?? i + 1}]</span>
+                        <a
+                          href={s.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[15px] text-primary underline decoration-dotted hover:decoration-solid"
+                          title={s.url}
+                        >
+                          {s.title}
+                        </a>
+                        {/* 完整显示(truncate 会截断长 URL 引发「链接没给全」的困惑;折行给全) */}
+                        <span className="block pl-7 text-xs break-all text-muted-foreground">{s.url}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              )}
+              <LearningQuestions courseId={course.id} sections={course.sections} />
+              <footer className="mt-14 border-t border-border pt-8 text-center">
+                <Button onClick={onDone}>✅ 学完了,打卡</Button>
+                {doneState && (
+                  <p
+                    className={cn(
+                      "mt-3 text-[13px]",
+                      doneState.ready ? "text-success" : "text-muted-foreground",
+                    )}
+                  >
+                    ✓ 已打卡 · 检查点通过 {doneState.checkpoints_passed}/
+                    {doneState.checkpoints_total}
+                    {!doneState.ready && " — 通过全部检查点后,这里会邀请你沉淀为 vault 笔记"}
+                  </p>
+                )}
+              </footer>
+            </article>
+          </div>
+        </main>
+
+        {/* 右手柄:拖拽调答疑宽(向左拖=变宽),双击复位 */}
+        <ColResizeHandle
+          label="答疑栏宽"
+          className="lg:flex"
+          onDelta={(dx) =>
+            setPanels((p) => ({ ...p, chat: clampW(p.chat - dx, 260, 560) }))
+          }
+          onReset={() => setPanels((p) => ({ ...p, chat: DEFAULT_PANELS.chat }))}
+        />
+
+        {/* 答疑 */}
+        <div
+          id="reader-chat"
+          data-open={showChat}
+          style={{ width: panels.chat }}
+          onKeyDown={(event) => {
+            if (event.key !== "Escape" || !showChat || !window.matchMedia("(width < 64rem)").matches) return;
+            if (event.defaultPrevented || event.nativeEvent.isComposing) return;
+            setShowChat(false);
+            chatToggleRef.current?.focus();
+          }}
+          className="reader-chat flex min-w-0 shrink-0 flex-col bg-background max-lg:absolute max-lg:inset-0 max-lg:w-full! lg:max-w-[38%]"
+        >
+          <ChatPanel
+            course={course}
+            playback={playback}
+            seed={chatSeed}
+            onSeedConsumed={() => setChatSeed(null)}
+            prefill={prefill}
+            onPrefillConsumed={() => setPrefill(null)}
+            selectionAsk={
+              selTerm
+                ? {
+                    text: selTerm,
+                    onAsk: () => {
+                      setPrefill(selQuestion(selTerm));
+                      setSelTerm(null);
+                    },
+                  }
+                : null
+            }
+          />
+        </div>
       </div>
     </div>
   );
+}
+
+function scrollToSection(scroller: HTMLDivElement, index: number, allowSmooth = false) {
+  const section = scroller.querySelector<HTMLElement>(`#sec-${index}`);
+  if (!section) return;
+  const margin = Number.parseFloat(getComputedStyle(section).scrollMarginTop) || 0;
+  const top = section.offsetTop - margin;
+  const nearby = Math.abs(top - scroller.scrollTop) <= scroller.clientHeight;
+  const smooth = allowSmooth && nearby && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // 只滚正文，避免目录和外层布局跟着 scrollIntoView 移动。
+  scroller.scrollTo({ top, behavior: smooth ? "smooth" : "instant" });
 }
 
 function posKey(courseId: string) {
@@ -457,10 +513,12 @@ function ColResizeHandle({
   onDelta,
   onReset,
   label,
+  className,
 }: {
   onDelta: (dx: number) => void;
   onReset: () => void;
   label: string;
+  className: string;
 }) {
   const [dragging, setDragging] = useState(false);
   const start = (e: React.MouseEvent) => {
@@ -486,11 +544,22 @@ function ColResizeHandle({
       onMouseDown={start}
       onDoubleClick={onReset}
       role="separator"
+      tabIndex={0}
       aria-orientation="vertical"
       aria-label={label}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          event.preventDefault();
+          onDelta(event.key === "ArrowLeft" ? -16 : 16);
+        } else if (event.key === "Home") {
+          event.preventDefault();
+          onReset();
+        }
+      }}
       title={`${label}:拖拽调宽,双击复位`}
       className={cn(
-        "hidden w-2 shrink-0 cursor-col-resize md:flex md:justify-center",
+        "hidden w-2 shrink-0 cursor-col-resize justify-center focus-visible:bg-primary/25",
+        className,
         dragging ? "bg-primary/25" : "hover:bg-primary/20",
       )}
     >
