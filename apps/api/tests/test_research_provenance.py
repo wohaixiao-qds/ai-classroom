@@ -121,10 +121,11 @@ class ResearchProvenanceTests(unittest.TestCase):
             "topic": "eval",
             "subtopic": "course",
             "sources": [{"id": i, "title": f"s{i}", "url": f"https://example.org/{i}"}
-                        for i in (1, 2, 3)],
+                        for i in range(1, 7)],
             "groups": [{"heading": "facts", "points": [
-                {"text": "fact", "source_id": (i % 3) + 1, "quote": "a sufficiently long quote"}
-                for i in range(8)
+                {"text": f"fact {i}", "source_id": (i % 6) + 1,
+                 "quote": "a sufficiently long quote"}
+                for i in range(24)
             ]}],
         }
         path.write_text(json.dumps(data), encoding="utf-8")

@@ -31,12 +31,13 @@ QUOTE = "Only incremental changes are appended; existing history is preserved."
 
 def material_fixture() -> tuple[dict[str, Any], dict[str, str]]:
     sources: list[dict[str, Any]] = [
-        {"id": i, "title": f"资料{i}", "url": f"https://example.org/{i}"} for i in (2, 5, 9)
+        {"id": i, "title": f"资料{i}", "url": f"https://example.org/{i}"}
+        for i in (2, 5, 9, 11, 13, 17)
     ]
     material: dict[str, Any] = {"topic": "状态管理", "subtopic": "增量更新", "sources": sources,
                 "groups": [{"heading": "增量更新", "points": [
-                    {"text": "只追加增量,保留历史。", "source_id": sources[i % 3]["id"],
-                     "quote": QUOTE} for i in range(8)
+                    {"text": f"只追加增量,保留历史({i})。", "source_id": sources[i % 6]["id"],
+                     "quote": QUOTE} for i in range(24)
                 ]}]}
     pages = {str(s["url"]): f"[资料标题 | {s['url']}]\nContext before. {QUOTE}\nContext after."
              for s in sources}
@@ -237,7 +238,7 @@ class EvidenceChainTests(unittest.TestCase):
         path.write_text(json.dumps(course))
         dispatch["write_section"]({"section": self.course()["sections"][0]})
         restored = json.loads(path.read_text())
-        self.assertEqual([s["id"] for s in restored["meta"]["sources"]], [2, 5, 9])
+        self.assertEqual([s["id"] for s in restored["meta"]["sources"]], [2, 5, 9, 11, 13, 17])
         self.assertTrue(validate_course(restored)["ok"])
 
     def test_course_review_does_not_inherit_material_success_and_uses_actual_block(self) -> None:
@@ -359,7 +360,7 @@ class EvidenceChainTests(unittest.TestCase):
         ]
         reviewed = {"reviewer": "model:fixture", "items": [
             {"id": f"g1p{i}", "verdict": "partial", "reason": "待核对适用条件"}
-            for i in range(1, 9)
+            for i in range(1, 25)
         ]}
         with (patch.object(research, "get_llm_client", return_value=client),
               patch.object(research, "_execute",
@@ -371,7 +372,7 @@ class EvidenceChainTests(unittest.TestCase):
         self.assertEqual(client.messages.create.call_args.kwargs["max_tokens"], 32768)
         self.assertEqual(result["evidence_version"], 1)
         self.assertEqual(result["evidence"][0]["support"], "partial")
-        self.assertEqual(len(result["source_snapshots"]), 3)
+        self.assertEqual(len(result["source_snapshots"]), 6)
         self.assertIn("quote 不在", str(client.messages.create.call_args.kwargs["messages"]))
         self.assertEqual(material_evidence(result)[0]["quote_status"], "matched")
 

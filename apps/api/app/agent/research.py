@@ -126,7 +126,8 @@ _MATERIAL_PROMPT = """你是课题调研员,为课件作者收集一个子题的
 第一步:围绕本课目标和范围边界搜集证据。先覆盖目标所需的关键概念、机制、判据和可执行
 例子;仅在明确缺口、来源冲突或必要条件未覆盖时继续搜索。不要重复搜集同一观点;每条要点
 都必须服务于讲解、练习或判分,且带有实际原文摘录。
-结构校验的 8~20 条与至少 3 个 URL 是当前原料格式下限,只用于防止材料空泛/单薄;
+结构校验的 24~48 条要点与至少 6 个 URL 是当前原料密度下限。**要点密度决定课件深度
+上限**:课件每个块都要有对应要点可挂,材料稀疏=课件只能写浅;只用于防材料空泛/单薄,
 不代表研究质量分数,不得用重复观点凑数。
 
 来源三要求(按此配比挑,不是随便搜到什么用什么):
@@ -301,10 +302,12 @@ def validate_material(d: dict[str, Any], fetched: set[str] | None = None) -> lis
                 )
             if not isinstance(p, dict) or not str(p.get("text") or "").strip():
                 errs.append(f"第{gi}组第{pi}条要点 text 为空")
-    if n_points < 8:
-        errs.append(f"要点只有 {n_points} 条(目标 8~20)——再挖一挖")
-    if len(urls) < 3:
-        errs.append(f"来源只有 {len(urls)} 个不同 URL(目标≥3)——来源太单薄")
+            if not str(p.get("quote") or "").strip():
+                errs.append(f"第{gi}组第{pi}条要点缺 quote——无摘录的要点过不了可溯源审查")
+    if n_points < 24:
+        errs.append(f"要点只有 {n_points} 条(目标 24~48)——材料密度决定课件深度上限,再挖一挖")
+    if len(urls) < 6:
+        errs.append(f"来源只有 {len(urls)} 个不同 URL(目标≥6)——来源太单薄")
     if fetched is not None:
         unverified = sorted(urls - fetched)
         if unverified:

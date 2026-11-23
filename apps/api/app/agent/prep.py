@@ -37,6 +37,7 @@ from app.core.prompts import (
     DEV_LANDING_RULE,
     OFF_THE_SHELF_RULE,
     PITFALL_RULE,
+    STAY_WITHIN_EVIDENCE_RULE,
     TRACEABLE_CLAIM_RULE,
 )
 from app.core.trace import observed, run_context, trace_prep, update_run
@@ -116,7 +117,7 @@ id 固定用「<节id>-cp」。
 
 """ + (
     PITFALL_RULE + "\n\n" + DEV_LANDING_RULE + "\n\n" + OFF_THE_SHELF_RULE
-    + "\n\n" + TRACEABLE_CLAIM_RULE + "\n"
+    + "\n\n" + TRACEABLE_CLAIM_RULE + "\n\n" + STAY_WITHIN_EVIDENCE_RULE + "\n"
 )
 
 

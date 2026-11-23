@@ -160,6 +160,38 @@
             "c2"
           ]
         }
+      ],
+      "sources": [
+        {
+          "id": 1,
+          "title": "资料1",
+          "url": "https://example.org/1"
+        },
+        {
+          "id": 2,
+          "title": "资料2",
+          "url": "https://example.org/2"
+        },
+        {
+          "id": 3,
+          "title": "资料3",
+          "url": "https://example.org/3"
+        },
+        {
+          "id": 4,
+          "title": "资料4",
+          "url": "https://example.org/4"
+        },
+        {
+          "id": 5,
+          "title": "资料5",
+          "url": "https://example.org/5"
+        },
+        {
+          "id": 6,
+          "title": "资料6",
+          "url": "https://example.org/6"
+        }
       ]
     },
     "counterexample": {
@@ -192,6 +224,38 @@
             "c2"
           ]
         }
+      ],
+      "sources": [
+        {
+          "id": 1,
+          "title": "资料1",
+          "url": "https://example.org/1"
+        },
+        {
+          "id": 2,
+          "title": "资料2",
+          "url": "https://example.org/2"
+        },
+        {
+          "id": 3,
+          "title": "资料3",
+          "url": "https://example.org/3"
+        },
+        {
+          "id": 4,
+          "title": "资料4",
+          "url": "https://example.org/4"
+        },
+        {
+          "id": 5,
+          "title": "资料5",
+          "url": "https://example.org/5"
+        },
+        {
+          "id": 6,
+          "title": "资料6",
+          "url": "https://example.org/6"
+        }
       ]
     }
   },
@@ -203,7 +267,10 @@
       "fetched": [
         "https://example.org/1",
         "https://example.org/2",
-        "https://example.org/3"
+        "https://example.org/3",
+        "https://example.org/4",
+        "https://example.org/5",
+        "https://example.org/6"
       ]
     },
     "expect": {},
@@ -226,6 +293,21 @@
           "id": 3,
           "title": "官方资料3",
           "url": "https://example.org/3"
+        },
+        {
+          "id": 4,
+          "title": "资料4",
+          "url": "https://example.org/4"
+        },
+        {
+          "id": 5,
+          "title": "资料5",
+          "url": "https://example.org/5"
+        },
+        {
+          "id": 6,
+          "title": "资料6",
+          "url": "https://example.org/6"
         }
       ],
       "groups": [
@@ -234,35 +316,123 @@
           "points": [
             {
               "text": "要点0",
-              "source_id": 1
+              "source_id": 1,
+              "quote": "Append changes and preserve history."
             },
             {
               "text": "要点1",
-              "source_id": 2
+              "source_id": 2,
+              "quote": "Append changes and preserve history."
             },
             {
               "text": "要点2",
-              "source_id": 3
+              "source_id": 3,
+              "quote": "Append changes and preserve history."
             },
             {
               "text": "要点3",
-              "source_id": 1
+              "source_id": 1,
+              "quote": "Append changes and preserve history."
             },
             {
               "text": "要点4",
-              "source_id": 2
+              "source_id": 2,
+              "quote": "Append changes and preserve history."
             },
             {
               "text": "要点5",
-              "source_id": 3
+              "source_id": 3,
+              "quote": "Append changes and preserve history."
             },
             {
               "text": "要点6",
-              "source_id": 1
+              "source_id": 1,
+              "quote": "Append changes and preserve history."
             },
             {
               "text": "要点7",
-              "source_id": 2
+              "source_id": 2,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 8",
+              "source_id": 3,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 9",
+              "source_id": 4,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 10",
+              "source_id": 5,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 11",
+              "source_id": 6,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 12",
+              "source_id": 1,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 13",
+              "source_id": 2,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 14",
+              "source_id": 3,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 15",
+              "source_id": 4,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 16",
+              "source_id": 5,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 17",
+              "source_id": 6,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 18",
+              "source_id": 1,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 19",
+              "source_id": 2,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 20",
+              "source_id": 3,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 21",
+              "source_id": 4,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 22",
+              "source_id": 5,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 23",
+              "source_id": 6,
+              "quote": "Append changes and preserve history."
             }
           ]
         }
@@ -284,6 +454,21 @@
           "id": 3,
           "title": "官方资料3",
           "url": "https://example.org/3"
+        },
+        {
+          "id": 4,
+          "title": "资料4",
+          "url": "https://example.org/4"
+        },
+        {
+          "id": 5,
+          "title": "资料5",
+          "url": "https://example.org/5"
+        },
+        {
+          "id": 6,
+          "title": "资料6",
+          "url": "https://example.org/6"
         }
       ],
       "groups": [
@@ -292,35 +477,123 @@
           "points": [
             {
               "text": "要点0",
-              "source_id": 99
+              "source_id": 99,
+              "quote": "Append changes and preserve history."
             },
             {
               "text": "要点1",
-              "source_id": 2
+              "source_id": 2,
+              "quote": "Append changes and preserve history."
             },
             {
               "text": "要点2",
-              "source_id": 3
+              "source_id": 3,
+              "quote": "Append changes and preserve history."
             },
             {
               "text": "要点3",
-              "source_id": 1
+              "source_id": 1,
+              "quote": "Append changes and preserve history."
             },
             {
               "text": "要点4",
-              "source_id": 2
+              "source_id": 2,
+              "quote": "Append changes and preserve history."
             },
             {
               "text": "要点5",
-              "source_id": 3
+              "source_id": 3,
+              "quote": "Append changes and preserve history."
             },
             {
               "text": "要点6",
-              "source_id": 1
+              "source_id": 1,
+              "quote": "Append changes and preserve history."
             },
             {
               "text": "要点7",
-              "source_id": 2
+              "source_id": 2,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 8",
+              "source_id": 3,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 9",
+              "source_id": 4,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 10",
+              "source_id": 5,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 11",
+              "source_id": 6,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 12",
+              "source_id": 1,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 13",
+              "source_id": 2,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 14",
+              "source_id": 3,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 15",
+              "source_id": 4,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 16",
+              "source_id": 5,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 17",
+              "source_id": 6,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 18",
+              "source_id": 1,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 19",
+              "source_id": 2,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 20",
+              "source_id": 3,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 21",
+              "source_id": 4,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 22",
+              "source_id": 5,
+              "quote": "Append changes and preserve history."
+            },
+            {
+              "text": "补充要点 23",
+              "source_id": 6,
+              "quote": "Append changes and preserve history."
             }
           ]
         }
