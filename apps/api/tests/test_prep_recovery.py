@@ -75,12 +75,14 @@ class PrepRecoveryTests(unittest.TestCase):
         })
         self.assertIn("骨架已建", result)
 
-    def run_model(self, replies: list[SimpleNamespace]) -> tuple[dict[str, Any], MagicMock]:
+    def run_model(self, replies: list[SimpleNamespace],
+                  **kwargs: Any) -> tuple[dict[str, Any], MagicMock]:
         client = MagicMock()
         client.with_options.return_value = client
         client.messages.create.side_effect = replies
         with patch.object(prep, "get_llm_client", return_value=client):
-            result = prep.run_prep(self.material, resume_course_id="test", source="test")
+            result = prep.run_prep(self.material, resume_course_id="test", source="test",
+                                   **kwargs)
         return result, client
 
     def test_plan_saved_with_coverage_and_locked_after_init(self) -> None:
@@ -162,6 +164,24 @@ class PrepRecoveryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "规划损坏"):
                 prep.run_prep(self.material, resume_course_id="test", source="test")
         model.assert_not_called()
+
+    def test_revision_mode_rejects_text_only_natural_stop(self) -> None:
+        # 修订收笔守卫:纯文本收笔(零工具调用)不能返回未修改课件——E2E 实测修订空转的根因。
+        self.init()
+        self.dispatch["write_section"]({"section": section("s1")})
+        result, client = self.run_model(
+            [
+                response(),  # 纯文本收笔,无任何工具调用——守卫必须打回
+                response(("write_section", {"section": section("s2")})),
+                *([response()] * 6),  # 修订未交付全部规划节,循环打回到 MAX_TURNS 尽头
+            ],
+            revision_feedback="s1:1 [partial] 补充断言缺证据",
+        )
+        turns = client.messages.create.call_count
+        self.assertGreaterEqual(turns, 3)  # 打回后确实续跑了
+        retried = client.messages.create.call_args_list[1].kwargs["messages"]
+        self.assertTrue(any("write_section" in str(m.get("content")) for m in retried))
+        self.assertTrue(any("修订模式" in str(m.get("content")) for m in retried))
 
     def test_goal_check_near_delivery_aligns_to_plan_text(self) -> None:
         # GLM 字符抖动(错字/措辞微变)在写节时对齐规划原文:约定即权威文本。

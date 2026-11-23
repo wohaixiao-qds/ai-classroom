@@ -927,6 +927,8 @@ def run_prep(
     if revision_feedback:
         # 外部审查反馈是待处理数据,不继承裁判的对话或推理。
         prompt += ("\n发布审查发现以下问题,保留原规划,只重交相关节修订。"
+                   "**修订模式:必须用 write_section 工具提交修改后的节;不调用工具的纯文本"
+                   "回复不会改变课件,视为未完成修订。**"
                    "补证必须来自材料真实原文;不能把事实改标示例逃避核查:\n" + revision_feedback)
         prompt += "\n当前全文:\n" + json.dumps((rc or {}).get("sections", []), ensure_ascii=False)
     # 离线批量循环放宽单次超时:模型一轮会写几千 token 的规划+页 JSON,
@@ -978,6 +980,14 @@ def run_prep(
 
         if resp.stop_reason != "tool_use":
             errs = final_check()
+            if revision_feedback and not any(c["name"] == "write_section" for c in tool_calls):
+                # 修订收笔守卫:E2E 实测作者输出 16.4k 字修订分析却不用工具提交,循环按
+                # 收笔返回未修改课件,定点修订全程空转(hash 三轮相同)。终验只查结构,
+                # 已过终验的草稿零修改也「合格」——修订模式必须见到 write_section 才算数。
+                errs = (errs or []) + [
+                    "修订模式:你还没有用 write_section 提交任何修改;"
+                    "按发布审查意见逐条修订并用 write_section 重交相关节",
+                ]
             if errs is None:
                 course = _load(_course_path(state["course_id"])) if state["course_id"] else None
                 if course is not None:
