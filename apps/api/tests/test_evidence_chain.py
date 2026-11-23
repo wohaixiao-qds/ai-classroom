@@ -64,6 +64,13 @@ class EvidenceChainTests(unittest.TestCase):
                                  side_effect=AssertionError("禁止未模拟模型调用"))
             guard.start()
             self.addCleanup(guard.stop)
+        # write_section 的写节即审走 review_claims:替身放行,不触真实端点。
+        review_patch = patch("app.services.publication.review_claims", side_effect=lambda claims,
+                             **kw: {"reviewer": "model:fixture", "claim_hashes": {}, "items": [
+                                 {"id": c["id"], "verdict": "supported", "reason": "有据"}
+                                 for c in claims]})
+        review_patch.start()
+        self.addCleanup(review_patch.stop)
         tty = patch.object(sys.stdin, "isatty", return_value=False)
         tty.start()
         self.addCleanup(tty.stop)
@@ -174,6 +181,7 @@ class EvidenceChainTests(unittest.TestCase):
     def test_prep_persists_chain_and_rejects_unknown_or_unsupported_references(self) -> None:
         _, dispatch, _ = prep._make_tools(
             self.raw["sources"], evidence_items=material_evidence(self.material),
+            material=self.material,
         )
         plan = [{"id": f"s{i}", "heading": f"节{i}", "has_quiz": False, "covers": ""}
                 for i in range(1, 4)]
@@ -226,6 +234,7 @@ class EvidenceChainTests(unittest.TestCase):
     def test_resumed_legacy_course_recovers_material_source_ids_by_url(self) -> None:
         _, dispatch, state = prep._make_tools(
             self.raw["sources"], evidence_items=material_evidence(self.material),
+            material=self.material,
         )
         plan = [{"id": f"s{i}", "heading": f"节{i}", "has_quiz": False, "covers": ""}
                 for i in range(1, 4)]

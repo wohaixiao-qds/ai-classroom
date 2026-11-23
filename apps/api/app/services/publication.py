@@ -147,6 +147,78 @@ def _normalize_model_review(
     return normalized, diagnostics
 
 
+def review_section(
+    course: dict[str, Any], section: dict[str, Any], material: dict[str, Any],
+    *, learning_goal: str = "",
+) -> list[str]:
+    """写节即审:单节逐块原文支撑,失败当场打回作者;通过则结论并入缓存供终审复用。
+
+    claims 构造与 review_course 逐字段一致(块 id/text/exemplary + 同节证据上下文),
+    终审按 claim 哈希直接复用写节结论,只重审改过的块。
+    """
+    if material.get("evidence_version") != 1:
+        return ["原料未按 v1 证据格式保存(无可重验的原文快照);请重新调研生成材料"]
+    evidence_report = course_evidence_report(
+        {"meta": course.get("meta", {}), "sections": [section]}, check_model_support=False,
+    )
+    if evidence_report["errors"]:
+        return list(evidence_report["errors"])
+    try:
+        original = {e["id"]: e for e in material_evidence(material)}
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        return [f"原文证据重验失败:{type(exc).__name__}"]
+    refs = {eid for b in section.get("blocks", []) for eid in b.get("evidence_ids", [])}
+    by_section = {section["id"]: {
+        "heading": section.get("heading", ""),
+        "evidence": [{k: original[eid][k] for k in
+                      ("id", "source_id", "quote", "context", "source_hash")}
+                     for eid in sorted(refs) if eid in original],
+    }}
+    claims = [
+        {
+            "id": b["id"],
+            "text": b["text"],
+            "exemplary": bool(b.get("exemplary")),
+            "learning_goal": learning_goal,
+            "section": by_section[b["id"].rsplit(":", 1)[0]],
+        }
+        for b in evidence_report["blocks"]
+    ]
+    checkpoint_path = report_path(str(course["id"])).with_suffix(".checkpoint.json")
+    previous = None
+    if checkpoint_path.exists():
+        try:
+            previous = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            previous = None
+    try:
+        raw = review_claims(claims, course_mode=True, previous=previous)
+    except Exception as exc:  # noqa: BLE001 审查服务不可用=该节不算过,打回重交
+        return [f"语义审查服务异常,请稍后重交该节:{type(exc).__name__}"]
+    review, _diagnostics = _normalize_model_review(raw, claims)
+    exemplary_ids = {c["id"] for c in claims if c["exemplary"]}
+    errors = []
+    for item in review["items"]:
+        if item["verdict"] == "not_applicable" and item["id"] not in exemplary_ids:
+            errors.append(f"{item['id']} 未申报示例(exemplary=true)的块不能用不适用代替核对")
+        if item["verdict"] not in ("supported", "not_applicable"):
+            errors.append(f"{item['id']} [{item['verdict']}] {item['reason']}")
+    if errors:
+        return errors
+    # 通过:结论按块内容哈希并入缓存;终审复用,只重审改动过的块。
+    merged_items = [i for i in (previous or {}).get("items", [])
+                    if i.get("id") not in {c["id"] for c in claims}]
+    merged = {
+        "reviewer": raw.get("reviewer", "model"),
+        "items": merged_items + review["items"],
+        "claim_hashes": {**(previous or {}).get("claim_hashes", {}),
+                         **raw.get("claim_hashes", {})},
+    }
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    checkpoint_path.write_text(json.dumps(merged, ensure_ascii=False), encoding="utf-8")
+    return []
+
+
 def review_course(
     course: dict[str, Any], material: dict[str, Any], *, learning_goal: str = ""
 ) -> dict[str, Any]:

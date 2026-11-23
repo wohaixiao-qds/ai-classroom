@@ -63,9 +63,16 @@ class PrepRecoveryTests(unittest.TestCase):
         ]
         self.material = {"subtopic": "测试课", "groups": [
             {"heading": f"材料{i}", "points": []} for i in range(1, 4)
-        ]}
+        ], "evidence_version": 1}
+        # 写节即审走 publication.review_claims:替身放行,不触真实端点。
+        review_patch = patch("app.services.publication.review_claims", side_effect=lambda claims,
+                             **kw: {"reviewer": "model:fixture", "claim_hashes": {}, "items": [
+                                 {"id": c["id"], "verdict": "supported", "reason": "有据"}
+                                 for c in claims]})
+        review_patch.start()
+        self.addCleanup(review_patch.stop)
         _, self.dispatch, self.state = prep._make_tools(
-            [], material_groups=[f"材料{i}" for i in range(1, 4)]
+            [], material_groups=[f"材料{i}" for i in range(1, 4)], material=self.material
         )
 
     def init(self) -> None:

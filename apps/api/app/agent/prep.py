@@ -296,6 +296,7 @@ def _make_tools(
     job_binding: dict[str, Any] | None = None,
     evidence_items: list[dict[str, Any]] | None = None,
     learning_goal: str = "",
+    material: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
     groups = material_groups or []
     state: dict[str, Any] = {"course_id": None, "plan": None, "plan_reviews": 0}
@@ -526,6 +527,15 @@ def _make_tools(
                 if b.get("type") == "quiz" and _near_text(b.get("question"), check["question"]) \
                         and _near_text(b.get("pass_rule"), check["pass_rule"]):
                     b["question"], b["pass_rule"] = check["question"], check["pass_rule"]
+        # 写节即审:单节逐块原文支撑(写一节审一节,失败最小范围暴露);
+        # 通过后结论进缓存,终审复用只审改动块——避免结尾整课大审查+整课打回。
+        from app.services.publication import review_section
+
+        section_errors = review_section(
+            course, section, material or {}, learning_goal=learning_goal)
+        if section_errors:
+            return ("(该节未通过原文支撑审查,未写入;按意见逐条修订后重交同 id):\n- "
+                    + "\n- ".join(section_errors[:8]))[:800]
         # G1 溯源即时反馈:事实块不挂证据且未申报 exemplary,当场打回不等终验。
         untraced = [
             f"第{i}块({b.get('type')})" for i, b in enumerate(section.get("blocks", []), 1)
@@ -831,6 +841,7 @@ def run_prep(
         job_binding=job_binding,
         evidence_items=material_evidence(material),
         learning_goal=learning_goal,
+        material=material,
     )
     state["subtopic"] = str(material.get("subtopic") or "本课")  # 兜底模板用
     position = (

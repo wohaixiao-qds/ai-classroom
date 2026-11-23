@@ -177,6 +177,36 @@ class PublicationTests(unittest.TestCase):
         ok = validate_course(declared, check_model_support=False)
         self.assertFalse([e for e in ok["errors"] if "可溯源" in e])
 
+    def test_review_section_gates_and_caches_verdicts(self) -> None:
+        from app.services.publication import review_section
+
+        def partial(claims: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
+            result = self.approve(claims, **kwargs)
+            result["items"][0]["verdict"] = "partial"
+            result["items"][0]["reason"] = "补充断言缺证据"
+            return result
+
+        with patch("app.services.publication.review_claims", side_effect=partial):
+            errors = review_section(self.course, self.course["sections"][0], self.material)
+        self.assertTrue(any("[partial]" in e for e in errors))
+        self.assertFalse(report_path("sample").with_suffix(".checkpoint.json").exists())
+
+        def exempt(claims: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
+            result = self.approve(claims, **kwargs)
+            result["items"][0]["verdict"] = "not_applicable"
+            return result
+
+        declared = copy.deepcopy(self.course)
+        declared["sections"][0]["blocks"][0]["evidence_ids"] = []
+        declared["sections"][0]["blocks"][0]["exemplary"] = True
+        with patch("app.services.publication.review_claims", side_effect=exempt):
+            errors = review_section(declared, declared["sections"][0], self.material)
+        self.assertEqual(errors, [])
+        cached = json.loads(
+            report_path("sample").with_suffix(".checkpoint.json").read_text())
+        self.assertEqual(cached["items"][0]["verdict"], "not_applicable")
+        self.assertIn("claim_hashes", cached)  # 真实链路由 review_claims 填充逐块哈希
+
     def test_not_applicable_requires_declared_exemplary(self) -> None:
         def exempt(claims: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
             result = self.approve(claims, **kwargs)
