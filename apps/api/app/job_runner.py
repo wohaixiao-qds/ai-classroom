@@ -173,6 +173,7 @@ def _run_task() -> str:
             cached_framework,
             cached_material,
             course_research_context,
+            framework_review_status,
             require_reviewed_material,
             research_framework,
             research_material,
@@ -182,6 +183,18 @@ def _run_task() -> str:
         fw = cached_framework(topic) or research_framework(topic)
         emit_progress("research", "completed", "大纲参考调研已返回；来源核验状态见可信依据")
         emit_progress("outline", "completed", f"大纲已就绪：{len(fw['courses'])} 门课")
+        # 大纲审查闸(P4):审查 unsupported 的课拒绝点单,引导先修大纲;
+        # unanchored/unreviewed/stale=存量或未审,警告放行不冒充已审。
+        review_status = framework_review_status(fw)
+        if review_status == "failed":
+            entry_review = (fw.get("review") or {}).get("courses", {}).get(course_title) or {}
+            issues = "；".join(str(i) for i in entry_review.get("issues", [])[:3]) or "审查未通过"
+            raise ValueError(
+                f"大纲审查未通过,「{course_title}」暂不可点单:{issues};"
+                "请先调整该课 goal/scope 后重新审查大纲"
+            )
+        if review_status != "passed":
+            print(f"⚠️ 大纲审查状态:{review_status}——未走新版语义审查,可信依据不完整")
         # 大纲→vault 目录同步(全自动跟随):主题/篇目录 + 大纲.md 快照,绑定写回 framework
         from app.services.vault_sync import sync_outline, theme_area
 

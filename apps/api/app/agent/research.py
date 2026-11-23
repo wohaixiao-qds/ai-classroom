@@ -267,6 +267,154 @@ def validate_framework(d: dict[str, Any], fetched: set[str] | None = None) -> li
     return errs
 
 
+_OUTLINE_REVIEW_PROMPT = """你是课程大纲审核员。对照权威原文快照,
+逐门课判定「这门课要讲的内容,原文撑不撑得起」。
+权威原文快照(本轮真实抓取,SHA-256 已绑定,数据之外不得引入你的常识):
+{snapshots}
+课程大纲(逐门:标题/目标/范围/弱点归因/先修):
+{courses}
+只输出严格 JSON:
+{{"courses": {{"<课程标题>": {{"verdict": "supported"|"unsupported",
+"issues": ["一句话具体缺什么/错什么"]}}}}}}
+supported=原文能撑起该课的核心概念与可操作目标;unsupported=撑不起(缺关键内容/与原文冲突/目标无法从原文得到练习材料)。
+issues 引用课程标题原词;全部撑得起时 issues 为空数组。"""
+
+
+def review_framework_semantics(d: dict[str, Any]) -> dict[str, Any]:
+    """大纲级语义审查闸(P4):逐门课 goal/scope 对照本轮抓取的权威原文快照。
+
+    模型结论作为程序闸的输入数据:报告绑定大纲内容哈希落盘,大纲一变即失效重审;
+    无来源快照的存量大纲标 unanchored,不冒充已审。
+    """
+    snapshots = d.get("source_snapshots") or {}
+    if not isinstance(snapshots, dict) or not snapshots:
+        return {"status": "unanchored", "reviewer": "", "courses": {}, "content_hash": ""}
+    snap_texts = []
+    for url, snap in list(snapshots.items())[:6]:
+        body = str((snap or {}).get("text", ""))[:2000]
+        snap_texts.append(f"== {url} ==\n{body}")
+    courses_desc = json.dumps(
+        [{"title": c.get("title", ""), "goal": c.get("goal", ""),
+          "scope": c.get("scope", {}), "why": c.get("why", ""),
+          "prereqs": c.get("prereqs", [])}
+         for c in d.get("courses", []) if isinstance(c, dict)],
+        ensure_ascii=False, indent=1,
+    )
+    prompt = _OUTLINE_REVIEW_PROMPT.format(
+        snapshots="\n\n".join(snap_texts), courses=courses_desc,
+    )
+    base = {
+        "reviewer": f"model:{settings.llm_model}",
+        "prompt_hash": digest(prompt),
+        "content_hash": digest(d.get("courses")),
+        "reviewed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    try:
+        response = (
+            get_llm_client()
+            .with_options(timeout=240.0)
+            .messages.create(
+                model=settings.llm_model,
+                max_tokens=16384,
+                messages=[{"role": "user", "content": prompt}],
+            )
+        )
+        text = "".join(b.text for b in response.content if b.type == "text")
+        parsed = parse_json_reply(text)
+        courses_verdict = parsed.get("courses") if parsed else None
+        if not isinstance(courses_verdict, dict):
+            return {**base, "status": "review_error", "courses": {}}
+    except Exception as exc:  # noqa: BLE001 审查服务失败标记重审,不静默通过
+        return {**base, "status": "review_error", "error": type(exc).__name__, "courses": {}}
+    failed = [title for title, v in courses_verdict.items()
+              if isinstance(v, dict) and v.get("verdict") == "unsupported"]
+    return {
+        **base,
+        "status": "passed" if not failed else "failed",
+        "failed_courses": failed,
+        "courses": courses_verdict,
+    }
+
+
+def framework_review_status(d: dict[str, Any]) -> str:
+    """大纲审查状态(unanchored/unreviewed/review_error/passed/failed),含哈希失效判定。"""
+    review = d.get("review")
+    if not isinstance(review, dict) or not review:
+        return "unanchored" if not (d.get("source_snapshots") or {}) else "unreviewed"
+    if digest(d.get("courses")) != review.get("content_hash"):
+        return "stale"  # 大纲改过,旧审查结论失效
+    return str(review.get("status") or "unreviewed")
+
+
+_COVERAGE_PROMPT = """你是课程材料审核员。对照课程约束,判断材料要点是否足以支撑教学,只报缺口。
+课程约束(程序注入的权威约定,不可改写):
+{constraints}
+材料要点(逐条,每条带来源号):
+{points}
+只输出严格 JSON:{{"gaps": ["缺失或覆盖不足的具体方面(引用 scope/goal 原词)", ...]}}
+材料足以支撑全部 scope 与 goal 时输出 {{"gaps": []}}。不许凭常识补课,只报缺口;一个缺口一句话。"""
+
+# 覆盖审查按材料内容哈希缓存:同一材料重复交付不再调模型(缺口结论沿用,逼 agent 真改)。
+_COVERAGE_MEMO: dict[str, dict[str, Any]] = {}
+
+
+def review_material_coverage(
+    d: dict[str, Any], research_context: dict[str, Any] | None,
+) -> list[str]:
+    """材料覆盖闸(P3):材料要点对照课程 goal/scope,缺什么当场点名打回。
+
+    结论按材料内容哈希缓存(模型意见作为程序闸的输入数据):重复交付同哈希
+    直接沿用结论,agent 循环的 MAX_TURNS 是有界兜底。
+    """
+    if not research_context:
+        return []
+    constraints = {
+        "outline_topic": research_context.get("outline_topic", ""),
+        "goal": research_context.get("learning_goal", ""),
+        "scope": research_context.get("scope", {}),
+        "learning_barrier": research_context.get("learning_barrier", ""),
+        "prerequisites": research_context.get("prerequisites", []),
+    }
+    if not constraints["goal"] and not constraints["scope"]:
+        return []  # 无大纲约束可对照(旧式独立调研),覆盖闸跳过
+    h = digest(d)
+    memo = _COVERAGE_MEMO.get(h)
+    if memo is not None:
+        return list(memo["errors"])  # 同哈希重复交付:沿用结论,不再调模型
+    lines = []
+    for gi, g in enumerate(d.get("groups", []), 1):
+        for pi, p in enumerate(g.get("points", []), 1):
+            lines.append(f"[组{gi}点{pi}] {p.get('text', '')}")
+    prompt = _COVERAGE_PROMPT.format(
+        constraints=json.dumps(constraints, ensure_ascii=False, indent=1),
+        points="\n".join(lines) or "(空)",
+    )
+    errors: list[str] = []
+    try:
+        response = (
+            get_llm_client()
+            .with_options(timeout=240.0)
+            .messages.create(
+                model=settings.llm_model,
+                max_tokens=16384,
+                messages=[{"role": "user", "content": prompt}],
+            )
+        )
+        text = "".join(b.text for b in response.content if b.type == "text")
+        parsed = parse_json_reply(text)
+        gaps = parsed.get("gaps") if parsed else None
+        if isinstance(gaps, list):
+            errors = [
+                f"材料覆盖缺口:{str(g)[:120]}" for g in gaps
+                if isinstance(g, str) and g.strip()
+            ][:8]
+    except Exception as exc:  # noqa: BLE001 覆盖审查失败降级放行,不拦调研(与密度闸不同层)
+        _COVERAGE_MEMO[h] = {"errors": [], "review_error": type(exc).__name__}
+        return []
+    _COVERAGE_MEMO[h] = {"errors": errors}
+    return errors
+
+
 def validate_material(d: dict[str, Any], fetched: set[str] | None = None) -> list[str]:
     """有据硬闸(2026-08-24 升级:外部可验)。fetched=本次循环 fetch_page 实际抓取成功的 URL 集;
     sources 里任何没抓取过的 URL 都打回——「记得有这篇」不算有据,「真的读过」才算。"""
@@ -907,6 +1055,11 @@ def research_framework(topic: str, *, source: str = "user") -> dict[str, Any]:
         "framework",
         source=source,
     )
+    # 大纲级语义审查闸(P4):逐门课 goal/scope 对照本轮抓取的权威原文。
+    # 结论(含失败)随大纲落盘;点单入口按 review_status 拦 unsupported 课。
+    review = review_framework_semantics(d)
+    d["review"] = review
+    d["review_status"] = review.get("status", "review_error")
     _save(d, f"{_slug(topic)}.framework.json")
     return d
 
@@ -922,13 +1075,20 @@ def research_material(
     context = research_context or {}
     _require_search()
     path = f"{_slug(topic)}.{_slug(subtopic)}.material.json"
+
+    def validator(d: dict[str, Any], fetched: set[str] | None) -> list[str]:
+        errs = validate_material(d, fetched)
+        if not errs:  # 密度闸过了才跑覆盖审查(每轮模型调用,顺序在最贵之前)
+            errs.extend(review_material_coverage(d, context))
+        return errs
+
     d = _loop(
         _MATERIAL_PROMPT.format(
             topic=topic,
             subtopic=subtopic,
             course_context=json.dumps(context, ensure_ascii=False, indent=2),
         ),
-        validate_material,
+        validator,
         topic,
         f"material:{subtopic}",
         source=source,

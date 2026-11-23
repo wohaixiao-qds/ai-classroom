@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from app.core.config import settings
@@ -69,6 +71,8 @@ def review_claims(
                     and isinstance(item.get("reason"), str) and item["reason"].strip()):
                 results[item["id"]] = item
 
+    lock = threading.Lock()  # 批次并发后保护 usage/attempts/results/checkpoint 共享突变
+
     def attempt(batch: list[dict[str, Any]]) -> list[dict[str, Any]]:
         diagnostic: dict[str, Any] = {"ids": [c["id"] for c in batch]}
         try:
@@ -83,8 +87,9 @@ def review_claims(
                     ],
                 )
             )
-            for key in ("input_tokens", "output_tokens"):
-                base["usage"][key] += getattr(response.usage, key, 0) or 0
+            with lock:
+                for key in ("input_tokens", "output_tokens"):
+                    base["usage"][key] += getattr(response.usage, key, 0) or 0
             text = "".join(b.text for b in response.content if b.type == "text")
             diagnostic.update(
                 stop_reason=getattr(response, "stop_reason", None),
@@ -99,28 +104,30 @@ def review_claims(
                 diagnostic.setdefault("error", "empty_text" if not text else "invalid_json")
             else:
                 expected = set(diagnostic["ids"])
-                for cid in expected:
-                    matches = [i for i in items if isinstance(i, dict) and i.get("id") == cid]
-                    if len(matches) != 1:
-                        continue
-                    item = matches[0]
-                    if (
-                        item.get("verdict") in verdicts
-                        and isinstance(item.get("reason"), str)
-                        and item["reason"].strip()
-                    ):
-                        results[cid] = {
-                            "id": cid,
-                            "verdict": item["verdict"],
-                            "reason": item["reason"][:500],
-                        }
-                if any(c["id"] not in results for c in batch):
-                    diagnostic.setdefault("error", "missing_duplicate_or_invalid_items")
+                with lock:
+                    for cid in expected:
+                        matches = [i for i in items if isinstance(i, dict) and i.get("id") == cid]
+                        if len(matches) != 1:
+                            continue
+                        item = matches[0]
+                        if (
+                            item.get("verdict") in verdicts
+                            and isinstance(item.get("reason"), str)
+                            and item["reason"].strip()
+                        ):
+                            results[cid] = {
+                                "id": cid,
+                                "verdict": item["verdict"],
+                                "reason": item["reason"][:500],
+                            }
+                    if any(c["id"] not in results for c in batch):
+                        diagnostic.setdefault("error", "missing_duplicate_or_invalid_items")
         except Exception as exc:  # noqa: BLE001 保留未评状态及异常类别
             diagnostic["error"] = type(exc).__name__
-        base["attempts"].append(diagnostic)
-        if checkpoint is not None:
-            checkpoint({**base, "items": list(results.values())})
+        with lock:
+            base["attempts"].append(diagnostic)
+            if checkpoint is not None:
+                checkpoint({**base, "items": list(results.values())})
         return [c for c in batch if c["id"] not in results]
 
     # 同时控制条数和输入体积;单条过大仍独立审查,不截断证据。
@@ -138,7 +145,8 @@ def review_claims(
         size += length
     if batch:
         batches.append(batch)
-    for batch in batches:
+
+    def run_batch(batch: list[dict[str, Any]]) -> None:
         for failed in attempt(batch):
             attempt([failed])
         from app.core.job_progress import emit_progress
@@ -146,6 +154,16 @@ def review_claims(
         emit_progress("review" if course_mode else "material", "running",
                       "最终课件自动语义审查" if course_mode else "原料自动语义审查",
                       current=len(results), total=len(ids))
+
+    # 批次并发(每批一次完整模型调用,思考型模型单批 1~3 分钟,串行是大头):
+    # 3~4 路并发把整课审查从 25~50 分钟压到 7~12 分钟;共享突变已由 attempt 内锁保护。
+    workers = min(4, len(batches))
+    if workers > 1:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(run_batch, batches))
+    else:
+        for run in batches:
+            run_batch(run)
     pending = [cid for cid in ids if cid not in results]
     if pending:
         base["error"] = next(
