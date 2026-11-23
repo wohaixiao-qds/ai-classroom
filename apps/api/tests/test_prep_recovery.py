@@ -163,6 +163,29 @@ class PrepRecoveryTests(unittest.TestCase):
                 prep.run_prep(self.material, resume_course_id="test", source="test")
         model.assert_not_called()
 
+    def test_goal_check_near_delivery_aligns_to_plan_text(self) -> None:
+        # GLM 字符抖动(错字/措辞微变)在写节时对齐规划原文:约定即权威文本。
+        self.plan[0]["goal_check"] = {
+            "question": "为什么修复库只能作为兜底而永远替代不了校验?",
+            "pass_rule": "答出校验在前、修复在后的顺序与各自的失败信号",
+        }
+        drifted = section("s1")
+        drifted["blocks"][-1] = {
+            "type": "quiz", "id": "s1-cp",
+            "question": "为什么修兑库只能作为兜底而永远替代不了校验?",  # 形近字抖动
+            "pass_rule": "答出校验在前、修复在后的顺序与各自的失败信号",
+        }
+        self.dispatch["submit_plan"]({"sections": self.plan})
+        self.dispatch["init_course"]({
+            "id": "test", "title": "测试课", "scenario": "自学", "source_notes": ["test.md"],
+        })
+        self.dispatch["write_section"]({"section": drifted})
+        course = prep._load(prep._course_path("test"))
+        quiz = next(b for s in course["sections"] if s["id"] == "s1"
+                    for b in s["blocks"] if b.get("type") == "quiz")
+        self.assertEqual(quiz["question"], self.plan[0]["goal_check"]["question"])
+        self.assertEqual(quiz["pass_rule"], self.plan[0]["goal_check"]["pass_rule"])
+
     def test_plan_delivery_rejects_duplicate_sections_and_empty_quiz_rule(self) -> None:
         sections = [section("s1"), section("s1"), section("s3")]
         sections[-1]["blocks"][-1]["pass_rule"] = " "

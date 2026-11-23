@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import difflib
 import json
 import sys
 import tempfile
@@ -223,6 +224,16 @@ def _valid_goal_check(check: Any) -> bool:
         isinstance(check.get(key), str) and check[key].strip()
         for key in ("question", "pass_rule")
     )
+
+
+def _near_text(value: Any, target: str, threshold: float = 0.95) -> bool:
+    """规划对照的近似相等:容 GLM 字符级抖动(错字/标点/空白/措辞微变),不容换题。
+
+    parsing-layer E2E 实测:作者 24 轮重交,「修复→修兑」形近字与 Structrued 拼写
+    抖动让逐字节验收永远打回;目标应用题约定是「原样交付」,近似即对齐、以规划原文覆盖。
+    """
+    a, b = str(value or "").strip(), target.strip()
+    return bool(a) and bool(b) and difflib.SequenceMatcher(None, a, b).ratio() >= threshold
 
 
 def _plan_delivery_errors(course: dict[str, Any], plan: list[dict[str, Any]] | None,
@@ -505,6 +516,15 @@ def _make_tools(
         plan_ids = [s["id"] for s in state["plan"]]
         if sid not in plan_ids:
             return f"(节 id {sid} 不在规划中,请使用原规划 id:{plan_ids})"
+        # 目标应用题对齐:作者交付的题/判分标准与规划约定近似时,以规划原文覆盖。
+        # 约定即权威文本——「原样交付」由程序执行,错字/措辞抖动在这里被修掉。
+        planned = next(s for s in state["plan"] if s["id"] == sid)
+        check = planned.get("goal_check")
+        if _valid_goal_check(check):
+            for b in section.get("blocks", []):
+                if b.get("type") == "quiz" and _near_text(b.get("question"), check["question"]) \
+                        and _near_text(b.get("pass_rule"), check["pass_rule"]):
+                    b["question"], b["pass_rule"] = check["question"], check["pass_rule"]
         # G1 溯源即时反馈:事实块不挂证据且未申报 exemplary,当场打回不等终验。
         untraced = [
             f"第{i}块({b.get('type')})" for i, b in enumerate(section.get("blocks", []), 1)
