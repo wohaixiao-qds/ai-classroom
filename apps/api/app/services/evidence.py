@@ -157,7 +157,9 @@ def block_text(block: dict[str, Any]) -> str:
                      if block.get(k))
 
 
-def course_evidence_report(course: dict[str, Any]) -> dict[str, Any]:
+def course_evidence_report(
+    course: dict[str, Any], *, check_model_support: bool = True,
+) -> dict[str, Any]:
     """供验收/离线审阅共用:未知引用是错误,未关联或未审语义明确保留。"""
     evidence = {e["id"]: e for e in course.get("meta", {}).get("evidence", [])}
     blocks, errors = [], []
@@ -169,7 +171,7 @@ def course_evidence_report(course: dict[str, Any]) -> dict[str, Any]:
             if unknown:
                 errors.append(f"{bid} 引用了不存在的证据:{unknown}")
             refs = [evidence[eid] for eid in ids if eid in evidence]
-            if any(e.get("support") == "unsupported" for e in refs):
+            if check_model_support and any(e.get("support") == "unsupported" for e in refs):
                 errors.append(f"{bid} 引用的原料已被标为不受原文支持,请修正或移除该断言")
             blocks.append({
                 "id": bid, "section": section.get("heading", ""),

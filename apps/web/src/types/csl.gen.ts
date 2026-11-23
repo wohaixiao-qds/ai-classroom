@@ -469,7 +469,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "model_reviewed" | "blocked" | "unreviewed";
+            status: "program_passed" | "model_reviewed" | "blocked" | "unreviewed";
             /** Content Hash */
             content_hash: string;
             /** Report Hash */
@@ -478,6 +478,16 @@ export interface components {
             reviewed_at: string;
             /** Reviewer */
             reviewer: string;
+            /**
+             * Program Status
+             * @default null
+             */
+            program_status: ("passed" | "blocked") | null;
+            /**
+             * Model Review Status
+             * @default null
+             */
+            model_review_status: ("completed" | "partial" | "failed" | "not_run") | null;
         };
         /**
          * QuizBlock

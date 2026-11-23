@@ -303,6 +303,6 @@ def _publication_checks(report: JobTrustReport, course: dict[str, Any]) -> None:
     report.checks.append(TrustCheck(
         id="publication_gate", label="发布规则验收",
         status="passed" if report.publication_status == "allowed" else "failed",
-        detail="程序按最终报告、报告指纹、逐块审查意见和缺项规则决定是否允许发布；"
+        detail="程序按最终报告、报告指纹与程序检查结果决定是否允许发布；模型意见仅作诊断。"
                "不等于事实认证。",
     ))

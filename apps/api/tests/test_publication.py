@@ -96,7 +96,8 @@ class PublicationTests(unittest.TestCase):
     def test_all_blocks_reviewed_then_publication_is_allowed(self) -> None:
         with patch("app.services.publication.review_claims", side_effect=self.approve) as model:
             report = review_course(self.course, self.material)
-        self.assertEqual(report["status"], "model_reviewed")
+        self.assertEqual(report["status"], "program_passed")
+        self.assertEqual(report["publication_status"], "allowed")
         claims = model.call_args.args[0]
         self.assertEqual(len(claims), 3)
         self.assertIn("只追加", claims[1]["text"])
@@ -137,8 +138,12 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(report["status"], "blocked")
         model.assert_not_called()
 
-    def test_partial_uncertain_unreviewed_and_missing_items_are_blocked(self) -> None:
-        for verdict in ("partial", "uncertain", "unreviewed", "unsupported"):
+    def test_model_verdicts_are_diagnostic_and_do_not_gate(self) -> None:
+        for verdict, review_status in (
+            ("partial", "completed"), ("uncertain", "completed"),
+            ("unsupported", "completed"), ("not_applicable", "completed"),
+            ("unreviewed", "partial"),
+        ):
 
             def review(
                 claims: list[dict[str, Any]], expected: str = verdict, **kwargs: Any
@@ -148,15 +153,29 @@ class PublicationTests(unittest.TestCase):
                 return output
 
             with patch("app.services.publication.review_claims", side_effect=review):
-                self.assertEqual(review_course(self.course, self.material)["status"],
-                                 "unreviewed" if verdict == "unreviewed" else "blocked")
-            with self.assertRaises(PublicationBlocked):
-                assert_publishable(self.course)
+                report = review_course(self.course, self.material)
+            # 模型结论降级为诊断:程序核验独立放行,结论逐条留档。
+            self.assertEqual(report["status"], "program_passed")
+            self.assertEqual(report["publication_status"], "allowed")
+            self.assertEqual(report["model_review_status"], review_status)
+            if verdict != "not_applicable":
+                self.assertTrue(
+                    any(f" · {verdict}：" in d for d in report["model_diagnostics"])
+                )
+            assert_publishable(self.course)
         with patch("app.services.publication.review_claims", return_value={"items": []}):
-            self.assertEqual(review_course(self.course, self.material)["status"], "blocked")
+            report = review_course(self.course, self.material)
+        self.assertEqual(report["model_review_status"], "failed")
+        self.assertEqual(report["publication_status"], "allowed")
+        assert_publishable(self.course)
 
     def test_unreviewed_does_not_trigger_author_guessing_repairs(self) -> None:
-        report = {"status": "blocked", "items": [{"verdict": "unreviewed"}], "errors": ["超时"]}
+        # 模型审查失败不再拦截发布:程序核验通过即放行,作者不会被叫来猜着改。
+        report = {
+            "status": "program_passed", "program_status": "passed",
+            "publication_status": "allowed", "model_review_status": "failed",
+            "errors": [], "items": [],
+        }
         with (
             patch("app.services.publication.review_course", return_value=report),
             patch("app.agent.prep.run_prep") as author,
@@ -222,7 +241,7 @@ class PublicationTests(unittest.TestCase):
                 review_course(self.course, self.material)
         self.assertFalse(report_path("sample").exists())
 
-    def test_linked_factual_block_cannot_be_exempted_as_example(self) -> None:
+    def test_not_applicable_verdict_is_diagnostic_and_does_not_block(self) -> None:
         def exempt(claims: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
             result = self.approve(claims, **kwargs)
             result["items"][0]["verdict"] = "not_applicable"
@@ -230,8 +249,12 @@ class PublicationTests(unittest.TestCase):
 
         with patch("app.services.publication.review_claims", side_effect=exempt):
             report = review_course(self.course, self.material)
-        self.assertEqual(report["status"], "blocked")
-        self.assertTrue(any("不适用" in error for error in report["errors"]))
+        self.assertEqual(report["items"][0]["verdict"], "not_applicable")
+        # 关联证据块的核验由程序检查承担(证据引用与原文快照一致即可发布),
+        # 模型的"不适用"只是诊断记录,不再拥有豁免权。
+        self.assertEqual(report["status"], "program_passed")
+        self.assertEqual(report["publication_status"], "allowed")
+        assert_publishable(self.course)
 
     def test_bulk_publish_does_not_bypass_missing_report(self) -> None:
         dst = settings.data_dir / "published"

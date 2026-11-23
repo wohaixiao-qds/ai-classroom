@@ -18,7 +18,7 @@ const STAGES = [
 ] as const;
 const STATUS: Record<string, string> = { queued: "排队中", running: "执行中", stopping: "正在停止", cancelled: "已停止", failed: "执行中断", done: "已完成", deleted: "已删除" };
 const VERDICT: Record<string, string> = { supported: "有证据支持", partial: "部分支持", unsupported: "缺少支持", uncertain: "存疑", unreviewed: "未完成审查", not_applicable: "非事实性内容" };
-const reviewStatus: Record<string, string> = { model_reviewed: "自动审查通过", blocked: "未通过", unreviewed: "未完成", complete: "已完成", completed: "已完成", stale: "旧报告已失效" };
+const reviewStatus: Record<string, string> = { program_passed: "程序核验通过", model_reviewed: "自动审查通过", blocked: "未通过", unreviewed: "未完成", complete: "已完成", completed: "已完成", stale: "旧报告已失效" };
 const keyOf = (job: Job) => `${job.kind}:${job.target}`;
 const paramsOf = (job: Job) => new URLSearchParams({ kind: job.kind, target: job.target });
 

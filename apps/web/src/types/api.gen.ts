@@ -224,6 +224,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/eval/legacy-courses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Legacy Courses */
+        get: operations["legacy_courses_api_v1_eval_legacy_courses_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/eval/legacy-courses/{course_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Legacy Course */
+        get: operations["legacy_course_api_v1_eval_legacy_courses__course_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/catalog": {
         parameters: {
             query?: never;
@@ -1108,6 +1142,101 @@ export interface components {
             status: "candidate" | "saved" | "dismissed";
             /** Wishlist Id */
             wishlist_id?: string | null;
+        };
+        /** LegacyCourseDetail */
+        LegacyCourseDetail: {
+            /** Course Id */
+            course_id: string;
+            /** Title */
+            title: string;
+            /** Status */
+            status: string;
+            /** Course */
+            course: {
+                [key: string]: unknown;
+            };
+            /** Sources */
+            sources?: {
+                [key: string]: unknown;
+            }[];
+            /** Blocks */
+            blocks?: {
+                [key: string]: unknown;
+            }[];
+            /** Evidence Errors */
+            evidence_errors?: string[];
+            /** Material Status */
+            material_status?: {
+                [key: string]: unknown;
+            }[];
+            /** Revision */
+            revision?: {
+                [key: string]: unknown;
+            } | null;
+            /** Report */
+            report?: {
+                [key: string]: unknown;
+            } | null;
+            /** Blockers */
+            blockers?: string[];
+        };
+        /** LegacyCourseSummary */
+        LegacyCourseSummary: {
+            /** Course Id */
+            course_id: string;
+            /** Title */
+            title: string;
+            /** Version */
+            version?: number | null;
+            /**
+             * Checkpoints
+             * @default 0
+             */
+            checkpoints: number;
+            /**
+             * Evidence Items
+             * @default 0
+             */
+            evidence_items: number;
+            /**
+             * Matched Evidence Items
+             * @default 0
+             */
+            matched_evidence_items: number;
+            /**
+             * Material Files Found
+             * @default 0
+             */
+            material_files_found: number;
+            /**
+             * Materials With Snapshots
+             * @default 0
+             */
+            materials_with_snapshots: number;
+            /**
+             * Publication Report Exists
+             * @default false
+             */
+            publication_report_exists: boolean;
+            /** Publication Report Status */
+            publication_report_status?: string | null;
+            /** Publication Gate */
+            publication_gate: string;
+            /** Publication Block Reason */
+            publication_block_reason?: string | null;
+            /** Legacy Review Status */
+            legacy_review_status: string;
+            /** Blockers */
+            blockers?: string[];
+        };
+        /** LegacyCourses */
+        LegacyCourses: {
+            /** Courses */
+            courses: components["schemas"]["LegacyCourseSummary"][];
+            /** Summary */
+            summary: {
+                [key: string]: number;
+            };
         };
         /** Lesson */
         Lesson: {
@@ -2217,6 +2346,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Lesson"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    legacy_courses_api_v1_eval_legacy_courses_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegacyCourses"];
+                };
+            };
+        };
+    };
+    legacy_course_api_v1_eval_legacy_courses__course_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegacyCourseDetail"];
                 };
             };
             /** @description Validation Error */

@@ -16,11 +16,12 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 from uuid import uuid4
 
 from app.core.config import settings
 from app.core.trace import digest
+from app.services.evidence import course_evidence_report
 from app.services.publication import (
     PublicationBlocked,
     assert_publishable,
@@ -343,6 +344,106 @@ def _legacy_review_state(course_id: str, current_hash: str | None) -> str:
     return "blocked"
 
 
+def _revision_entries(course_id: str) -> list[tuple[Path, dict[str, Any]]]:
+    """读取某门课的复审清单，忽略损坏或属于别的课程的目录。"""
+    revisions = settings.data_dir / "revisions"
+    entries: list[tuple[Path, dict[str, Any]]] = []
+    if not revisions.is_dir():
+        return entries
+    for manifest_path in revisions.glob("*/revision.json"):
+        try:
+            manifest = _load(manifest_path)
+        except RevisionBlocked:
+            continue
+        if manifest.get("course_id") == course_id:
+            entries.append((manifest_path.parent, manifest))
+    return entries
+
+
+def legacy_course_detail(course_id: str) -> dict[str, Any]:
+    """返回观测页展示老课复审依据的只读聚合视图。"""
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", course_id):
+        raise RevisionBlocked("课程 id 无效")
+    current_path = settings.courses_dir / f"{course_id}.csl.json"
+    if not current_path.exists():
+        raise RevisionBlocked(f"正式课件不存在: {course_id}")
+    current = _load(current_path)
+    entries = _revision_entries(course_id)
+    latest_root, latest_manifest = (
+        max(entries, key=lambda item: str(item[1].get("created_at", "")))
+        if entries else (None, None)
+    )
+    candidate = current
+    report: dict[str, Any] | None = None
+    if latest_root is not None:
+        candidate_path = latest_root / "candidate.csl.json"
+        report_path_ = latest_root / "publication.json"
+        if candidate_path.exists():
+            try:
+                candidate = _load(candidate_path)
+            except RevisionBlocked:
+                candidate = current
+        if report_path_.exists():
+            try:
+                report = _load(report_path_)
+            except RevisionBlocked:
+                report = None
+    if report is None:
+        current_report = report_path(course_id)
+        if current_report.exists():
+            try:
+                report = _load(current_report)
+            except RevisionBlocked:
+                report = None
+    evidence = course_evidence_report(candidate, check_model_support=False)
+    sources = [source for source in (candidate.get("meta") or {}).get("sources", [])
+               if isinstance(source, dict)]
+    material_status: list[dict[str, Any]] = []
+    material_paths = _material_files(candidate)
+    for material_path in material_paths:
+        try:
+            material = _load(material_path)
+            snapshots = material.get("source_snapshots") or {}
+            source_rows = []
+            for source in material.get("sources", []):
+                if not isinstance(source, dict):
+                    continue
+                url = str(source.get("url", ""))
+                snapshot = snapshots.get(url) if isinstance(snapshots, dict) else None
+                source_rows.append({
+                    "id": source.get("id"), "title": source.get("title", ""), "url": url,
+                    "snapshot": bool(snapshot and snapshot.get("text")),
+                    "sha256": snapshot.get("sha256") if isinstance(snapshot, dict) else None,
+                })
+            material_status.append({
+                "path": str(material_path.relative_to(settings.data_dir)),
+                "evidence_version": material.get("evidence_version"),
+                "sources": source_rows,
+            })
+        except (RevisionBlocked, OSError, ValueError, TypeError):
+            material_status.append({"path": str(material_path), "error": "原料无法读取或格式无效"})
+    audit_row: dict[str, Any] = next(
+        (row for row in audit_legacy_courses()["courses"]
+         if row.get("course_id") == course_id),
+        {},
+    )
+    return {
+        "course_id": course_id,
+        "title": str(current.get("title", "")),
+        "status": _legacy_review_state(
+            course_id, digest(current_path.read_bytes().decode("utf-8")),
+        ),
+        "course": candidate,
+        "sources": sources,
+        "blocks": evidence["blocks"],
+        "evidence_errors": evidence["errors"],
+        "material_status": material_status,
+        "revision": latest_manifest,
+        "report": report,
+        "blockers": audit_row.get("blockers", []),
+    }
+
+
 def audit_legacy_courses() -> dict[str, Any]:
     """只读盘点当前课件的新门禁状态与老课复审状态。"""
     courses: list[dict[str, Any]] = []
@@ -447,7 +548,8 @@ def review_revision(paths: RevisionPaths, *, material_path: Path | None = None) 
             shutil.copy2(isolated_report, paths.report)
     _write(paths.candidate, candidate)
     manifest.update(
-        status="reviewed" if report.get("status") == "model_reviewed" else "blocked",
+        status="reviewed" if report.get("publication_status") == "allowed"
+        else "blocked",
         review_status=report.get("status"),
         reviewed_at=report.get("reviewed_at"),
         report_hash=digest(report),
@@ -456,7 +558,14 @@ def review_revision(paths: RevisionPaths, *, material_path: Path | None = None) 
         checkpoint_snapshots_after=_checkpoint_snapshots(candidate),
     )
     _write(paths.manifest, manifest)
-    return cast(dict[str, Any], report)
+    # 程序门禁通过后自动晋级；没有内容人工审批节点。晋级失败时保留 reviewed
+    # 候选和完整报告，后续可重试且不会改动正式课件。
+    if manifest["status"] == "reviewed":
+        try:
+            promote_revision(paths)
+        except RevisionBlocked:
+            pass
+    return report
 
 
 def _checkpoint_mapping(
@@ -489,12 +598,14 @@ def _checkpoint_mapping(
     destinations = list(mapping.values())
     if len(destinations) != len(set(destinations)):
         raise RevisionBlocked("多个旧检查点不能合并到同一个新检查点")
-    missing = [checkpoint_id for checkpoint_id in before if checkpoint_id not in mapping]
-    unmarked = [checkpoint_id for checkpoint_id in missing if checkpoint_id not in relearn]
-    if unmarked:
-        raise RevisionBlocked(
-            "有检查点被删除或改名，必须逐个提供映射或显式标记重做: " + ", ".join(unmarked)
-        )
+    # 检查点语义变化或删除时自动让旧记录重做；学习者不需要理解映射规则，
+    # 未变化且 id 未变的检查点沿用原掌握度。
+    for checkpoint_id, snapshot in before.items():
+        if checkpoint_id not in mapping and checkpoint_id not in relearn:
+            if after.get(checkpoint_id) != snapshot:
+                relearn.add(checkpoint_id)
+            else:
+                mapping[checkpoint_id] = checkpoint_id
     return mapping, [checkpoint_id for checkpoint_id in before if checkpoint_id in relearn]
 
 
@@ -506,8 +617,8 @@ def promote_revision(
 ) -> dict[str, Any]:
     """把已通过审查的候选原子替换正式源和前端副本。"""
     manifest = _manifest(paths)
-    if manifest.get("status") != "reviewed" or manifest.get("review_status") != "model_reviewed":
-        raise RevisionBlocked("候选未通过最终课件审查，不能晋级")
+    if manifest.get("status") != "reviewed":
+        raise RevisionBlocked("候选未通过程序发布门禁，不能晋级")
     candidate = _load(paths.candidate)
     course_id = str(manifest.get("course_id"))
     if candidate.get("id") != course_id:
@@ -518,6 +629,8 @@ def promote_revision(
     report = _load(paths.report)
     if digest(report) != manifest.get("report_hash"):
         raise RevisionBlocked("复审报告在审查后发生变化；请重新审查")
+    if report.get("publication_status") != "allowed":
+        raise RevisionBlocked("复审报告的程序发布门禁未通过")
     current = settings.courses_dir / f"{course_id}.csl.json"
     current_hash = digest(current.read_bytes().decode("utf-8")) if current.exists() else None
     if current_hash != manifest.get("original_source_hash"):

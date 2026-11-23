@@ -24,13 +24,15 @@ export function EvidencePanel({ course }: { course: CourseV2 }) {
     <section className="mb-10 rounded-xl border border-border p-4" aria-label="原文依据">
       <h2 className="text-base font-medium">内容审查与原文依据</h2>
       <p className="mt-2 text-sm">
-        {review?.status === "model_reviewed"
-          ? `自动审查通过 · ${new Date(review.reviewed_at).toLocaleDateString()}`
-          : review?.status === "blocked" ? "审查未通过 · 草稿"
-            : review?.status === "unreviewed" ? "审查未完成 · 草稿" : "历史课程 · 尚未按新规则审查"}
+        {review?.status === "program_passed"
+          ? `程序核验通过 · ${new Date(review.reviewed_at).toLocaleDateString()}`
+          : review?.status === "model_reviewed"
+            ? `自动审查通过 · ${new Date(review.reviewed_at).toLocaleDateString()}`
+            : review?.status === "blocked" ? "审查未通过 · 草稿"
+              : review?.status === "unreviewed" ? "审查未完成 · 草稿" : "历史课程 · 尚未按新规则审查"}
       </p>
       <p className="mt-1 text-xs text-muted-foreground">
-        自动审查覆盖正文、图表和测验标准，不代表人工复核或事实绝对正确。
+        程序核验覆盖结构、证据关联与原文快照一致性；模型意见仅作诊断，不代表人工复核或事实绝对正确。
       </p>
       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
         以下是各节写作时关联的原文。摘录定位确认出处，原料模型初审与正文审校分别进行。
@@ -41,7 +43,7 @@ export function EvidencePanel({ course }: { course: CourseV2 }) {
             <summary className="cursor-pointer text-sm font-medium">
               {section.heading} · {section.refs.length} 条依据
             </summary>
-            <p className="mt-2 text-xs text-muted-foreground">{review?.status === "model_reviewed" ? "正文已完成自动语义审查" : "正文改写尚待审校"}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{review?.status === "program_passed" ? "正文已通过程序核验，模型意见仅作诊断" : review?.status === "model_reviewed" ? "正文已完成自动语义审查" : "正文改写尚待审校"}</p>
             <ul className="mt-3 space-y-4">
               {section.refs.map((item) => {
                 const source = course.meta.sources?.find((s, i) => (s.id ?? i + 1) === item.source_id);

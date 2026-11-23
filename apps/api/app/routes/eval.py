@@ -13,10 +13,17 @@ from app.schemas.eval import (
     EvalRepeats,
     EvalSummary,
     EvalTraces,
+    LegacyCourseDetail,
+    LegacyCourses,
     Lesson,
     LessonReview,
 )
 from app.services import eval_metrics
+from app.services.legacy_revision import (
+    RevisionBlocked,
+    audit_legacy_courses,
+    legacy_course_detail,
+)
 
 router = APIRouter(prefix="/api/v1/eval", tags=["eval"])
 
@@ -51,3 +58,16 @@ def review(lesson_id: str, req: LessonReview) -> dict[str, Any]:
     if not review_lesson(lesson_id, req.status, req.text):
         raise HTTPException(404, "教训候选不存在")
     return next(r for r in list_lessons() if r["id"] == lesson_id)
+
+
+@router.get("/legacy-courses", response_model=LegacyCourses)
+def legacy_courses() -> dict[str, Any]:
+    return audit_legacy_courses()
+
+
+@router.get("/legacy-courses/{course_id}", response_model=LegacyCourseDetail)
+def legacy_course(course_id: str) -> dict[str, Any]:
+    try:
+        return legacy_course_detail(course_id)
+    except RevisionBlocked as exc:
+        raise HTTPException(404, str(exc)) from exc

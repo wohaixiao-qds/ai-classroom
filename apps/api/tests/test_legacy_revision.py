@@ -5,6 +5,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import PropertyMock, patch
 
 from app.core.config import settings
@@ -29,7 +30,7 @@ class LegacyRevisionTests(unittest.TestCase):
         self.web = self.root / "web"
         for path in (self.courses, self.data, self.web):
             path.mkdir()
-        self.patches = [
+        self.patches: list[Any] = [
             patch.object(settings, "courses_dir", self.courses),
             patch.object(settings, "data_dir", self.data),
             patch.object(type(settings), "web_public_courses", new_callable=PropertyMock,
@@ -70,7 +71,7 @@ class LegacyRevisionTests(unittest.TestCase):
         self.material_path = self.data / "material.json"
         self.material_path.write_text(json.dumps(material), encoding="utf-8")
 
-    def approve(self, claims: list[dict], **kwargs: object) -> dict:
+    def approve(self, claims: list[dict[str, Any]], **kwargs: object) -> dict[str, Any]:
         return {"reviewer": "model:test", "items": [
             {"id": claim["id"], "verdict": "supported", "reason": "有原文依据"}
             for claim in claims
@@ -79,12 +80,15 @@ class LegacyRevisionTests(unittest.TestCase):
     def test_review_isolated_and_promotion_keeps_id(self) -> None:
         paths = create_revision("legacy", material_path=self.material_path, revision_id="pilot")
         old = self.course_path.read_bytes()
-        with patch("app.services.publication.review_claims", side_effect=self.approve):
+        # 审查通过后 review_revision 会自动晋级;为单独验证隔离性,这里挂起自动晋级。
+        with (
+            patch("app.services.publication.review_claims", side_effect=self.approve),
+            patch("app.services.legacy_revision.promote_revision"),
+        ):
             report = review_revision(paths)
-        self.assertEqual(report["status"], "model_reviewed")
+        self.assertEqual(report["status"], "program_passed")
         self.assertEqual(self.course_path.read_bytes(), old)
-        with patch("app.services.publication.review_claims", side_effect=self.approve):
-            manifest = promote_revision(paths)
+        manifest = promote_revision(paths)
         self.assertEqual(manifest["status"], "promoted")
         self.assertEqual(json.loads(self.course_path.read_text())["id"], "legacy")
         self.assertEqual(json.loads((self.web / self.course_path.name).read_text())["id"], "legacy")
@@ -97,36 +101,42 @@ class LegacyRevisionTests(unittest.TestCase):
 
     def test_concurrent_source_change_blocks_promotion(self) -> None:
         paths = create_revision("legacy", material_path=self.material_path)
-        with patch("app.services.publication.review_claims", side_effect=self.approve):
+        with (
+            patch("app.services.publication.review_claims", side_effect=self.approve),
+            patch("app.services.legacy_revision.promote_revision"),
+        ):
             review_revision(paths)
         self.course["title"] = "被别人改过"
         self.course_path.write_text(json.dumps(self.course), encoding="utf-8")
         with self.assertRaisesRegex(RevisionBlocked, "正式源课件已变化"):
             promote_revision(paths)
 
-    def test_checkpoint_removal_requires_explicit_mapping_or_redo(self) -> None:
+    def test_removed_checkpoint_auto_relearns(self) -> None:
         paths = create_revision("legacy", material_path=self.material_path)
         candidate = json.loads(paths.candidate.read_text())
         candidate["sections"][0]["blocks"].pop()
         paths.candidate.write_text(json.dumps(candidate), encoding="utf-8")
-        # The review report is intentionally mocked: this test covers the promotion guard.
+        # The review report is intentionally faked: this test covers the promotion guard.
+        report = {"status": "program_passed", "publication_status": "allowed"}
+        paths.report.write_text(json.dumps(report), encoding="utf-8")
         paths.manifest.write_text(json.dumps({
             **json.loads(paths.manifest.read_text()),
-            "status": "reviewed", "review_status": "model_reviewed",
+            "status": "reviewed", "review_status": "program_passed",
             "candidate_hash": digest(paths.candidate.read_bytes().decode("utf-8")),
-            "report_hash": digest({}),
+            "report_hash": digest(report),
         }), encoding="utf-8")
-        paths.report.write_text(json.dumps({}), encoding="utf-8")
         with patch("app.services.legacy_revision.assert_publishable"):
-            with self.assertRaisesRegex(RevisionBlocked, "逐个提供映射或显式标记重做"):
-                promote_revision(paths)
-            manifest = promote_revision(paths, relearning_required=["s1-cp"])
+            manifest = promote_revision(paths)
+        # 语义变化或删除的检查点自动让旧记录重做,不再要求显式映射。
         self.assertEqual(manifest["relearning_required"], ["s1-cp"])
         self.assertEqual(manifest["checkpoint_mapping"], {})
 
     def test_candidate_or_publication_change_after_review_blocks_promotion(self) -> None:
         paths = create_revision("legacy", material_path=self.material_path)
-        with patch("app.services.publication.review_claims", side_effect=self.approve):
+        with (
+            patch("app.services.publication.review_claims", side_effect=self.approve),
+            patch("app.services.legacy_revision.promote_revision"),
+        ):
             review_revision(paths)
         candidate = json.loads(paths.candidate.read_text())
         candidate["title"] = "绕过审查的修改"
@@ -139,39 +149,35 @@ class LegacyRevisionTests(unittest.TestCase):
         candidate = json.loads(paths.candidate.read_text())
         candidate["sections"][0]["blocks"].pop()
         paths.candidate.write_text(json.dumps(candidate), encoding="utf-8")
+        report = {"status": "program_passed", "publication_status": "allowed"}
+        paths.report.write_text(json.dumps(report), encoding="utf-8")
         paths.manifest.write_text(json.dumps({
             **json.loads(paths.manifest.read_text()),
-            "status": "reviewed", "review_status": "model_reviewed",
-            "candidate_hash": __import__("app.core.trace", fromlist=["digest"]).digest(
-                paths.candidate.read_bytes().decode("utf-8")
-            ),
-            "report_hash": digest({}),
+            "status": "reviewed", "review_status": "program_passed",
+            "candidate_hash": digest(paths.candidate.read_bytes().decode("utf-8")),
+            "report_hash": digest(report),
         }), encoding="utf-8")
-        paths.report.write_text(json.dumps({}), encoding="utf-8")
         with patch("app.services.legacy_revision.assert_publishable"):
             with self.assertRaisesRegex(RevisionBlocked, "未知旧检查点"):
                 promote_revision(paths, relearning_required=["not-a-checkpoint"])
 
-    def test_changed_checkpoint_meaning_requires_explicit_mapping_or_relearning(self) -> None:
+    def test_changed_checkpoint_meaning_auto_relearns(self) -> None:
         paths = create_revision("legacy", material_path=self.material_path)
         candidate = json.loads(paths.candidate.read_text())
         candidate["sections"][0]["blocks"][1]["question"] = "改成考察不同概念？"
         paths.candidate.write_text(json.dumps(candidate), encoding="utf-8")
+        report = {"status": "program_passed", "publication_status": "allowed"}
+        paths.report.write_text(json.dumps(report), encoding="utf-8")
         paths.manifest.write_text(json.dumps({
             **json.loads(paths.manifest.read_text()),
-            "status": "reviewed", "review_status": "model_reviewed",
+            "status": "reviewed", "review_status": "program_passed",
             "candidate_hash": digest(paths.candidate.read_bytes().decode("utf-8")),
-            "report_hash": digest({}),
+            "report_hash": digest(report),
         }), encoding="utf-8")
-        paths.report.write_text(json.dumps({}), encoding="utf-8")
         with patch("app.services.legacy_revision.assert_publishable"):
-            with self.assertRaisesRegex(RevisionBlocked, "逐个提供映射或显式标记重做"):
-                promote_revision(paths)
-            manifest = promote_revision(
-                paths,
-                checkpoint_mapping={"s1-cp": "s1-cp"},
-            )
-        self.assertEqual(manifest["checkpoint_mapping"], {"s1-cp": "s1-cp"})
+            manifest = promote_revision(paths)
+        self.assertEqual(manifest["relearning_required"], ["s1-cp"])
+        self.assertEqual(manifest["checkpoint_mapping"], {})
 
     def test_revision_ids_cannot_escape_revision_directory(self) -> None:
         with self.assertRaisesRegex(RevisionBlocked, "课程 id 无效"):
@@ -184,12 +190,13 @@ class LegacyRevisionTests(unittest.TestCase):
         candidate = json.loads(paths.candidate.read_text())
         candidate["sections"][0]["blocks"][1]["id"] = "s1-cp-new"
         paths.candidate.write_text(json.dumps(candidate), encoding="utf-8")
-        paths.report.write_text(json.dumps({}), encoding="utf-8")
+        report = {"status": "program_passed", "publication_status": "allowed"}
+        paths.report.write_text(json.dumps(report), encoding="utf-8")
         paths.manifest.write_text(json.dumps({
             **json.loads(paths.manifest.read_text()),
-            "status": "reviewed", "review_status": "model_reviewed",
+            "status": "reviewed", "review_status": "program_passed",
             "candidate_hash": digest(paths.candidate.read_bytes().decode("utf-8")),
-            "report_hash": digest({}),
+            "report_hash": digest(report),
         }), encoding="utf-8")
         database = self.data / "classroom.db"
         with sqlite3.connect(database) as connection:

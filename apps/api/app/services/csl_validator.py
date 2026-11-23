@@ -82,14 +82,16 @@ def _meta_checks(
             )
 
 
-def validate_course(d: dict[str, Any]) -> dict[str, Any]:
+def validate_course(
+    d: dict[str, Any], *, check_model_support: bool = True,
+) -> dict[str, Any]:
     """校验一份课件(dict 形态)。顶层 version==2 走书页规则,否则页/句规则。
 
     返回 {"ok": bool, "errors": [...], "warnings": [...], "summary": str}。
     JSON/结构错也归入 errors(不抛)——循环里模型拿到的永远是可读反馈。
     """
     if isinstance(d, dict) and d.get("version") == 2:
-        return _validate_v2(d)
+        return _validate_v2(d, check_model_support=check_model_support)
     return _validate_v1(d)
 
 
@@ -119,7 +121,7 @@ _BLOCK_NAMES = {
 }
 
 
-def _validate_v2(d: dict[str, Any]) -> dict[str, Any]:
+def _validate_v2(d: dict[str, Any], *, check_model_support: bool = True) -> dict[str, Any]:
     try:
         course = CourseV2.model_validate(d)
     except ValidationError as e:
@@ -158,7 +160,9 @@ def _validate_v2(d: dict[str, Any]) -> dict[str, Any]:
             and evidence.quote_end == evidence.quote_start + len(evidence.quote)
         ):
             errors.append(f"证据 {evidence.id} 的摘录定位信息不完整或不一致")
-    report = course_evidence_report(course.model_dump())
+    report = course_evidence_report(
+        course.model_dump(), check_model_support=check_model_support,
+    )
     errors.extend(report["errors"])
     if course.meta.evidence:
         missing = sum(e.quote_status != "matched" for e in course.meta.evidence)

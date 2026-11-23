@@ -184,6 +184,42 @@ class EvalLessons(BaseModel):
     lessons: list[Lesson]
 
 
+class LegacyCourseSummary(BaseModel):
+    course_id: str
+    title: str
+    version: int | None = None
+    checkpoints: int = 0
+    evidence_items: int = 0
+    matched_evidence_items: int = 0
+    material_files_found: int = 0
+    materials_with_snapshots: int = 0
+    publication_report_exists: bool = False
+    publication_report_status: str | None = None
+    publication_gate: str
+    publication_block_reason: str | None = None
+    legacy_review_status: str
+    blockers: list[str] = Field(default_factory=list)
+
+
+class LegacyCourses(BaseModel):
+    courses: list[LegacyCourseSummary]
+    summary: dict[str, int]
+
+
+class LegacyCourseDetail(BaseModel):
+    course_id: str
+    title: str
+    status: str
+    course: dict[str, Any]
+    sources: list[dict[str, Any]] = Field(default_factory=list)
+    blocks: list[dict[str, Any]] = Field(default_factory=list)
+    evidence_errors: list[str] = Field(default_factory=list)
+    material_status: list[dict[str, Any]] = Field(default_factory=list)
+    revision: dict[str, Any] | None = None
+    report: dict[str, Any] | None = None
+    blockers: list[str] = Field(default_factory=list)
+
+
 class LessonReview(BaseModel):
     status: Literal["approved", "rejected"]
     text: str | None = Field(default=None, min_length=1, max_length=1000)

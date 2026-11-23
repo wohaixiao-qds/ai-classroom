@@ -163,11 +163,13 @@ class CourseDep(BaseModel):
 class PublicationReview(BaseModel):
     """摘要只供展示,发布还需验证独立报告与内容指纹。"""
 
-    status: Literal["model_reviewed", "blocked", "unreviewed"]
+    status: Literal["program_passed", "model_reviewed", "blocked", "unreviewed"]
     content_hash: str
     report_hash: str
     reviewed_at: str
     reviewer: str
+    program_status: Literal["passed", "blocked"] | None = None
+    model_review_status: Literal["completed", "partial", "failed", "not_run"] | None = None
 
 
 class CourseMeta(BaseModel):
