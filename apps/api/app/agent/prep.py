@@ -930,7 +930,8 @@ def run_prep(
                    "**修订模式:必须用 write_section 工具提交修改后的节;不调用工具的纯文本"
                    "回复不会改变课件,视为未完成修订。**"
                    "补证必须来自材料真实原文;不能把事实改标示例逃避核查:\n" + revision_feedback)
-        prompt += "\n当前全文:\n" + json.dumps((rc or {}).get("sections", []), ensure_ascii=False)
+        # 不再附课件全文 JSON dump:76 块 2.2 万字符叠加材料渲染曾触发端点 400
+        # (单条消息超限);已有内容看上方 existing_sections 摘要,改错用 upsert 原语。
     # 离线批量循环放宽单次超时:模型一轮会写几千 token 的规划+页 JSON,
     # 中转慢速时 60s 必掐死(实测 191s);chat 的 60s 交互护栏不受影响
     client = get_llm_client().with_options(timeout=240.0)
