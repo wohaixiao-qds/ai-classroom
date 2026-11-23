@@ -16,7 +16,9 @@ from app.core.config import settings
 
 
 def section(sid: str, quiz: bool = True) -> dict[str, Any]:
-    blocks: list[dict[str, Any]] = [{"type": "p", "text": f"{sid} 的完整正文。"}]
+    blocks: list[dict[str, Any]] = [
+        {"type": "p", "text": f"{sid} 的完整正文。", "exemplary": True}
+    ]
     if quiz:
         blocks.append({"type": "quiz", "id": f"{sid}-cp", "question": "如何验证？",
                        "pass_rule": "说明验证步骤"})

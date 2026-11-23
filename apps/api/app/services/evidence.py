@@ -176,9 +176,13 @@ def course_evidence_report(
             blocks.append({
                 "id": bid, "section": section.get("heading", ""),
                 "text": block_text(block), "evidence_ids": ids, "evidence": refs,
+                # 写作时申报的示例/类比标记;审查时据此放行 not_applicable。
+                "exemplary": bool(block.get("exemplary")),
                 # 原料审查不等于改写后的课件审查。
                 "support": "unreviewed",
-                "reason": "正文尚未做语义审查" if refs else "未关联原文证据(练习/类比亦需人工区分)",
+                "reason": "正文尚未做语义审查" if refs else (
+                    "示例块(写作时申报)" if block.get("exemplary") else "未关联原文证据"
+                ),
             })
     return {"course_id": course.get("id"), "errors": errors, "blocks": blocks,
             "linked_blocks": sum(bool(b["evidence"]) for b in blocks),

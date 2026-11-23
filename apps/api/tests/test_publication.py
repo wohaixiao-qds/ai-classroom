@@ -138,12 +138,8 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(report["status"], "blocked")
         model.assert_not_called()
 
-    def test_model_verdicts_are_diagnostic_and_do_not_gate(self) -> None:
-        for verdict, review_status in (
-            ("partial", "completed"), ("uncertain", "completed"),
-            ("unsupported", "completed"), ("not_applicable", "completed"),
-            ("unreviewed", "partial"),
-        ):
+    def test_unsupported_or_uncertain_blocks_block_publication(self) -> None:
+        for verdict in ("partial", "uncertain", "unsupported", "unreviewed"):
 
             def review(
                 claims: list[dict[str, Any]], expected: str = verdict, **kwargs: Any
@@ -154,35 +150,53 @@ class PublicationTests(unittest.TestCase):
 
             with patch("app.services.publication.review_claims", side_effect=review):
                 report = review_course(self.course, self.material)
-            # 模型结论降级为诊断:程序核验独立放行,结论逐条留档。
-            self.assertEqual(report["status"], "program_passed")
-            self.assertEqual(report["publication_status"], "allowed")
-            self.assertEqual(report["model_review_status"], review_status)
-            if verdict != "not_applicable":
-                self.assertTrue(
-                    any(f" · {verdict}：" in d for d in report["model_diagnostics"])
-                )
-            assert_publishable(self.course)
+            # 逐块原文支撑硬闸:说不清出处的块打回,结论留档进诊断。
+            self.assertEqual(report["status"], "blocked")
+            self.assertEqual(report["publication_status"], "blocked")
+            self.assertTrue(
+                any(f"[{verdict}]" in e for e in report["errors"]),
+                f"{verdict} 应进 errors 驱动定点修订",
+            )
+            with self.assertRaises(PublicationBlocked):
+                assert_publishable(self.course)
         with patch("app.services.publication.review_claims", return_value={"items": []}):
             report = review_course(self.course, self.material)
-        self.assertEqual(report["model_review_status"], "failed")
-        self.assertEqual(report["publication_status"], "allowed")
-        assert_publishable(self.course)
+        self.assertEqual(report["publication_status"], "blocked")
+        with self.assertRaises(PublicationBlocked):
+            assert_publishable(self.course)
 
-    def test_unreviewed_does_not_trigger_author_guessing_repairs(self) -> None:
-        # 模型审查失败不再拦截发布:程序核验通过即放行,作者不会被叫来猜着改。
-        report = {
-            "status": "program_passed", "program_status": "passed",
-            "publication_status": "allowed", "model_review_status": "failed",
-            "errors": [], "items": [],
-        }
-        with (
-            patch("app.services.publication.review_course", return_value=report),
-            patch("app.agent.prep.run_prep") as author,
-        ):
-            with self.assertRaises(PublicationBlocked):
-                ensure_publication(self.course, self.material)
-            author.assert_not_called()
+    def test_untraced_fact_block_is_rejected_by_validator_and_gate(self) -> None:
+        from app.services.csl_validator import validate_course
+
+        untraced = copy.deepcopy(self.course)
+        untraced["sections"][0]["blocks"][0]["evidence_ids"] = []
+        result = validate_course(untraced, check_model_support=False)
+        self.assertTrue(any("可溯源" in e for e in result["errors"]))
+        declared = copy.deepcopy(untraced)
+        declared["sections"][0]["blocks"][0]["exemplary"] = True
+        ok = validate_course(declared, check_model_support=False)
+        self.assertFalse([e for e in ok["errors"] if "可溯源" in e])
+
+    def test_not_applicable_requires_declared_exemplary(self) -> None:
+        def exempt(claims: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
+            result = self.approve(claims, **kwargs)
+            result["items"][0]["verdict"] = "not_applicable"
+            return result
+
+        with patch("app.services.publication.review_claims", side_effect=exempt):
+            report = review_course(self.course, self.material)
+        self.assertEqual(report["status"], "blocked")
+        self.assertTrue(any("exemplary" in e for e in report["errors"]))
+        with self.assertRaises(PublicationBlocked):
+            assert_publishable(self.course)
+        # 写作时申报 exemplary 的示例块:not_applicable 合法,放行。
+        declared = copy.deepcopy(self.course)
+        declared["sections"][0]["blocks"][0]["exemplary"] = True
+        declared["sections"][0]["blocks"][0]["evidence_ids"] = []
+        with patch("app.services.publication.review_claims", side_effect=exempt):
+            ok_report = review_course(declared, self.material)
+        self.assertEqual(ok_report["status"], "program_passed")
+        assert_publishable(declared)
 
     def test_repairs_are_bounded_to_two_and_preserve_draft(self) -> None:
         report = {"status": "blocked", "items": [{"verdict": "partial"}], "errors": ["缺少条件"]}
@@ -240,21 +254,6 @@ class PublicationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "已停止"):
                 review_course(self.course, self.material)
         self.assertFalse(report_path("sample").exists())
-
-    def test_not_applicable_verdict_is_diagnostic_and_does_not_block(self) -> None:
-        def exempt(claims: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
-            result = self.approve(claims, **kwargs)
-            result["items"][0]["verdict"] = "not_applicable"
-            return result
-
-        with patch("app.services.publication.review_claims", side_effect=exempt):
-            report = review_course(self.course, self.material)
-        self.assertEqual(report["items"][0]["verdict"], "not_applicable")
-        # 关联证据块的核验由程序检查承担(证据引用与原文快照一致即可发布),
-        # 模型的"不适用"只是诊断记录,不再拥有豁免权。
-        self.assertEqual(report["status"], "program_passed")
-        self.assertEqual(report["publication_status"], "allowed")
-        assert_publishable(self.course)
 
     def test_bulk_publish_does_not_bypass_missing_report(self) -> None:
         dst = settings.data_dir / "published"

@@ -46,6 +46,9 @@ def assert_publishable(course: dict[str, Any]) -> None:
     checks_passed = isinstance(checks, list) and bool(checks) and all(
         isinstance(check, dict) and check.get("status") == "passed" for check in checks
     )
+    items = [i for i in report.get("items", []) if isinstance(i, dict)]
+    block_ids = {b["id"] for b in evidence["blocks"]}
+    exemplary_ids = {b["id"] for b in evidence["blocks"] if b.get("exemplary")}
     if (
         program_status != "passed"
         or not checks_passed
@@ -54,8 +57,16 @@ def assert_publishable(course: dict[str, Any]) -> None:
         or report.get("content_hash") != content_hash(course)
         or summary.get("report_hash") != digest(report)
         or report.get("publication_status", "allowed") != "allowed"
+        or not items
+        or {i.get("id") for i in items} != block_ids
+        or len(items) != len(block_ids)
+        or any(i.get("verdict") not in ("supported", "not_applicable") for i in items)
+        or any(i.get("verdict") == "not_applicable" and i.get("id") not in exemplary_ids
+               for i in items)
     ):
-        raise PublicationBlocked("发布被拦截:程序核验未通过或报告已失效,请查看依据报告")
+        raise PublicationBlocked(
+            "发布被拦截:程序核验未通过、报告已失效或存在未获原文支撑的内容,请查看依据报告"
+        )
 
 
 def is_review_draft(course: dict[str, Any]) -> bool:
@@ -146,6 +157,10 @@ def review_course(
     errors.extend(evidence_report["errors"])
     material_errors: list[str] = []
     try:
+        if material.get("evidence_version") != 1:
+            material_errors.append(
+                "原料未按 v1 证据格式保存(无可重验的原文快照),不能支撑可溯源审查;请重新调研生成材料"
+            )
         original = {e["id"]: e for e in material_evidence(material)}
         source_urls = {s.get("id", i): s.get("url")
                        for i, s in enumerate(material.get("sources", []), 1)}
@@ -167,6 +182,7 @@ def review_course(
     review: dict[str, Any] = {"items": []}
     model_diagnostics: list[str] = []
     claims: list[dict[str, Any]] = []
+    verdict_errors: list[str] = []
     if not errors:
         # 未直接关联的题目/图示也送审,提供同节依据,避免自动漏审。
         by_section: dict[str, dict[str, Any]] = {}
@@ -184,6 +200,7 @@ def review_course(
             {
                 "id": b["id"],
                 "text": b["text"],
+                "exemplary": bool(b.get("exemplary")),
                 "learning_goal": learning_goal,
                 "section": by_section[b["id"].rsplit(":", 1)[0]],
             }
@@ -211,9 +228,23 @@ def review_course(
             raw_review = review_claims(
                 claims, course_mode=True, previous=previous, checkpoint=checkpoint,
             )
-        except Exception as exc:  # noqa: BLE001 模型诊断故障不改变程序门禁结论
+        except Exception as exc:  # noqa: BLE001 模型故障不再放行:逐块结论缺位=程序错误
             raw_review = {"error": type(exc).__name__, "items": []}
         review, model_diagnostics = _normalize_model_review(raw_review, claims)
+        # 逐块原文支撑硬闸:supported 才放行;not_applicable 仅限写作时申报的示例块。
+        expected = {c["id"] for c in claims}
+        actual = [i["id"] for i in review["items"]]
+        if set(actual) != expected or len(actual) != len(expected):
+            verdict_errors.append("最终课件审查缺项或重复,禁止发布")
+        exemplary_ids = {c["id"] for c in claims if c["exemplary"]}
+        for item in review["items"]:
+            if item["verdict"] == "not_applicable" and item["id"] not in exemplary_ids:
+                verdict_errors.append(
+                    f"{item['id']} 未申报示例(exemplary=true)的块不能用不适用代替核对"
+                )
+            if item["verdict"] not in ("supported", "not_applicable"):
+                verdict_errors.append(f"{item['id']} [{item['verdict']}] {item['reason']}")
+    errors.extend(verdict_errors)
     model_items = review.get("items", [])
     model_review_status = "not_run"
     if claims:
@@ -247,6 +278,16 @@ def review_course(
             "label": "来源 URL 与原文快照",
             "status": "passed" if not material_errors else "failed",
             "detail": "；".join(material_errors) or "来源、摘录、上下文和快照指纹一致",
+        },
+        {
+            "id": "block_support",
+            "label": "逐块原文支撑",
+            "status": "passed" if not verdict_errors else "failed",
+            "detail": "；".join(verdict_errors[:3]) if verdict_errors else (
+                f"{sum(i['verdict'] == 'supported' for i in review['items'])}"
+                f" / {len(review['items'])} 块获原文支撑" if review["items"]
+                else "未运行(存在更早的程序错误)"
+            ),
         },
     ]
     report = {

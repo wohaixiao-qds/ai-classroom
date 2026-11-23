@@ -58,7 +58,7 @@ class EvalTests(unittest.TestCase):
                     "id": "s1",
                     "heading": "增量更新：合并变化",
                     "blocks": [
-                        {"type": "p", "text": "状态更新只附加变化"},
+                        {"type": "p", "text": "状态更新只附加变化", "exemplary": True},
                         {
                             "type": "quiz",
                             "id": "q1",

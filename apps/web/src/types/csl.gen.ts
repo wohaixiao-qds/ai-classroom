@@ -11,6 +11,11 @@ export interface components {
              */
             evidence_ids: string[];
             /**
+             * Exemplary
+             * @default false
+             */
+            exemplary: boolean;
+            /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
@@ -49,6 +54,11 @@ export interface components {
              * @default []
              */
             evidence_ids: string[];
+            /**
+             * Exemplary
+             * @default false
+             */
+            exemplary: boolean;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -235,6 +245,11 @@ export interface components {
              */
             evidence_ids: string[];
             /**
+             * Exemplary
+             * @default false
+             */
+            exemplary: boolean;
+            /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
@@ -367,6 +382,11 @@ export interface components {
              */
             evidence_ids: string[];
             /**
+             * Exemplary
+             * @default false
+             */
+            exemplary: boolean;
+            /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
@@ -453,6 +473,11 @@ export interface components {
              */
             evidence_ids: string[];
             /**
+             * Exemplary
+             * @default false
+             */
+            exemplary: boolean;
+            /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
@@ -499,6 +524,11 @@ export interface components {
              * @default []
              */
             evidence_ids: string[];
+            /**
+             * Exemplary
+             * @default false
+             */
+            exemplary: boolean;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -586,6 +616,11 @@ export interface components {
              * @default []
              */
             evidence_ids: string[];
+            /**
+             * Exemplary
+             * @default false
+             */
+            exemplary: boolean;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}

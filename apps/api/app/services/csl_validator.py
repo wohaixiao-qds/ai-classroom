@@ -172,7 +172,7 @@ def _validate_v2(d: dict[str, Any], *, check_model_support: bool = True) -> dict
                             f"{pending} 条未获模型完整支撑判定;模型判定仍需人工校准")
         unlinked = report["total_blocks"] - report["linked_blocks"]
         warnings.append(f"正文语义未审,另有 {unlinked} 块未关联原文证据"
-                        "(练习/类比不要求强行找来源);可用 audit_evidence.py 审阅")
+                        "(申报 exemplary 的示例块除外);可用 audit_evidence.py 审阅")
     if not course.sections:
         errors.append("sections 为空——至少一节")
 
@@ -189,6 +189,13 @@ def _validate_v2(d: dict[str, Any], *, check_model_support: bool = True) -> dict
 
         for bi, b in enumerate(sec.blocks, 1):
             bwhere = f"{where} 第{bi}块({b.type}/{_BLOCK_NAMES[b.type]})"
+            # G1 溯源硬闸:事实块必须挂证据;示例/类比/练习须写作时申报 exemplary。
+            if isinstance(b, (ParagraphBlock, DiagramBlock, CodeBlock, TableBlock, CalloutBlock)) \
+                    and not b.evidence_ids and not b.exemplary:
+                errors.append(
+                    f"{bwhere}: 事实块未关联证据且未申报 exemplary——知识点必须可溯源;"
+                    '示例/类比/练习请显式写 "exemplary": true'
+                )
             if isinstance(b, ParagraphBlock):
                 if not b.text.strip():
                     errors.append(f"{bwhere}: 段落文本为空")

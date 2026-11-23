@@ -108,7 +108,9 @@ id 固定用「<节id>-cp」。
 成绩数字不等于受控对照,不得无依据归因为全部提升来自某组件;组合系统不等于贡献各占一半。
 个别团队案例不得概括所有团队;评分方式按目标选择,不得排成固定可靠性顺序。
 标为 unsupported 的要点不要作为事实使用;partial/uncertain/unreviewed 如实保留限制。
-练习、自造示例、类比可留空 evidence_ids,但明确标为示例,不能冒充来源事实。
+练习、自造示例、类比可留空 evidence_ids,但必须显式写 "exemplary": true 申报这是示例——
+未申报的无出处内容会被门禁按事实打回;示例必须贴合本课已溯源的知识点、帮助理解,
+不能借例子引入新的无据事实断言。
 引用只建立追溯关系,不能声称正文已被事实核验。
 
 """ + (
@@ -503,6 +505,16 @@ def _make_tools(
         plan_ids = [s["id"] for s in state["plan"]]
         if sid not in plan_ids:
             return f"(节 id {sid} 不在规划中,请使用原规划 id:{plan_ids})"
+        # G1 溯源即时反馈:事实块不挂证据且未申报 exemplary,当场打回不等终验。
+        untraced = [
+            f"第{i}块({b.get('type')})" for i, b in enumerate(section.get("blocks", []), 1)
+            if b.get("type") in ("p", "diagram", "code", "table", "callout")
+            and not b.get("evidence_ids") and not b.get("exemplary")
+        ]
+        if untraced:
+            return ("(这些块既没有 evidence_ids 也没申报 exemplary=true,"
+                    f"知识点必须可溯源:{'、'.join(untraced)}。"
+                    "事实块挂材料证据;示例/类比/练习写 \"exemplary\": true 申报)")[:600]
         idx = next((i for i, sc in enumerate(course["sections"]) if sc.get("id") == sid), None)
         if idx is None:
             course["sections"].append(section)

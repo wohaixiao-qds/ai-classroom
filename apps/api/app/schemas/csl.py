@@ -226,9 +226,14 @@ class Course(BaseModel):
 
 
 class EvidenceBlock(BaseModel):
-    """块引用的是原料证据 ID;引用本身不证明改写后的正文受原文支持。"""
+    """块引用的是原料证据 ID;引用本身不证明改写后的正文受原文支持。
+
+    exemplary 是写作时的申报位:练习/自造示例/类比声明「本块非来源事实」,
+    豁免溯源硬闸并允许审查判 not_applicable;未申报的无出处内容一律按事实打回。
+    """
 
     evidence_ids: list[str] = []
+    exemplary: bool = False
 
 
 class ParagraphBlock(EvidenceBlock):

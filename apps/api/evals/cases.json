@@ -358,7 +358,8 @@
           "blocks": [
             {
               "type": "p",
-              "text": "只追加变化,不替换历史。"
+              "text": "只追加变化,不替换历史。",
+              "exemplary": true
             },
             {
               "type": "quiz",
@@ -374,7 +375,8 @@
           "blocks": [
             {
               "type": "p",
-              "text": "只追加变化,不替换历史。"
+              "text": "只追加变化,不替换历史。",
+              "exemplary": true
             },
             {
               "type": "quiz",
@@ -390,7 +392,8 @@
           "blocks": [
             {
               "type": "p",
-              "text": "只追加变化,不替换历史。"
+              "text": "只追加变化,不替换历史。",
+              "exemplary": true
             },
             {
               "type": "quiz",
@@ -419,7 +422,8 @@
           "blocks": [
             {
               "type": "p",
-              "text": "只追加变化,不替换历史。"
+              "text": "只追加变化,不替换历史。",
+              "exemplary": true
             },
             {
               "type": "quiz",
@@ -435,7 +439,8 @@
           "blocks": [
             {
               "type": "p",
-              "text": "只追加变化,不替换历史。"
+              "text": "只追加变化,不替换历史。",
+              "exemplary": true
             },
             {
               "type": "quiz",
@@ -451,7 +456,8 @@
           "blocks": [
             {
               "type": "p",
-              "text": "只追加变化,不替换历史。"
+              "text": "只追加变化,不替换历史。",
+              "exemplary": true
             },
             {
               "type": "quiz",

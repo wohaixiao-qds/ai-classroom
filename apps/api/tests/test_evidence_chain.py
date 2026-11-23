@@ -199,6 +199,9 @@ class EvidenceChainTests(unittest.TestCase):
         old = self.course()
         del old["meta"]["evidence"]
         del old["sections"][0]["blocks"][0]["evidence_ids"]
+        # 溯源硬闸后,无证据链的事实块不再合法;申报 exemplary(示例)才可豁免。
+        self.assertFalse(validate_course(old)["ok"])
+        old["sections"][0]["blocks"][0]["exemplary"] = True
         self.assertTrue(validate_course(old)["ok"])
         duplicate = self.course()
         duplicate["meta"]["evidence"].append(duplicate["meta"]["evidence"][0])
