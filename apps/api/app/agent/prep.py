@@ -32,7 +32,12 @@ from app.agent.tools import emit_call, read_notes
 from app.core.config import settings
 from app.core.job_progress import emit_progress
 from app.core.llm import get_llm_client
-from app.core.prompts import DEV_LANDING_RULE, OFF_THE_SHELF_RULE, PITFALL_RULE
+from app.core.prompts import (
+    DEV_LANDING_RULE,
+    OFF_THE_SHELF_RULE,
+    PITFALL_RULE,
+    TRACEABLE_CLAIM_RULE,
+)
 from app.core.trace import observed, run_context, trace_prep, update_run
 from app.schemas.csl import Section
 from app.services.csl_validator import validate_course
@@ -106,7 +111,10 @@ id 固定用「<节id>-cp」。
 练习、自造示例、类比可留空 evidence_ids,但明确标为示例,不能冒充来源事实。
 引用只建立追溯关系,不能声称正文已被事实核验。
 
-""" + PITFALL_RULE + "\n\n" + DEV_LANDING_RULE + "\n\n" + OFF_THE_SHELF_RULE + "\n"
+""" + (
+    PITFALL_RULE + "\n\n" + DEV_LANDING_RULE + "\n\n" + OFF_THE_SHELF_RULE
+    + "\n\n" + TRACEABLE_CLAIM_RULE + "\n"
+)
 
 
 # ---------- 工具实现(闭包持有课件路径与材料来源) ----------

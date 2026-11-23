@@ -81,6 +81,15 @@ OFF_THE_SHELF_RULE = (
     "(例:SWE-agent 的 last_n_observations、LangGraph 的 trim_messages、Claude Code 的 "
     "auto-compaction),并写清各自对应本课哪个概念。不许编造不存在的库。"
 )
+# 可溯源断言:禁止无出处的量化成效数字(2026-11-23 parsing-layer 复审 11 条 unsupported 暴露的病灶)
+TRACEABLE_CLAIM_RULE = (
+    "# 断言必须可溯源(硬纪律)\n"
+    "禁止无出处的量化成效断言:「提升/降低 N%」「成功率从 A% 到 B%」「稳定在 N% 以上」这类数字,"
+    "只有直接来自备课材料原文摘录(挂得上证据)才能写;材料里没有就改写成定性表述"
+    "(例:「显著减少语法错误」而不是「减少 40% 语法错误」)。同理:「效果最好」「适用性最广」这类"
+    "无来源的横向排名断言也不许写。检查点/测验的判分标准不得要求学员复述材料里不存在的数字或事实——"
+    "学员会被要求背下编造的内容才能过关。代码示例的输入输出可以对齐官方文档常见行为,但不得声称已运行。"
+)
 
 
 def parse_json_reply(text: str) -> dict[str, Any] | None:
