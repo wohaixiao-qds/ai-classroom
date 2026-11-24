@@ -701,6 +701,7 @@ def _loop(
     *, source: str = "user",
     research_context: dict[str, Any] | None = None,
     material_filename: str | None = None,
+    max_turns: int | None = None,
 ) -> dict[str, Any]:
     """调研循环:工具轮 → 最终交付 JSON → 校验,不过则反馈重交。校验通过才返回。"""
     # 离线批量循环放宽单次超时(与 prep.py 同因:长交付在中转慢速时 60s 不够)
@@ -716,12 +717,14 @@ def _loop(
     t0 = time.perf_counter()
     last_err: list[str] = []
     token_budget = 32768 if phase.startswith("material:") else 16384
+    turns_budget = max_turns if max_turns is not None else MAX_TURNS
     run_context(prompt=prompt, tools=RESEARCH_TOOLS,
-                parameters={"max_tokens": token_budget, "max_turns": MAX_TURNS})
+                parameters={"max_tokens": token_budget,
+                            "max_turns": turns_budget})
 
-    for turn in range(MAX_TURNS):
+    for turn in range(turns_budget):
         update_run(turns=turn + 1)
-        last_turn = turn == MAX_TURNS - 1
+        last_turn = turn == turns_budget - 1
         model_started = time.perf_counter()
         try:
             resp = client.messages.create(
@@ -903,7 +906,7 @@ def _loop(
         usage=usage,
         error=f"MAX_TURNS 耗尽;最后的校验问题: {last_err[:3]}",
     )
-    msg = f"调研未在 {MAX_TURNS} 轮内交付合格结果(最后问题: {last_err[:3]})"
+    msg = f"调研未在 {turns_budget} 轮内交付合格结果(最后问题: {last_err[:3]})"
     raise RuntimeError(msg)
 
 
@@ -1093,7 +1096,12 @@ def research_material(
     source: str = "user",
     research_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """阶段2:选定子题的带来源原料(备课 agent 的输入)。"""
+    """阶段2:选定子题的带来源原料(备课 agent 的输入)。
+
+    轮次预算分层(E2E 缺陷#3):首轮 16 轮管广度抓取;首轮失败时若最后问题
+    是覆盖缺口,进独立补挖循环(每轮 6 轮,最多 2 次)——打回循环有保底预算,
+    不再与初次抓取共池导致「想补但没轮次」的死局。
+    """
     context = research_context or {}
     _require_search()
     path = f"{_slug(topic)}.{_slug(subtopic)}.material.json"
@@ -1104,22 +1112,68 @@ def research_material(
             errs.extend(review_material_coverage(d, context))
         return errs
 
-    d = _loop(
-        _MATERIAL_PROMPT.format(
-            topic=topic,
-            subtopic=subtopic,
-            course_context=json.dumps(context, ensure_ascii=False, indent=2),
-        ),
-        validator,
-        topic,
-        f"material:{subtopic}",
-        source=source,
-        research_context=context,
-        material_filename=path,
+    last_errors: list[str] = []
+    try:
+        d = _loop(
+            _MATERIAL_PROMPT.format(
+                topic=topic,
+                subtopic=subtopic,
+                course_context=json.dumps(context, ensure_ascii=False, indent=2),
+            ),
+            validator,
+            topic,
+            f"material:{subtopic}",
+            source=source,
+            research_context=context,
+            material_filename=path,
+        )
+    except TimeoutError as exc:
+        msg = str(exc)
+        if "材料覆盖缺口" not in msg:
+            raise
+        last_errors = [seg.strip() for seg in
+                       msg.split("最后问题:")[1].strip("]'").split(";") if seg.strip()]
+        print(f"首轮调研耗尽,进覆盖缺口补挖循环({len(last_errors)} 个缺口)", flush=True)
+    else:
+        d.pop("_usage", None)
+        d["_material_path"] = str(settings.data_dir / "research" / path)
+        return d
+    # 覆盖闸补挖循环:缺口清单来自覆盖闸的意见文本,聚焦补挖,独立 6 轮预算。
+    for bounce in range(2):
+        gap_prompt = (
+            f"你是课题调研员,为子题「{subtopic}」(主题:{topic})补齐材料缺口。\n"
+            f"已有材料已覆盖其他方面,**只补以下缺口**,不要重复已有内容:\n"
+            + "\n".join(f"- {g}" for g in last_errors)
+            + "\n\n课程上下文:\n"
+            + json.dumps(context, ensure_ascii=False, indent=2)[:2000]
+            + "\n\n输出与材料相同的完整 JSON 结构"
+            "(topic/subtopic/sources/groups+points,每点带逐字引文,全部来源必须真实抓取)。"
+        )
+        try:
+            d = _loop(
+                gap_prompt,
+                validator,
+                topic,
+                f"material:{subtopic}:gap{bounce + 1}",
+                source=source,
+                research_context=context,
+                material_filename=path,
+                max_turns=6,
+            )
+        except TimeoutError as exc2:
+            msg2 = str(exc2)
+            if "材料覆盖缺口" not in msg2:
+                raise
+            last_errors = [seg.strip() for seg in
+                           msg2.split("最后问题:")[1].strip("]'").split(";") if seg.strip()]
+            print(f"补挖 {bounce + 1}/2 仍有缺口,{'继续' if bounce == 0 else '放弃'}", flush=True)
+            continue
+        d.pop("_usage", None)
+        d["_material_path"] = str(settings.data_dir / "research" / path)
+        return d
+    raise TimeoutError(
+        f"覆盖闸缺口经 2 轮补挖仍未补齐: {last_errors[:2]};请人工审阅该课 goal/scope 或手动补料"
     )
-    d.pop("_usage", None)
-    d["_material_path"] = str(settings.data_dir / "research" / path)  # 管线往下传
-    return d
 
 
 if __name__ == "__main__":
