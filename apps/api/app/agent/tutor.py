@@ -123,6 +123,7 @@ def run_tutor(
     course_map: str = "",
     mastered_terms: list[str] | None = None,
     state_note: str | None = None,
+    hint_level: int = 0,
 ) -> Iterator[dict]:
     """跑一轮答疑,以事件流产出(生成器)。
 
@@ -156,10 +157,31 @@ def run_tutor(
     if current_page:
         context_parts.append(f"[我正在学第「{current_page}」页]")
     if checkpoint:
-        # 批改→答疑联动(P7 补):复述没过,老师拿全上下文做引导式解答
+        # 批改→答疑联动(P7 补):复述没过,老师拿全上下文做引导式解答。
+        # 提示阶梯(T4,2026-11-24 四参数拍板):档位由路由层按「自上次 pass 以来的
+        # 连续非 pass 次数」算好传入,1/2/3 三档;0=未传(直接调 run_tutor 的旧路径)
+        # 视同 L1——带检查点上下文必然需要引导。
+        level = min(max(hint_level, 1), 3)
+        if level == 1:
+            guidance = (
+                "[复述检查点没过,请引导式解答:先点破薄弱点,引导学员自己想通,"
+                "不要直接给完整标准答案]"
+            )
+        elif level == 2:
+            guidance = (
+                "[复述检查点第二次卡住,请半示范:讲一个同类的具体小例子演示思路,"
+                "然后让学员把它套回原问题自己说,先不给完整标准答案]"
+            )
+        else:
+            guidance = (
+                "[复述检查点反复卡住,请直接把概念讲透(含标准表述,不必再绕),"
+                "讲完必须换一个角度出一道小题让学员当场应用一次]"
+            )
         brief = (
-            "[复述检查点没过,请引导式解答:先点破薄弱点,引导学员自己想通,"
-            "不要直接给完整标准答案]\n"
+            guidance + "\n"
+            "共同纪律:学员明确说「直接告诉我/答案是什么/别绕了」就立刻讲透,不再引导;"
+            "学员连续表示仍不懂时自行加深;全程不向学员提及提示档位或引导策略,"
+            "直接以相应深度作答。\n"
             f"检查点问题:{checkpoint.get('question', '')}\n"
             f"通过标准:{checkpoint.get('pass_rule') or '核心概念说清即可'}\n"
             f"学员回答:{checkpoint.get('answer', '')}\n"

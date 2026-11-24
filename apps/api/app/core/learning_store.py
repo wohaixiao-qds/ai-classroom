@@ -209,6 +209,27 @@ def latest_gaps(course_id: str, page_id: str) -> list[str]:
     return [str(g) for g in parsed if str(g).strip()]
 
 
+def consecutive_non_pass(course_id: str, page_id: str) -> int:
+    """该检查点自最近一次 pass 以来的连续非 pass 批改次数(T4 提示阶梯档位依据)。
+
+    从最新往回数,遇到 pass 停(批改 verdict 只有 pass/fail 二值,≥70 判 pass);
+    从未有过批改记录=0(提交前「问 AI 老师」的兜底路径,档位由调用方钳到 1)。
+    """
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT verdict FROM learning_grades"
+            " WHERE course_id=? AND page_id=?"
+            " ORDER BY ts DESC, rowid DESC LIMIT 200",
+            (course_id, page_id),
+        ).fetchall()
+    count = 0
+    for row in rows:
+        if row["verdict"] == "pass":
+            break
+        count += 1
+    return count
+
+
 def grade_history(course_id: str, limit: int = 200) -> list[dict[str, Any]]:
     """笔记蒸馏使用 Runtime 结果,按课程取最近尝试,不会被其他课程挤出。"""
     with _conn() as c:

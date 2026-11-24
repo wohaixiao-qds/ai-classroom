@@ -20,7 +20,7 @@ from starlette.concurrency import iterate_in_threadpool
 from starlette.types import Message, Receive, Scope, Send
 
 from app.agent.tutor import course_text_of, run_tutor
-from app.core.learning_store import last_result
+from app.core.learning_store import consecutive_non_pass, last_result
 from app.core.lessons import propose_lesson
 from app.core.memory import ensure_session, list_sessions, new_session, session_history
 from app.core.trace import EVAL_VERSION, TraceRun, trace_tutor
@@ -63,6 +63,14 @@ def chat(req: ChatRequest) -> StreamingResponse:
     session_id = ensure_session(req.session_id, req.course_id)
     # 侧信道:会话中途进度增量(拉模式,每问现算 diff,变化才产出)
     state_note = session_state_note(session_id, req.course_id)
+    # 提示阶梯(T4,四参数已拍板):自上次 pass 以来的连续非 pass 次数→1/2/3 档,
+    # 由路由算好传入(约束在模型够不着的地方);定位复用 grader 同款 course_id+当前节。
+    # 从未批改过(提交前「问 AI 老师」)计 0,run_tutor 内钳到 L1。
+    hint_level = 0
+    if req.checkpoint:
+        hint_level = min(
+            max(consecutive_non_pass(req.course_id, req.current_page or ""), 1), 3
+        )
 
     # 执行轨迹先落,裁判随后补写;失败/断连也有同一个 run_id。
     run = TraceRun("tutor", course_id=req.course_id, page_id=req.current_page,
@@ -125,6 +133,7 @@ def chat(req: ChatRequest) -> StreamingResponse:
                 session_id=session_id, course_id=req.course_id,
                 checkpoint=req.checkpoint.model_dump() if req.checkpoint else None,
                 course_map=course_map, mastered_terms=mastered, state_note=state_note,
+                hint_level=hint_level,
             ):
                 if run.finished:  # 浏览器已断连,下一次模型事件到达即停止继续调用。
                     return
