@@ -198,11 +198,20 @@ def review_section(
     review, _diagnostics = _normalize_model_review(raw, claims)
     exemplary_ids = {c["id"] for c in claims if c["exemplary"]}
     errors = []
+    unresolved = []
     for item in review["items"]:
         if item["verdict"] == "not_applicable" and item["id"] not in exemplary_ids:
             errors.append(f"{item['id']} 未申报示例(exemplary=true)的块不能用不适用代替核对")
+            continue
+        if item["verdict"] == "unreviewed":
+            # 审查服务重试后仍未出意见(疑似持续抖动):这不是内容错误,
+            # 不能盲打回让作者改——明示服务原因,作者稍后重交同一节即可。
+            unresolved.append(f"{item['id']} 审查服务未能给出意见(已自动重试),请稍后重交本节")
+            continue
         if item["verdict"] not in ("supported", "not_applicable"):
             errors.append(f"{item['id']} [{item['verdict']}] {item['reason']}")
+    if unresolved:
+        return unresolved + errors  # 服务原因优先展示,作者不拿空意见改内容
     if errors:
         return errors
     # 通过:结论按块内容哈希并入缓存;终审复用,只重审改动过的块。
@@ -415,6 +424,16 @@ def ensure_publication(
 ) -> dict[str, Any]:
     """首次审查加最多两轮定点修订;只重用绑定课件,不重建规划。"""
     from app.agent.prep import run_prep
+
+    if not learning_goal:
+        # learning_goal 参与 claim 字节(digest)——漏传会让写节即审 checkpoint 的
+        # 逐块哈希全部失配,终审退化为全量重审(E2E 实测 11 分钟白审)。
+        # 盘上规划存有权威值,调用方没传就从那里补齐,保证缓存键稳定。
+        from app.agent.prep import _load, _plan_path
+
+        saved = _load(_plan_path(str(course["id"])))
+        if saved:
+            learning_goal = str(saved.get("learning_goal", "") or "")
 
     for attempt in range(3):
         if job_binding:

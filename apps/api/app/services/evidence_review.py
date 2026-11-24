@@ -147,8 +147,13 @@ def review_claims(
         batches.append(batch)
 
     def run_batch(batch: list[dict[str, Any]]) -> None:
-        for failed in attempt(batch):
-            attempt([failed])
+        # 失败块最多单独重试 3 次(E2E 实证:漏项/invalid_json 的 unreviewed 盲打回
+        # 让作者收到空意见却要改——幂等重试能在服务抖动时救回,仍失败才留待审)。
+        failed = attempt(batch)
+        for _ in range(3):
+            if not failed:
+                break
+            failed = attempt(failed if len(failed) < len(batch) else batch)
         from app.core.job_progress import emit_progress
 
         emit_progress("review" if course_mode else "material", "running",

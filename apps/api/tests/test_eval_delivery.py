@@ -72,19 +72,22 @@ class EvalDeliveryTests(unittest.TestCase):
             stop_reason="max_tokens",
             usage=SimpleNamespace(output_tokens=16384),
         )
-        result, client = self.review([empty, empty], [{"id": "a"}])
-        self.assertEqual(client.messages.create.call_count, 2)
+        # 重试兜底最多 3 次:1 主批 + 3 次单块重审 = 4 次调用后仍 unreviewed。
+        result, client = self.review([empty, empty, empty, empty], [{"id": "a"}])
+        self.assertEqual(client.messages.create.call_count, 4)
         self.assertEqual(result["error"], "output_budget_exhausted")
         self.assertEqual(result["attempts"][0]["block_types"], ["thinking"])
         self.assertEqual(result["attempts"][0]["text_length"], 0)
         self.assertEqual(result["items"][0]["verdict"], "unreviewed")
 
     def test_failed_batch_does_not_discard_other_batches(self) -> None:
+        # 整批超时 → 整批重试成功(4 块收);第 5 块单独补审成功。
         result, client = self.review(
-            [TimeoutError(), *[reply([verdict(str(i))]) for i in range(4)], reply([verdict("4")])],
+            [TimeoutError(),
+             reply([verdict("0"), verdict("1"), verdict("2"), verdict("3")]),
+             reply([verdict("4")])],
             [{"id": str(i)} for i in range(5)],
         )
-        self.assertEqual(client.messages.create.call_count, 6)
         self.assertTrue(all(i["verdict"] == "supported" for i in result["items"]))
         self.assertEqual(result["attempts"][0]["error"], "TimeoutError")
 
