@@ -2,7 +2,6 @@ import { Activity, GraduationCap, Wand2 } from "lucide-react";
 import type { CSSProperties } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 
-import { ThemeSwitcher } from "../components/ThemeSwitcher";
 import { cn } from "../lib/utils";
 
 const NAV = [
@@ -57,9 +56,6 @@ export function Shell() {
             );
           })}
         </nav>
-        <div className="lg:mt-auto">
-          <ThemeSwitcher />
-        </div>
       </header>
       <main id="main-content" tabIndex={-1} className="route-content min-h-0 min-w-0 flex-1 overflow-y-auto">
         <Outlet />

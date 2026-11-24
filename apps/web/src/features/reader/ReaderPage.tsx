@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
-import { ThemeSwitcher } from "../../components/ThemeSwitcher";
 import { Button } from "../../components/ui/button";
 import { PageError, PageLoading } from "../../components/PageState";
 import { cn } from "../../lib/utils";
@@ -187,7 +186,9 @@ function Reader({ course }: { course: CourseV2 }) {
   }, [course.title]);
 
   return (
-    <div className="flex h-full flex-col">
+    /* 两区制:阅读面纸感从这里开始(挂 data-zone 后子树内语义变量自动换纸感值);
+       bg-background 盖住 body 的工具面光晕,否则冷灰光晕透底 */
+    <div className="flex h-full flex-col bg-background" data-zone="read">
       <header className="flex shrink-0 items-center gap-2 border-b border-border bg-secondary/50 px-3 py-2 sm:px-5">
         <Button asChild variant="ghost" className="min-h-10 shrink-0">
           <Link to="/courses" viewTransition><ArrowLeft aria-hidden="true" /> 学习</Link>
@@ -206,7 +207,6 @@ function Reader({ course }: { course: CourseV2 }) {
             {showChat ? <BookOpen aria-hidden="true" /> : <MessageSquare aria-hidden="true" />}
             {showChat ? "返回阅读" : "答疑"}
           </Button>
-          <ThemeSwitcher />
         </div>
       </header>
       <div className="route-content relative isolate flex min-h-0 flex-1 overflow-hidden">

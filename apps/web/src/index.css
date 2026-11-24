@@ -3,75 +3,93 @@
 @plugin "@tailwindcss/typography";
 
 /* =====================================================================
-   设计 token · Linear 式深色(深色一等公民)
-   三主题(B 默认;A/C 由 html[data-theme] 切换,ThemeSwitcher 写 dataset)
-   色彩唯一事实源 = 下面三块裸 CSS 变量;@theme inline 只做 shadcn 命名映射。
+   设计 token · 两区固定色板(2026-11-24 UI 重设计定稿)
+   :root = 工具面(tool)·冷灰+靛蓝单强调;/read 之外的页面与 Shell 全走这里。
+   [data-zone="read"] = 阅读面(paper)·暖纸+墨+赭石单强调;阅读器根容器挂
+   data-zone="read",其子树内同名裸变量自动换值,shadcn 语义映射零改动换色。
+   旧三主题(ThemeSwitcher/data-theme)已退役,localStorage 旧键 classroom-theme 不做清理。
+   色彩唯一事实源 = docs/UI重设计-两区制规范.md 第二节,本文件是其代码落地。
    字体由 main.tsx 引入 @fontsource-variable(自托管,离线可用)。
-   z-index 约定:nav=30 / 悬浮条=40 / dialog=50 / tooltip=60,勿用魔数。
+   z-index 约定:纸纹层=0 / nav=30 / 悬浮条=40 / dialog=50 / tooltip=60,勿用魔数。
 
    运动纪律(P4 第五轮,借 Prompt Motion 的 direction 语法):
    操作反馈用短过渡，避免反弹；优先使用 transform/opacity/color。
    Banned:弹跳缓动、粒子、发光、视差、模板感动效。
    全站动效必须过 prefers-reduced-motion(见文件底部全局归零块)。
    ===================================================================== */
-:root,
-[data-theme="b"] {
-  /* B · 墨蓝+青(科技感,用户选定默认) */
+:root {
+  /* 工具面(tool)·冷灰底+靛蓝单强调(规范 §二「工具面」表格全套值) */
   --radius: 0.625rem;
-  --bg: #0b1020;
-  --surface: #141c33;
-  --surface2: #131a30;
-  --text: #f0f4ff;
-  --muted: #b9c5dd;
-  --accent: #4ddbc4;
-  --blue: #7dc4ff;
-  --line: rgba(125, 196, 255, 0.22);
-  --success: #34d399;
-  --warning: #fbbf24;
-  --danger: #f87171;
-  --overlay: rgba(4, 8, 20, 0.72);
+  --bg: #f6f6f8;
+  --card: #ffffff;
+  --text: #18181b;
+  --text-muted: #6f6f78;
+  --text-faint: #a1a1aa;
+  --line: #e7e7ec;
+  --line-2: #f1f1f4;
+  --accent: #4655d4;
+  --accent-deep: #3340a8;
+  --accent-soft: #eef0fd;
+  --ok: #18915b;
+  --ok-soft: #e9f6ef;
+  --busy: #b7791f;
+  --busy-soft: #faf3e3;
+  /* 规范色板外的补充槽位:弹层遮罩与错误红(destructive 仍需要,两区共用) */
+  --overlay: rgba(24, 24, 27, 0.5);
+  --danger: #dc2626;
   --dur-fast: 150ms;
   --dur-med: 300ms;
   --dur-slow: 420ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* —— 旧裸变量名兼容别名(index.css 之外仍有消费方:CheckpointOverlay 的
+     --success/--warning、.chat-md 与滚动条/扫光底的 --muted/--blue)。
+     每个区各声明一次:custom property 的 var() 引用在声明元素处求值,
+     只在 :root 声明会让阅读区继承到工具面求值结果,区切换会失效。 —— */
+  --surface: var(--card);
+  --surface2: var(--line-2);
+  --muted: var(--text-muted);
+  --blue: var(--accent);
+  --success: var(--ok);
+  --warning: var(--busy);
 }
 
-[data-theme="a"] {
-  /* A · 石墨蓝+琥珀(层级加强版) */
-  --radius: 0.625rem;
-  --bg: #0e1116;
-  --surface: #1a222d;
-  --surface2: #1d242e;
-  --text: #f2f5fa;
-  --muted: #b8c2d0;
-  --accent: #ffb224;
-  --blue: #6cb6ff;
-  --line: rgba(255, 255, 255, 0.14);
-  --success: #4ade80;
-  --warning: #fbbf24;
-  --danger: #f87171;
-  --overlay: rgba(2, 4, 8, 0.72);
+[data-zone="read"] {
+  /* 阅读面(paper)·暖纸底+墨色文字+赭石单强调(规范 §二「阅读面」表格全套值) */
+  --bg: #f4efe3;
+  --card: #fdfbf3;
+  --text: #33302a;
+  --text-muted: #7a7263;
+  --text-faint: #a49a86;
+  --line: #e4dcc8;
+  --line-2: #eee5d2;
+  --accent: #b4532a;
+  --accent-deep: #8f4020;
+  --accent-soft: #f3e2d6;
+  --ok: #5b7a5e;
+  --ok-soft: #e6ebe1;
+  --busy: #8a6a35;
+  --busy-soft: #f5ead6;
+  --overlay: rgba(51, 48, 42, 0.5);
+  /* 坑 callout / 打卡横幅的纸黄三色与行内代码底(阅读面专属槽位) */
+  --warn-bg: #f5ead6;
+  --warn-line: #d8bd90;
+  --warn-ink: #8a6a35;
+  --code-bg: #ece5d2;
+
+  /* 旧名兼容别名(阅读区求值,见 :root 处注释) */
+  --surface: var(--card);
+  --surface2: var(--line-2);
+  --muted: var(--text-muted);
+  --blue: var(--accent);
+  --success: var(--ok);
+  --warning: var(--busy);
 }
 
-[data-theme="c"] {
-  /* C · 暖纸深底+奶白+橙红(最高对比) */
-  --radius: 0.625rem;
-  --bg: #1a1712;
-  --surface: #26211a;
-  --surface2: #241f18;
-  --text: #faf6ee;
-  --muted: #d0c6b2;
-  --accent: #ff8a4c;
-  --blue: #ffb35c;
-  --line: rgba(255, 178, 92, 0.25);
-  --success: #86efac;
-  --warning: #fcd34d;
-  --danger: #fb7185;
-  --overlay: rgba(12, 9, 5, 0.75);
-}
-
-/* shadcn 语义色 → 三主题裸变量的映射,使拷贝来的 shadcn 组件零改动可用。
-   注意命名陷阱:shadcn 的 accent 指「hover 底色」,品牌强调色叫 primary(原 --accent)。 */
+/* shadcn 语义色 → 两区裸变量的映射,使拷贝来的 shadcn 组件零改动可用。
+   注意命名陷阱:shadcn 的 accent 指「hover 底色」,品牌强调色叫 primary(原 --accent)。
+   两区只换裸变量值,本映射结构不变;被退役的旧名(--surface/--surface2/--muted/
+   --blue/--success/--warning)改指新槽位。 */
 @theme inline {
   --font-sans: "Noto Sans SC Variable", "Noto Sans SC", "PingFang SC", sans-serif;
   --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
@@ -80,21 +98,21 @@
 
   --color-background: var(--bg);
   --color-foreground: var(--text);
-  --color-card: var(--surface);
+  --color-card: var(--card);
   --color-card-foreground: var(--text);
-  --color-popover: var(--surface);
+  --color-popover: var(--card);
   --color-popover-foreground: var(--text);
   --color-primary: var(--accent);
   --color-primary-foreground: var(--bg);
-  --color-secondary: var(--surface2);
+  --color-secondary: var(--line-2);
   --color-secondary-foreground: var(--text);
-  --color-muted: var(--surface2);
-  --color-muted-foreground: var(--muted);
-  --color-accent: var(--surface2);
+  --color-muted: var(--line-2);
+  --color-muted-foreground: var(--text-muted);
+  --color-accent: var(--line-2);
   --color-accent-foreground: var(--text);
-  --color-info: var(--blue);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
+  --color-info: var(--accent);
+  --color-success: var(--ok);
+  --color-warning: var(--busy);
   --color-destructive: var(--danger);
   --color-border: var(--line);
   --color-input: var(--line);
@@ -120,8 +138,24 @@
     height: 100%;
   }
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply text-foreground font-sans;
+    /* 工具面底色+双色光晕(design/library.html body 原样):indigo 5% 右上 / ok 3.5% 左下 */
+    background:
+      radial-gradient(1200px 500px at 70% -10%, rgba(70, 85, 212, 0.05), transparent 60%),
+      radial-gradient(900px 400px at 0% 110%, rgba(24, 145, 91, 0.035), transparent 55%),
+      var(--bg);
     overflow: hidden;
+  }
+  /* 细颗粒纸纹(design/library.html body::before 原样):fixed 铺满、不挡交互,
+     z-index 0 按 z-index 约定居最底;阅读器根容器自带纸面底色盖住工具面光晕 */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.5;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.016 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 }
 
