@@ -170,15 +170,19 @@ class EvalTests(unittest.TestCase):
         client = MagicMock()
         client.with_options.return_value = client
         client.messages.create.side_effect = TimeoutError("timeout")
-        with patch.object(research, "get_llm_client", return_value=client):
-            with self.assertRaises(TimeoutError):
-                research._loop("prompt", lambda d, fetched: [], "topic", "framework")
+        # 重试退避真睡(20/40/60/80s):测试只验证"最终抛出",patch 掉等待。
+        with patch.object(research, "_sleep_backoff", lambda _s: None):
+            with patch.object(research, "get_llm_client", return_value=client):
+                with self.assertRaises(TimeoutError):
+                    research._loop("prompt", lambda d, fetched: [], "topic", "framework")
         with patch.object(prep, "get_llm_client", return_value=client):
             with self.assertRaises(TimeoutError):
                 prep.run_prep({"topic": "topic", "subtopic": "sub", "groups": []})
         for stage in ("research", "prep"):
             row = trace.read_traces(f"{stage}.jsonl")[0]
-            self.assertEqual((row["status"], row["turns"]), ("failed", 1))
+            # research 侧重试守卫耗尽 MAX_TURNS 才抛(turns=16);prep 侧无 retry,首轮抛(turns=1)。
+            expected_turns = research.MAX_TURNS if stage == "research" else 1
+            self.assertEqual((row["status"], row["turns"]), ("failed", expected_turns))
             self.assertIn("context_hash", row["versions"])
 
     def test_legacy_unknown_and_abandoned_process_interrupted(self) -> None:

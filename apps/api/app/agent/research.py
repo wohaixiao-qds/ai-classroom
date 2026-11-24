@@ -286,13 +286,15 @@ def review_framework_semantics(d: dict[str, Any]) -> dict[str, Any]:
     模型结论作为程序闸的输入数据:报告绑定大纲内容哈希落盘,大纲一变即失效重审;
     无来源快照的存量大纲标 unanchored,不冒充已审。
     """
-    snapshots = d.get("source_snapshots") or {}
-    if not isinstance(snapshots, dict) or not snapshots:
+    evidence = d.get("source_evidence") or []
+    if not isinstance(evidence, list) or not evidence:
         return {"status": "unanchored", "reviewer": "", "courses": {}, "content_hash": ""}
     snap_texts = []
-    for url, snap in list(snapshots.items())[:6]:
-        body = str((snap or {}).get("text", ""))[:2000]
-        snap_texts.append(f"== {url} ==\n{body}")
+    for ev in list(evidence)[:6]:
+        if not isinstance(ev, dict):
+            continue
+        body = str(ev.get("excerpt", ""))[:2000]
+        snap_texts.append(f"== {ev.get('title', '')} ({ev.get('url', '')}) ==\n{body}")
     courses_desc = json.dumps(
         [{"title": c.get("title", ""), "goal": c.get("goal", ""),
           "scope": c.get("scope", {}), "why": c.get("why", ""),
@@ -681,6 +683,11 @@ def _user_seed(topic: str) -> str:
     return "用户的既有足迹(待探清单,顺序即用户意愿):\n" + "\n".join(lines[:30])
 
 
+def _sleep_backoff(seconds: float) -> None:
+    """重试退避;测试 patch 本函数为零等待,避免套件真睡。"""
+    time.sleep(seconds)
+
+
 @observed("research")
 def _loop(
     prompt: str,
@@ -712,13 +719,24 @@ def _loop(
         update_run(turns=turn + 1)
         last_turn = turn == MAX_TURNS - 1
         model_started = time.perf_counter()
-        resp = client.messages.create(
-            model=settings.llm_model,
-            max_tokens=token_budget,  # 带原文摘录的原料用32K,避免思考+完整JSON连续撞16K
-            # 观测客户端返回 Any,dict messages 直传不再需要 ignore(历史上 SDK TypedDict 拒 dict)
-            messages=messages,
-            tools=[] if last_turn else RESEARCH_TOOLS,
-        )
+        try:
+            resp = client.messages.create(
+                model=settings.llm_model,
+                max_tokens=token_budget,  # 带原文摘录的原料用32K,避免思考+完整JSON连续撞16K
+                # 观测客户端返回 Any,dict messages 直传不再需要 ignore(历史上 SDK TypedDict 拒 dict)
+                messages=messages,
+                tools=[] if last_turn else RESEARCH_TOOLS,
+            )
+        except Exception as exc:  # noqa: BLE001 单轮网络/中转故障打回重试,不炸整条管线
+            transient = isinstance(exc, (TimeoutError, ConnectionError)) or (
+                type(exc).__name__ in ("APIConnectionError", "APITimeoutError",
+                                       "InternalServerError", "OverloadedError"))
+            if not transient or last_turn:
+                raise
+            update_run(validation_errors=[f"模型调用 {type(exc).__name__},重试"])
+            print(f"⚠️ 模型调用 {type(exc).__name__}(turn {turn + 1}),重试", flush=True)
+            _sleep_backoff(20.0 * (turn + 1))  # 递增退避:给拥堵的中转降温(测试可注入零等待)
+            continue
         model_s += time.perf_counter() - model_started
         u = resp.usage
         usage["input_tokens"] += getattr(u, "input_tokens", 0) or 0

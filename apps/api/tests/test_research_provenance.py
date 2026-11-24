@@ -311,7 +311,10 @@ class ResearchProvenanceTests(unittest.TestCase):
         fw: dict[str, Any] = {
             "topic": "测试主题",
             "sources": [{"id": 1, "url": "https://example.org/1"}],
-            "source_snapshots": {"https://example.org/1": {"text": "原文", "sha256": "x"}},
+            "source_evidence": [
+                {"id": 1, "title": "原文页", "url": "https://example.org/1",
+                 "excerpt": "原文相关论述内容", "snapshot_sha256": "x"},
+            ],
             "courses": [{"id": "c1", "title": "课一", "goal": "能画图", "why": "弱点",
                          "scope": {}, "prereqs": []}],
         }
