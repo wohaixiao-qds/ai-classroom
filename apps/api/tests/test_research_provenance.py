@@ -361,6 +361,30 @@ class ResearchProvenanceTests(unittest.TestCase):
         fw["courses"][0]["goal"] = "改目标"
         self.assertEqual(framework_review_status(fw), "stale")
 
+    def test_order_gate_per_course_verdict_not_book_wide(self) -> None:
+        # 点单闸按单课 verdict 判定(E2E 缺陷修复):整书 failed 时 supported 单课
+        # 放行、unsupported 单课拒——一刀切曾把 6/7 门 supported 课全部堵死。
+        from app.agent.research import framework_review_status
+        from app.core.trace import digest
+
+        courses: list[dict[str, Any]] = [
+            {"id": "c1", "title": "好课", "prereqs": []},
+            {"id": "c2", "title": "坏课", "prereqs": []},
+        ]
+        fw: dict[str, Any] = {"topic": "t", "courses": courses,
+              "review": {"status": "failed", "content_hash": digest(courses),
+                         "courses": {"好课": {"verdict": "supported", "issues": []},
+                                     "坏课": {"verdict": "unsupported",
+                                              "issues": ["原文撑不起"]}}}}
+        self.assertEqual(framework_review_status(fw), "failed")
+        # 模拟 job_runner 闸逻辑
+        for title, expect_block in (("好课", False), ("坏课", True)):
+            entry = fw["review"]["courses"].get(title) or {}
+            verdict = str(entry.get("verdict", ""))
+            blocked = (framework_review_status(fw) == "failed"
+                       and verdict == "unsupported")
+            self.assertEqual(blocked, expect_block, title)
+
 
 
 if __name__ == "__main__":
