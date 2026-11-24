@@ -22,6 +22,10 @@ apps/api/data/
 apps/api/traces/
 .run/
 
+# 本地工具与隔离实验区(会话计划/真跑现场,不入库)
+.zcode/
+work/
+
 # 学习内容与产物(课件/发布副本不上库——个人学习数据不外传)
 apps/api/courses/
 apps/web/public/courses/
