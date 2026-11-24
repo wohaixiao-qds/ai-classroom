@@ -2,8 +2,8 @@ import type { LucideIcon } from "lucide-react";
 
 import { cn } from "../lib/utils";
 
-/** 分区标题条(全站统一,替代 Lane/Eval Section/Library 三种写法):
- *  图标章 + 标题 + 计数徽章 + 一句提示 */
+/** 分区标题条(全站统一):三段式(design/library.html .sec)——
+ *  图标+标题 | 渐隐细线 | mono 右注;hint 一句提示独立一行在细线下方 */
 export function SectionHeader({
   icon: Icon,
   title,
@@ -18,17 +18,15 @@ export function SectionHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("mb-3 flex flex-wrap items-center gap-x-2 gap-y-1", className)}>
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-secondary text-primary">
-        <Icon size={15} aria-hidden="true" />
-      </span>
-      <h2 className="text-base font-semibold tracking-wide">{title}</h2>
-      {count !== undefined && (
-        <span className="rounded-full bg-secondary px-2 py-0.5 font-mono text-xs text-muted-foreground">
-          {count}
-        </span>
-      )}
-      {hint && <p className="basis-full text-sm leading-relaxed text-muted-foreground sm:basis-auto sm:flex-1">{hint}</p>}
+    <div className={cn("mb-4 flex flex-wrap items-center gap-x-3 gap-y-1", className)}>
+      <Icon size={15} className="shrink-0 text-(--text-faint)" aria-hidden="true" />
+      <h2 className="text-base font-bold tracking-wide">{title}</h2>
+      <span
+        aria-hidden="true"
+        className="h-px min-w-8 flex-1 bg-[linear-gradient(90deg,var(--line),transparent)]"
+      />
+      {count !== undefined && <span className="font-mono text-xs text-(--text-faint)">{count}</span>}
+      {hint && <p className="w-full text-sm leading-relaxed text-muted-foreground">{hint}</p>}
     </div>
   );
 }

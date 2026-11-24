@@ -124,6 +124,10 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
+  /* 分层阴影两档(规范 §四,工具面):卡片静置=1 / hover 浮起=2(见 .card-lift) */
+  --shadow-1: 0 1px 2px rgba(20, 20, 30, 0.05), 0 2px 8px rgba(20, 20, 30, 0.04);
+  --shadow-2: 0 1px 2px rgba(20, 20, 30, 0.05), 0 10px 30px rgba(20, 20, 30, 0.09);
+
   /* 动效缓动暴露为 Tailwind 工具类。 */
   --ease-out: var(--ease-out);
 }
@@ -175,6 +179,40 @@
   }
   .workspace-description {
     @apply mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground;
+  }
+  /* Shell 导航铬底(design/library.html .nav):半透明底+blur,让 body 光晕透出;
+     ::after 分界线两端渐隐——移动端贴底部、桌面端(lg)贴右侧成侧栏边线 */
+  .shell-chrome {
+    position: relative;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: blur(10px);
+  }
+  .shell-chrome::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--line) 20%, var(--line) 80%, transparent);
+  }
+  @media (width >= 64rem) {
+    .shell-chrome::after {
+      inset: 0 0 0 auto;
+      width: 1px;
+      height: auto;
+      background: linear-gradient(180deg, transparent, var(--line) 20%, var(--line) 80%, transparent);
+    }
+  }
+  /* 卡片 hover 浮起成套语言(规范 §四):shadow-1→shadow-2+上浮 2px。
+     供工具面卡片统一消费(T4 书卡/T5 生成中心接入);已有自写 hover 的页面保持各自实现不强改 */
+  .card-lift {
+    transition:
+      box-shadow var(--dur-fast) var(--ease-out),
+      transform var(--dur-fast) var(--ease-out);
+  }
+  .card-lift:hover {
+    box-shadow: var(--shadow-2);
+    transform: translateY(-2px);
   }
 }
 
