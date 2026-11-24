@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Markdown from "react-markdown";
-import { Brain, Check, ChevronRight, Copy, History, MessageCircleQuestion, Pencil, Plus, Search, Send } from "lucide-react";
+import { Brain, Check, ChevronRight, Copy, History, MessageCircleQuestion, Pencil, Plus, Send } from "lucide-react";
 import type { components } from "../../types/api.gen";
 import type { Course, CourseV2 } from "../../types/csl";
 import { linkifyUrls } from "../../utils/linkify";
@@ -56,7 +56,7 @@ function UserBubble({ text, onEdit }: { text: string; onEdit: () => void }) {
   };
   return (
     <div className="group/msg relative inline-block max-w-[85%]">
-      <p className="rounded-lg rounded-br-sm bg-primary/15 px-3 py-2 text-left text-sm break-words whitespace-pre-wrap">
+      <p className="rounded-[13px] rounded-br-[5px] border border-[color:color-mix(in_srgb,var(--accent)_24%,transparent)] bg-[color:var(--accent-soft)] px-3.5 py-2.5 text-left text-sm break-words whitespace-pre-wrap">
         {text}
       </p>
       <div className="pointer-events-none absolute top-full right-0 mt-0.5 flex gap-0.5 opacity-0 transition-opacity group-hover/msg:pointer-events-auto group-hover/msg:opacity-100">
@@ -103,7 +103,9 @@ function ThinkingBlock({
     if (open) boxRef.current?.scrollTo({ top: 1e9 }); // 思考跟着流滚底
   }, [text, open]);
   return (
-    <div className="mb-1">
+    // 思考过程纸卡(设计稿 details.thinking):纸底细边圆角 11,随内容收缩宽度;
+    // 展开后正文以虚线分隔——开合机制(manual ?? !settled)零改动
+    <div className="mb-1 w-fit max-w-full rounded-[11px] border border-border bg-card px-3 py-2">
       <button
         type="button"
         onClick={() => setManual(!open)}
@@ -124,7 +126,7 @@ function ThinkingBlock({
       {open && (
         <div
           ref={boxRef}
-          className="mt-1 max-h-44 overflow-y-auto whitespace-pre-wrap break-words border-border border-l-2 pl-2 text-xs leading-relaxed text-muted-foreground"
+          className="mt-2 max-h-44 overflow-y-auto whitespace-pre-wrap break-words border-t border-dashed border-border pt-2 text-xs leading-relaxed text-muted-foreground"
         >
           {text}
         </div>
@@ -419,7 +421,7 @@ export function ChatPanel({
   }
 
   return (
-    <aside className="flex min-h-0 flex-1 flex-col border-l border-border bg-secondary/50">
+    <aside className="flex min-h-0 flex-1 flex-col border-l border-border bg-[color:color-mix(in_srgb,var(--card)_62%,var(--bg))]">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <span className="text-sm font-medium">AI 老师 · 答疑</span>
         <div className="flex items-center gap-1">
@@ -508,12 +510,12 @@ export function ChatPanel({
                   waitedSec={isLive ? waited : undefined}
                 />
               )}
-              {/* 工具调用只在生成中实时展示,答完即隐藏,不留档 */}
+              {/* 工具调用只在生成中实时展示,答完即隐藏,不留档(↳ 在飞行,设计稿 .tool) */}
               {isLive && m.tools && m.tools.length > 0 && (
                 <div className="mb-1 space-y-0.5">
                   {m.tools.map((t, j) => (
-                    <p key={j} className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
-                      <Search size={11} className="shrink-0" />
+                    <p key={j} className="flex items-center gap-1.5 font-mono text-[11.5px] text-muted-foreground">
+                      <span className="shrink-0 text-primary" aria-hidden="true">↳</span>
                       <span className="min-w-0 break-words">正在查:{String(Object.values(t.args)[0])}</span>
                     </p>
                   ))}
@@ -534,31 +536,42 @@ export function ChatPanel({
                     });
                   }}
                 />
-              ) : (
-                <div className="chat-md text-sm leading-relaxed">
+              ) : m.text || (isLive && !m.thinking) ? (
+                // AI 气泡(设计稿 .m.ai/.streaming):纸卡 + 左下 5° 圆角 + 微影。
+                // 流式期间挂 data-streaming,CSS 在末行文字尾追加闪烁光标(零逻辑)
+                <div
+                  className="chat-md w-fit max-w-[88%] rounded-[13px] rounded-bl-[5px] border border-border bg-card px-3.5 py-2.5 text-sm leading-[1.85] shadow-[0_1px_2px_rgba(51,48,42,0.04)]"
+                  data-streaming={isLive && m.text ? "" : undefined}
+                >
                   {m.text ? (
                     <Markdown components={mdComponents}>{normalizeBold(m.text)}</Markdown>
-                  ) : isLive && !m.thinking ? (
+                  ) : (
                     <span className="text-muted-foreground">
                       思考中… <span className="font-mono">· {waited}s</span>
                     </span>
-                  ) : null}
+                  )}
                 </div>
-              )}
+              ) : null}
             </div>
           );
         })}
       </div>
 
-      {/* 划词提问提示条:页面内入口,系统悬浮窗遮不住;点「解释一下」即发送。
-          data-sel-ask:mouseup 清理守卫识别自身,防 click 落空 */}
+      {/* 划词提问提示条:页面内入口,系统悬浮窗遮不住;点「编辑提问」即预填发送。
+          data-sel-ask:mouseup 清理守卫识别自身,防 click 落空。
+          纸感(设计稿 .sel-hint):accent-soft 圆角小卡,悬浮于输入区上方 */}
       {selectionAsk && (
-        <div data-sel-ask className="flex items-center gap-2 border-t border-primary/30 bg-primary/5 px-3 py-2">
+        <div data-sel-ask className="mx-3 mb-2 flex items-center gap-2 rounded-[10px] bg-[color:var(--accent-soft)] px-3 py-2">
           <MessageCircleQuestion size={14} className="shrink-0 text-primary" />
-          <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate text-xs text-foreground">
             选中了「{selectionAsk.text}」
           </span>
-          <Button variant="secondary" size="sm" className="shrink-0" onClick={selectionAsk.onAsk}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0 border-[color:color-mix(in_srgb,var(--accent)_35%,transparent)] text-primary hover:bg-transparent"
+            onClick={selectionAsk.onAsk}
+          >
             ✎ 编辑提问
           </Button>
         </div>
@@ -582,10 +595,11 @@ export function ChatPanel({
           }}
           rows={1}
           placeholder="例如:汽车类比再讲一遍"
-          className="max-h-36 min-h-[36px] resize-none overflow-y-auto py-2 leading-relaxed"
+          className="max-h-36 min-h-[36px] resize-none overflow-y-auto rounded-[12px] bg-card py-2 leading-relaxed"
         />
         {busy ? (
           <Button variant="outline" onClick={stop} title="停止生成">
+            <span aria-hidden="true" className="text-[9px]">■</span>
             停止
           </Button>
         ) : (

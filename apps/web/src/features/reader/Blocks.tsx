@@ -51,21 +51,23 @@ function linkifySources(children: ReactNode): ReactNode {
         // 源标记之间的普通文本段:裸 URL 也链化(课件正文常直接甩地址,不链化
         // 长链会被容器右缘切断=「链接没给全」;与答疑消息区同用一份 linkifyUrls)
         if (m.index > last) out.push(...linkifyUrls(node.slice(last, m.index), `${keyBase}-t${i}`));
-        // 「源」字留作文本;簇内标号([N] 或裸数字)逐个链化
-        out.push("源");
-        for (const num of m[1].matchAll(/\d+/g)) {
-          out.push(
-            <a
-              key={`${keyBase}-${i++}`}
-              href={`#src-${num[0]}`}
-              className="font-mono text-[13px] text-primary underline decoration-dotted outline-none hover:decoration-solid"
-              title="跳到来源清单"
-              onClick={(e) => jumpToSource(num[0], e)}
-            >
-              {[`[${num[0]}]`]}
-            </a>,
-          );
-        }
+        // 「源[N]」簇整体升为 mono 上标(设计稿 sup.src:11px 赭石);簇内标号逐个链化可点
+        out.push(
+          <sup key={`${keyBase}-sup${i++}`} className="font-mono text-[11px] leading-none">
+            源
+            {Array.from(m[1].matchAll(/\d+/g)).map((num) => (
+              <a
+                key={`${keyBase}-${i++}`}
+                href={`#src-${num[0]}`}
+                className="text-primary outline-none decoration-dotted underline-offset-2 hover:underline"
+                title="跳到来源清单"
+                onClick={(e) => jumpToSource(num[0], e)}
+              >
+                {`[${num[0]}]`}
+              </a>
+            ))}
+          </sup>,
+        );
         last = m.index + m[0].length;
       }
       if (last < node.length) out.push(...linkifyUrls(node.slice(last), `${keyBase}-tend`));
@@ -141,7 +143,7 @@ function BlockView({
       // prose 管结构默认(列表/引用/标题节奏);中文微排版按 CLREQ:行高 1.9、
       // 两端对齐、中西文间距(text-autospace,Chrome 123+)、避免孤字(text-wrap pretty)
       return (
-        <div className="prose max-w-none text-[15.5px] prose-p:my-0 prose-p:leading-[1.9] prose-p:text-justify prose-p:text-foreground/90 prose-p:[text-wrap:pretty] prose-strong:text-foreground prose-code:rounded prose-code:bg-secondary prose-code:px-1 prose-code:font-mono prose-code:text-[13px] prose-code:text-primary prose-code:before:content-[''] prose-code:after:content-['']">
+        <div className="prose max-w-none text-[15.5px] prose-p:my-0 prose-p:leading-[1.9] prose-p:text-justify prose-p:text-foreground/90 prose-p:[text-wrap:pretty] prose-strong:text-foreground prose-code:rounded prose-code:bg-[color:var(--code-bg)] prose-code:px-1 prose-code:font-mono prose-code:text-[13px] prose-code:text-primary prose-code:before:content-[''] prose-code:after:content-['']">
           <Markdown components={sourceMdComponents}>{normalizeBold(block.text)}</Markdown>
         </div>
       );
@@ -149,8 +151,8 @@ function BlockView({
       return <MermaidDiagram code={block.code} caption={block.caption} />;
     case "code":
       return (
-        <figure className="overflow-hidden rounded-xl border border-border">
-          <div className="flex items-center justify-between border-b border-border bg-secondary/60 px-3 py-1.5">
+        <figure className="overflow-hidden rounded-[12px] border border-border bg-[color:var(--code-bg)]">
+          <div className="flex items-center justify-between border-b border-border bg-card/60 px-3 py-1.5">
             <Badge variant="secondary" className="font-mono text-[11px]">
               {block.language}
             </Badge>
@@ -168,7 +170,7 @@ function BlockView({
     case "table":
       return (
         <figure>
-          <div className="overflow-x-auto rounded-xl border border-border">
+          <div className="overflow-x-auto rounded-[12px] border border-border bg-card">
             <table className="w-full border-collapse text-[14px]">
               <thead>
                 <tr className="bg-secondary/60">
@@ -199,16 +201,29 @@ function BlockView({
       );
     case "callout": {
       const cfg = {
-        tip: { icon: Lightbulb, cls: "border-primary/40 bg-primary/5", label: "要点" },
-        warn: { icon: AlertTriangle, cls: "border-warning/50 bg-warning/10", label: "注意" },
-        note: { icon: Info, cls: "border-border bg-secondary/50", label: "注" },
+        tip: { icon: Lightbulb, box: "border-primary/40 bg-primary/5", ink: "text-primary", label: "要点" },
+        // 坑 callout(设计稿 .pitfall):纸黄三色卡 + 左 3px 墨黄粗边 + 墨黄标题字
+        warn: {
+          icon: AlertTriangle,
+          box: "border-[color:var(--warn-line)] bg-[color:var(--warn-bg)]",
+          ink: "text-[color:var(--warn-ink)]",
+          label: "注意",
+        },
+        note: { icon: Info, box: "border-border bg-secondary/50", ink: "text-primary", label: "注" },
       }[block.kind];
       const Icon = cfg.icon;
       return (
-        <div className={`flex gap-2.5 rounded-xl border px-4 py-3 text-[14px] leading-7 ${cfg.cls}`}>
-          <Icon size={16} className="mt-1.5 shrink-0 text-primary" />
+        <div
+          className={cn(
+            "flex gap-2.5 rounded-xl border px-4 py-3 text-[14px] leading-7",
+            block.kind === "warn" &&
+              "rounded-[10px] border-l-[3px] border-l-[color:var(--warn-ink)] text-[15px] leading-[1.9]",
+            cfg.box,
+          )}
+        >
+          <Icon size={16} className={cn("mt-1.5 shrink-0", cfg.ink)} />
           <div>
-            <span className="mr-1.5 font-medium">{cfg.label}:</span>
+            <span className={cn("mr-1.5 font-medium", cfg.ink)}>{cfg.label}:</span>
             {linkifySources(block.text)}
           </div>
         </div>
@@ -253,7 +268,7 @@ function MermaidDiagram({ code, caption }: { code: string; caption: string | nul
   }, [code]);
 
   return (
-    <figure className="overflow-hidden rounded-xl border border-border bg-card">
+    <figure className="overflow-hidden rounded-[12px] border border-border bg-[color:var(--code-bg)]">
       {failed ? (
         <pre className="overflow-x-auto p-4 font-mono text-[12px] leading-6 text-muted-foreground">
           <code>{code}</code>
@@ -318,15 +333,22 @@ function QuizCard({
       .catch(() => {});
   }, [block.id, courseId]);
   return (
+    // 复述检查点卡(设计稿 .checkpoint):纸底 + 赭石虚线框 1.5px/圆角 14;
+    // 通过态虚线转绿(--ok),打勾字保持 success,状态一眼可辨
     <div
-      className={`rounded-xl border px-4 py-3.5 transition-colors duration-300 ease-out ${passed ? "border-success/50 bg-success/5" : "border-primary/40 bg-primary/5"}`}
+      className={cn(
+        "rounded-[14px] border-[1.5px] border-dashed bg-card px-4 py-3.5 transition-colors duration-300 ease-out",
+        passed
+          ? "border-[color:color-mix(in_srgb,var(--ok)_55%,var(--line))]"
+          : "border-[color:color-mix(in_srgb,var(--accent)_55%,var(--line))]",
+      )}
     >
       <p className="mb-2 font-mono text-[11px] tracking-widest text-primary">◆ 复述检查点</p>
       <p className="text-[15px] leading-7">{block.question}</p>
       {block.hint && <p className="mt-1 text-[13px] text-muted-foreground">提示: {block.hint}</p>}
       {!passed && lastGaps.length > 0 && (
-        <div className="mt-2 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-[13px] leading-6">
-          <p className="font-medium text-warning">上次漏了:</p>
+        <div className="mt-2 rounded-[10px] border border-[color:var(--warn-line)] bg-[color:var(--warn-bg)] px-3 py-2 text-[13px] leading-6">
+          <p className="font-medium text-[color:var(--warn-ink)]">上次漏了:</p>
           <ul className="space-y-0.5">
             {lastGaps.map((g, i) => (
               <li key={i} className="break-words text-foreground/80">· {g}</li>
@@ -427,7 +449,7 @@ function FlashCards({
         const isFlipped = flipped.has(i);
         const verdict = reported.get(i);
         return (
-          <div key={i} className="rounded-xl border border-border bg-card px-4 py-3.5">
+          <div key={i} className="rounded-[12px] border border-border bg-card px-4 py-3.5">
             <button
               type="button"
               onClick={() => toggle(i)}

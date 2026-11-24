@@ -21,7 +21,7 @@ export function EvidencePanel({ course }: { course: CourseV2 }) {
   const review = course.meta.publication_review;
 
   return (
-    <section className="mb-10 rounded-xl border border-border p-4" aria-label="原文依据">
+    <section className="mb-10 rounded-[12px] border border-border bg-card p-4" aria-label="原文依据">
       <h2 className="text-base font-medium">内容审查与原文依据</h2>
       <p className="mt-2 text-sm">
         {review?.status === "program_passed"

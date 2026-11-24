@@ -160,7 +160,7 @@ export function CheckpointOverlay({
         exit={{ opacity: 0, scale: 0.97, y: 6 }}
         transition={{ duration: 0.25, ease: [0.22, 0.9, 0.3, 1] }}
         className={cn(
-          "mx-8 max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card p-8 shadow-2xl",
+          "mx-8 max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card p-8 shadow-(--shadow-paper)",
           result ? "max-w-2xl" : "max-w-lg", // 结果态放宽:左右对照需要宽度
         )}
       >
@@ -254,13 +254,13 @@ export function CheckpointOverlay({
                 </button>
                 <Collapse open={compareOpen} className="mt-2">
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="rounded-lg border border-border bg-background p-3">
+                    <div className="rounded-[10px] border border-border bg-background p-3">
                       <p className="mb-1 text-[11px] font-medium text-muted-foreground">你的复述</p>
                       <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
                         {answer}
                       </p>
                     </div>
-                    <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                    <div className="rounded-[10px] border border-[color:color-mix(in_srgb,var(--accent)_30%,transparent)] bg-[color:var(--accent-soft)] p-3">
                       <p className="mb-1 flex items-center gap-1 text-[11px] font-medium text-primary">
                         <Sparkles size={11} /> 标准表述
                       </p>

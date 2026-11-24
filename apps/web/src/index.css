@@ -76,6 +76,8 @@
   --warn-line: #d8bd90;
   --warn-ink: #8a6a35;
   --code-bg: #ece5d2;
+  /* 阅读面柔和阴影档(规范 §四末行):弹层/浮钮用,比工具面阴影更绵 */
+  --shadow-paper: 0 1px 2px rgba(51, 48, 42, 0.08), 0 16px 40px rgba(51, 48, 42, 0.1);
 
   /* 旧名兼容别名(阅读区求值,见 :root 处注释) */
   --surface: var(--card);
@@ -457,6 +459,26 @@
 .chat-md blockquote {
   border-left: 3px solid var(--line); padding-left: 0.8em; margin: 0.5em 0; color: var(--muted);
 }
+
+/* 流式光标(设计稿 classroom-panels .caret):答疑流式期间消息容器挂 data-streaming,
+   纯 CSS 在末行文字尾追加赭石闪烁竖线——不碰流式逻辑。
+   reduced-motion 全局归零块会让它静止常亮,可接受。 */
+@keyframes chat-caret-blink { 50% { opacity: 0; } }
+[data-streaming] > :last-child::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: var(--accent);
+  animation: chat-caret-blink 1.1s steps(1) infinite;
+}
+
+/* 阅读面:答疑消息是纸卡气泡,行内代码/代码块底改用纸深槽位(与正文 code 同源);
+   工具面维持原 --bg 底不变 */
+[data-zone="read"] .chat-md code { background: var(--code-bg); }
+[data-zone="read"] .chat-md pre { background: var(--code-bg); }
 
 /* ---- 滚动条:替换系统默认(全局,跟主题变量走) ---- */
 * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }

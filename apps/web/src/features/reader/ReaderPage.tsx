@@ -189,7 +189,8 @@ function Reader({ course }: { course: CourseV2 }) {
     /* 两区制:阅读面纸感从这里开始(挂 data-zone 后子树内语义变量自动换纸感值);
        bg-background 盖住 body 的工具面光晕,否则冷灰光晕透底 */
     <div className="flex h-full flex-col bg-background" data-zone="read">
-      <header className="flex shrink-0 items-center gap-2 border-b border-border bg-secondary/50 px-3 py-2 sm:px-5">
+      {/* 顶栏(设计稿 .topbar):纸底 88% + blur + 底部纸纹线 */}
+      <header className="flex shrink-0 items-center gap-2 border-b border-border bg-[color:color-mix(in_srgb,var(--bg)_88%,transparent)] px-3 py-2 backdrop-blur-[8px] sm:px-5">
         <Button asChild variant="ghost" className="min-h-10 shrink-0">
           <Link to="/courses" viewTransition><ArrowLeft aria-hidden="true" /> 学习</Link>
         </Button>
@@ -209,6 +210,16 @@ function Reader({ course }: { course: CourseV2 }) {
           </Button>
         </div>
       </header>
+      {/* 2px 赭石阅读进度条(设计稿 .progress,贴顶):宽度派生自现有滚动 spy 的
+          active 节游标,纯展示,不新增状态/监听 */}
+      <div className="h-0.5 shrink-0 bg-[color:var(--line)]" aria-hidden="true">
+        <div
+          className="h-full bg-primary transition-[width] duration-500 ease-out"
+          style={{
+            width: `${course.sections.length ? ((active + 1) / course.sections.length) * 100 : 0}%`,
+          }}
+        />
+      </div>
       <div className="route-content relative isolate flex min-h-0 flex-1 overflow-hidden">
         {/* 划词提问:选中正文浮出「问 AI 老师」+ 面板提示条(防系统悬浮窗遮盖)——
             都走可编辑预填:模板进输入框,用户补一句自己的话再 Enter 发 */}
@@ -225,9 +236,9 @@ function Reader({ course }: { course: CourseV2 }) {
         <nav
           aria-label="课程目录"
           style={{ width: panels.toc }}
-          className="hidden max-w-[22%] shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-secondary/30 p-4 xl:flex"
+          className="hidden max-w-[22%] shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border p-3.5 xl:flex"
         >
-          <p className="mb-2 px-2 font-mono text-[11px] tracking-widest text-muted-foreground">目录</p>
+          <p className="mb-2.5 px-2.5 font-mono text-[11px] tracking-widest text-muted-foreground">目录</p>
           {course.sections.map((s, i) => (
             <button
               key={s.id}
@@ -235,21 +246,32 @@ function Reader({ course }: { course: CourseV2 }) {
               onClick={() => jumpToPage(i)}
               aria-current={active === i ? "location" : undefined}
               className={cn(
-                "relative truncate rounded-md px-2 py-1.5 text-left text-[13px] leading-6 text-muted-foreground outline-none transition-colors hover:bg-secondary focus-visible:ring-[3px] focus-visible:ring-ring/40",
-                active === i && "font-medium text-primary",
+                "relative rounded-[10px] px-2.5 py-[9px] text-left text-[13px] leading-6 text-muted-foreground outline-none transition-colors hover:bg-card/60 focus-visible:ring-[3px] focus-visible:ring-ring/40",
+                active === i && "font-semibold text-foreground",
               )}
               title={s.heading}
             >
-              {/* 滑动指示 pill:layoutId 让高亮底色在节间平滑迁移(motion FLIP) */}
+              {/* 滑动指示 pill:layoutId 让高亮在节间平滑迁移(motion FLIP)。
+                  纸卡浮起形态(设计稿 .it.cur):纸底 + inset 纸纹边线 + 柔影 + 左 3px 赭石游标 */}
               {active === i && (
                 <motion.span
                   layoutId="toc-pill"
-                  className="absolute inset-0 rounded-md bg-primary/10"
+                  className="absolute inset-0 rounded-[10px] bg-card shadow-[inset_0_0_0_1px_var(--line),0_2px_10px_rgba(51,48,42,0.05)]"
                   transition={{ duration: 0.25, ease: [0.22, 0.9, 0.3, 1] }}
-                />
+                >
+                  <span className="absolute top-[9px] bottom-[9px] left-0 w-[3px] rounded-full bg-primary" />
+                </motion.span>
               )}
-              <span className="relative">
-                {i + 1}. {s.heading}
+              <span className="relative flex items-baseline gap-2">
+                <span
+                  className={cn(
+                    "font-mono text-[10.5px] tabular-nums",
+                    active === i ? "text-primary" : "text-muted-foreground/70",
+                  )}
+                >
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="min-w-0 truncate">{s.heading}</span>
               </span>
             </button>
           ))}
@@ -282,9 +304,9 @@ function Reader({ course }: { course: CourseV2 }) {
             </div>
           )}
           {invite && (
-            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-primary/40 bg-card px-4 py-2">
-              <Sparkles size={14} className="shrink-0 text-primary" aria-hidden="true" />
-              <span className="mr-auto text-sm">这节课学完了，沉淀为笔记？</span>
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[color:var(--warn-line)] bg-[color:var(--warn-bg)] px-4 py-2">
+              <Sparkles size={14} className="shrink-0 text-[color:var(--warn-ink)]" aria-hidden="true" />
+              <span className="mr-auto text-sm text-[color:var(--warn-ink)]">这节课学完了，沉淀为笔记？</span>
               <Button size="sm" asChild>
                 <Link to={`/courses/${course.id}?sink=1`} viewTransition>生成笔记草稿</Link>
               </Button>
@@ -330,7 +352,7 @@ function Reader({ course }: { course: CourseV2 }) {
                           href={s.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[15px] text-primary underline decoration-dotted hover:decoration-solid"
+                          className="text-[15px] text-muted-foreground underline decoration-dotted underline-offset-4 transition-colors hover:text-primary hover:decoration-solid"
                           title={s.url}
                         >
                           {s.title}
@@ -496,7 +518,7 @@ function SelectionAsk({
         setPos(null);
         if (sel) onAsk(selQuestion(sel));
       }}
-      className="anim-drop fixed z-50 -translate-x-1/2 -translate-y-[calc(100%+8px)] rounded-full border border-primary/40 bg-card px-3 py-1.5 text-xs font-medium text-primary shadow-lg outline-none transition-colors hover:bg-primary/10 focus-visible:ring-[3px] focus-visible:ring-ring/40"
+      className="anim-drop fixed z-50 -translate-x-1/2 -translate-y-[calc(100%+8px)] rounded-full border border-primary/40 bg-card px-3 py-1.5 text-xs font-medium text-primary shadow-(--shadow-paper) outline-none transition-colors hover:bg-primary/10 focus-visible:ring-[3px] focus-visible:ring-ring/40"
     >
       💬 问 AI 老师
     </button>
