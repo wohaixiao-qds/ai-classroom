@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设计稿 · AI 课堂两翼：目录导航区 + 答疑区</title>
+<style>
+  :root{
+    --bg:#f4efe3; --card:#fdfbf3; --ink:#33302a; --ink-2:#7a7263; --ink-3:#a49a86;
+    --line:#e4dcc8; --accent:#b4532a; --accent-soft:#f3e2d6;
+    --ok:#5b7a5e; --warn-bg:#f5ead6; --warn-line:#d8bd90; --warn-ink:#8a6a35;
+    --ui:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;
+    --read:"LXGW WenKai","LXGW WenKai Lite","Kaiti SC","Songti SC",Georgia,serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--ui);font-size:14px;
+    -webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(900px 400px at 85% -5%, rgba(180,83,42,.05), transparent 60%)}
+  .page{max-width:1180px;margin:0 auto;padding:48px 32px 90px}
+  .head{margin-bottom:34px}
+  .head .tag{display:inline-block;font-size:11px;letter-spacing:.16em;color:var(--accent);
+    border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:999px;
+    padding:4px 13px;margin-bottom:16px}
+  .head h1{font-family:var(--read);font-size:26px;font-weight:700;letter-spacing:.02em;margin-bottom:8px}
+  .head p{font-size:13.5px;color:var(--ink-2);line-height:1.9;max-width:56em}
+  .duo{display:grid;grid-template-columns:400px 1fr;gap:36px;align-items:start}
+  @media (max-width:980px){.duo{grid-template-columns:1fr}}
+
+  /* 面板容器（展示框） */
+  .artifact{background:transparent}
+  .artifact .cap{font-size:11px;letter-spacing:.14em;color:var(--ink-3);margin-bottom:12px;
+    display:flex;align-items:baseline;gap:10px}
+  .artifact .cap b{color:var(--ink-2);font-weight:600;letter-spacing:.08em}
+  .artifact .cap .dim{color:var(--ink-3)}
+  .frame{border-radius:14px;overflow:hidden;
+    box-shadow:0 1px 2px rgba(51,48,42,.08),0 16px 40px rgba(51,48,42,.10)}
+
+  /* ══ 目录导航区 ══════════════════════ */
+  .toc-panel{background:var(--card);border:1px solid var(--line);height:760px;
+    display:flex;flex-direction:column}
+  .toc-panel .book{padding:18px 18px 14px;border-bottom:1px solid var(--line)}
+  .toc-panel .book .bt{font-family:var(--read);font-size:15px;font-weight:700;letter-spacing:.02em}
+  .toc-panel .book .bs{font-size:11.5px;color:var(--ink-2);margin-top:4px;line-height:1.6}
+  .toc-panel .book .bp{margin-top:10px;height:3px;border-radius:999px;background:var(--line);
+    overflow:hidden}
+  .toc-panel .book .bp i{display:block;height:100%;width:42%;border-radius:999px;
+    background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 75%,transparent),var(--accent))}
+  .toc-panel .book .bn{display:flex;justify-content:space-between;font-size:10.5px;
+    color:var(--ink-3);margin-top:6px;font-family:var(--mono)}
+  .toc-list{flex:1;overflow:auto;padding:12px 10px}
+  .toc-list .lbl{font-size:10px;letter-spacing:.2em;color:var(--ink-3);padding:6px 10px}
+  .it{position:relative;display:block;padding:11px 12px;border-radius:10px;margin-bottom:2px;
+    text-decoration:none;color:var(--ink-2);transition:background .15s}
+  .it:hover{background:color-mix(in srgb,var(--bg) 55%,transparent)}
+  .it .r1{display:flex;align-items:baseline;gap:9px}
+  .it .no{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);min-width:20px}
+  .it .nm{font-size:13.5px;line-height:1.55;flex:1}
+  .it .ck{font-size:11px;color:var(--ok);font-family:var(--mono)}
+  .it .r2{display:flex;align-items:center;gap:6px;margin:7px 0 0 29px}
+  .it .quiz{width:14px;height:14px;border-radius:50%;font-size:8.5px;
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono)}
+  .it .quiz.p{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+  .it .quiz.f{border:1px dashed var(--line);color:var(--ink-3)}
+  .it .qtl{font-size:10.5px;color:var(--ink-3)}
+  .it.cur{background:var(--card);box-shadow:inset 0 0 0 1px var(--line),0 2px 10px rgba(51,48,42,.05)}
+  .it.cur::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;
+    border-radius:999px;background:var(--accent)}
+  .it.cur .nm{color:var(--ink);font-weight:700}
+  .it.cur .no{color:var(--accent)}
+  .it.cur .pos{margin-left:auto;font-size:10px;color:var(--accent);font-family:var(--mono)}
+  .it.locked{opacity:.62}
+  .toc-panel .done-band{margin:10px 12px 14px;padding:11px 14px;border-radius:11px;
+    background:var(--warn-bg);border:1px solid var(--warn-line);
+    display:flex;align-items:center;gap:10px}
+  .toc-panel .done-band .t{font-size:12px;color:var(--warn-ink);line-height:1.6}
+  .toc-panel .done-band .t b{font-weight:700}
+  .toc-panel .done-band .btn{margin-left:auto;font-size:11.5px;font-weight:700;color:#fdf9f2;
+    background:var(--warn-ink);border-radius:8px;padding:6px 12px;white-space:nowrap}
+
+  /* ══ 答疑区 ══════════════════════ */
+  .chat-panel{background:color-mix(in srgb, var(--card) 62%, var(--bg));
+    border:1px solid var(--line);height:760px;display:flex;flex-direction:column}
+  .chat-panel .head{padding:16px 18px 13px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:10px}
+  .avatar{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fdf9f2;
+    display:flex;align-items:center;justify-content:center;font-size:13px;flex:none;
+    box-shadow:0 2px 6px rgba(180,83,42,.3)}
+  .chat-panel .head .t{font-size:14px;font-weight:700}
+  .chat-panel .head .s{font-size:11px;color:var(--ink-2);margin-top:2px;line-height:1.5}
+  .chat-panel .head .new{margin-left:auto;font-size:11px;color:var(--ink-3);
+    border:1px solid var(--line);border-radius:999px;padding:4px 10px;white-space:nowrap}
+  .msgs{flex:1;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
+  .seed{align-self:stretch;display:flex;align-items:center;gap:8px;padding:8px 12px;
+    border-radius:10px;background:var(--warn-bg);border:1px dashed var(--warn-line);
+    font-size:11.5px;color:var(--warn-ink)}
+  .seed .x{margin-left:auto;color:var(--ink-3);cursor:pointer}
+  .m{max-width:88%;border-radius:13px;padding:11px 14px;font-size:13.5px;line-height:1.9}
+  .m.user{align-self:flex-end;background:var(--accent-soft);color:var(--ink);
+    border:1px solid color-mix(in srgb,var(--accent) 24%,transparent);
+    border-bottom-right-radius:5px}
+  .m.ai{align-self:flex-start;background:var(--card);border:1px solid var(--line);
+    border-bottom-left-radius:5px;box-shadow:0 1px 2px rgba(51,48,42,.04)}
+  .m .cite{font-family:var(--ui);font-size:12px;color:var(--accent);
+    border-bottom:1px dashed color-mix(in srgb,var(--accent) 50%,transparent);
+    cursor:pointer;white-space:nowrap}
+  .m .src{font-family:var(--mono);font-size:10.5px;color:var(--accent)}
+  .m .tool{display:flex;align-items:center;gap:7px;font-family:var(--ui);font-size:11.5px;
+    color:var(--ink-2);margin-top:9px;padding-top:8px;border-top:1px dashed var(--line)}
+  .m .tool .arr{color:var(--accent)}
+  details.thinking{align-self:flex-start;max-width:88%;font-size:12px;color:var(--ink-2);
+    background:var(--card);border:1px solid var(--line);border-radius:11px;padding:9px 13px}
+  details.thinking summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px}
+  details.thinking summary::-webkit-details-marker{display:none}
+  details.thinking summary .tm{font-family:var(--mono);color:var(--ink-3);font-size:11px}
+  details.thinking .body{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);
+    line-height:1.8;color:var(--ink-2)}
+  .streaming{align-self:flex-start;background:var(--card);border:1px solid var(--line);
+    border-radius:13px;border-bottom-left-radius:5px;padding:11px 14px;max-width:88%;
+    font-size:13.5px;line-height:1.9}
+  .caret{display:inline-block;width:2px;height:1em;background:var(--accent);
+    vertical-align:-0.15em;margin-left:2px;animation:blink 1.1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .sel-hint{margin:0 14px 10px;padding:9px 13px;background:var(--accent-soft);border-radius:10px;
+    font-size:12px;color:var(--ink);display:flex;align-items:center;gap:9px}
+  .sel-hint .mark{color:var(--accent);font-weight:700}
+  .sel-hint .q{margin-left:auto;color:var(--accent);font-weight:700;cursor:pointer;white-space:nowrap;
+    border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:8px;padding:3px 10px}
+  .input{padding:13px 14px 15px;border-top:1px solid var(--line)}
+  .input .box{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:11px 13px;font-size:13.5px;line-height:1.7;color:var(--ink-3);position:relative}
+  .input .ops{display:flex;align-items:center;gap:10px;margin-top:9px;padding:0 2px}
+  .input .hint{font-size:10.5px;color:var(--ink-3)}
+  .input .send{margin-left:auto;font-size:12px;font-weight:700;color:#fdf9f2;
+    background:var(--accent);border-radius:9px;padding:6px 16px;
+    box-shadow:0 2px 8px rgba(180,83,42,.3)}
+  .input .stop{font-size:12px;font-weight:600;color:var(--ink-2);border:1px solid var(--line);
+    border-radius:9px;padding:6px 14px;background:var(--card)}
+  .notes{margin-top:30px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .note{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .note .nt{font-size:11px;letter-spacing:.14em;color:var(--ink-3);margin-bottom:10px}
+  .note ul{list-style:none}
+  .note li{font-size:12.5px;color:var(--ink-2);line-height:2;padding-left:16px;position:relative}
+  .note li::before{content:"·";position:absolute;left:2px;color:var(--accent)}
+  .draft-tag{position:fixed;left:14px;bottom:14px;z-index:40;font-size:11px;letter-spacing:.1em;
+    color:var(--ink-3);background:color-mix(in srgb,var(--card) 85%,transparent);
+    border:1px solid var(--line);border-radius:999px;padding:5px 14px}
+  .draft-tag a{color:var(--accent);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="head">
+    <span class="tag">设 计 稿 · 课 堂 两 翼 细 节</span>
+    <h1>目录导航区 × 答疑区</h1>
+    <p>阅读面的左右两翼，纸感语言与正文同源：同一个纸底、同一根赭石强调、同一套虚线检查点词汇。
+      两栏都是可拖拽宽度（目录 160–400px，答疑 260–560px），此稿按各自接近上限的宽度展示，
+      便于看清所有状态。</p>
+  </div>
+
+  <div class="duo">
+
+    <!-- ══ 目录导航区 ══ -->
+    <div class="artifact">
+      <div class="cap"><b>目录导航区</b><span class="dim">真实宽度 160–400px 可拖 · 此处 400px</span></div>
+      <div class="frame">
+        <div class="toc-panel">
+          <div class="book">
+            <div class="bt">拆开一个 Agent</div>
+            <div class="bs">模型止于何处，Harness 始于何处</div>
+            <div class="bp"><i></i></div>
+            <div class="bn"><span>已读 42%</span><span>第 3 / 6 节</span></div>
+          </div>
+          <div class="toc-list">
+            <div class="lbl">全 书 目 录</div>
+            <a class="it" href="#">
+              <div class="r1"><span class="no">01</span><span class="nm">模型与 Harness 的边界</span><span class="ck">✓</span></div>
+              <div class="r2"><span class="quiz p">✓</span><span class="quiz p">✓</span><span class="qtl">检查点 2/2 · 已通过</span></div>
+            </a>
+            <a class="it" href="#">
+              <div class="r1"><span class="no">02</span><span class="nm">上下文：会话状态与记忆</span><span class="ck">✓</span></div>
+              <div class="r2"><span class="quiz p">✓</span><span class="quiz f">○</span><span class="qtl">检查点 2/2 · 1 张明天复习</span></div>
+            </a>
+            <a class="it cur" href="#">
+              <div class="r1"><span class="no">03</span><span class="nm">工具：模型的执行权代理</span><span class="pos">42%</span></div>
+              <div class="r2"><span class="quiz p">✓</span><span class="quiz p">✓</span><span class="quiz f">③</span><span class="qtl">读到「坑是主菜」附近</span></div>
+            </a>
+            <a class="it locked" href="#">
+              <div class="r1"><span class="no">04</span><span class="nm">循环：步进与终止条件</span></div>
+            </a>
+            <a class="it locked" href="#">
+              <div class="r1"><span class="no">05</span><span class="nm">护栏：错误处理与守卫</span></div>
+            </a>
+            <a class="it locked" href="#">
+              <div class="r1"><span class="no">06</span><span class="nm">从零组装一个微型 Harness</span></div>
+            </a>
+          </div>
+          <div class="done-band">
+            <div class="t">读到末尾了——<b>检查点 2/3 通过</b>，过了第 ③ 题即可打卡</div>
+            <span class="btn">去复述 ③</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 答疑区 ══ -->
+    <div class="artifact">
+      <div class="cap"><b>答疑区</b><span class="dim">真实宽度 260–560px 可拖 · 此处铺满展示全部状态</span></div>
+      <div class="frame">
+        <div class="chat-panel">
+          <div class="head">
+            <span class="avatar">师</span>
+            <div>
+              <div class="t">AI 老师</div>
+              <div class="s">认识全书 9 门课与你的学习进度 · 回答标注课件出处</div>
+            </div>
+            <span class="new">＋ 新会话</span>
+          </div>
+          <div class="msgs">
+            <div class="seed">◈ 来自复述检查点 ③ ·「没懂，问 AI 老师」<span class="x">✕</span></div>
+            <div class="m user">为什么「工具给模型」的本质是执行权的代理？还是不懂。</div>
+            <details class="thinking" open>
+              <summary>思考过程 <span class="tm">4.8s · 已展开</span></summary>
+              <div class="body">学员卡在「代理」这个词上。从第 1 节的边界图切入：
+                模型只会说话→动手的是 Harness→所以工具能力是「借给」模型的，
+                所有权一直在 Harness 手里。用图书馆的类比，不引入新术语。</div>
+            </details>
+            <div class="m ai">换个角度——想<b>图书馆</b>：你有借书证（模型），
+              但书架上的书你碰不到，必须请管理员（Harness）帮你取。
+              「执行权」就是管理员的手——它从来不在你手里，
+              只是在你报出书名（工具名+参数）时替你去拿<sup class="src">[源1]</sup>。</div>
+            <div class="m ai">所以在课件里你会看到这句话：
+              「模型只发出<b>意图</b>，Harness 持有<b>能力</b>」——
+              这两半拼起来才是完整的工具调用<span class="cite">课件第 3 节</span>。</div>
+            <div class="m ai">
+              我去核对一下第 5 节的具体表述，保证引用准确。
+              <div class="tool"><span class="arr">↳</span>正在检索课件 · 第 5 节「动作空间刚好」…</div>
+            </div>
+            <div class="streaming">核对完了。补充一个你复述里漏掉的关键点：
+              执行权代理还意味着<b>每次调用都可审计</b>——
+              这正是护栏能存在的<span class="caret"></span></div>
+          </div>
+          <div class="sel-hint">选中了「<span class="mark">执行权</span>」<span class="q">解释一下</span></div>
+          <div class="input">
+            <div class="box">输入你自己的类比，我来听像不像……</div>
+            <div class="ops">
+              <span class="hint">Enter 发送 · Shift+Enter 换行</span>
+              <span class="stop">■ 停止</span>
+              <span class="send">发送</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="notes">
+    <div class="note">
+      <div class="nt">目 录 导 航 区 · 状 态 词 汇</div>
+      <ul>
+        <li>已读节：mono ✓ 收尾；当前节：左侧赭石游标 + 卡片浮起 + 节内百分比</li>
+        <li>检查点颗粒：节名下挂 ✓/○ 小圆点串——过了几题、哪张要复习，扫一眼即知</li>
+        <li>未读节整体降透明度，不画锁——鼓励跳读但不骗「已完成」</li>
+        <li>底部打卡邀请横幅：只在「读到末尾且检查点未满」时出现，点击直达未过的复述卡</li>
+      </ul>
+    </div>
+    <div class="note">
+      <div class="nt">答 疑 区 · 状 态 词 汇</div>
+      <ul>
+        <li>种子问题带来源标（◈ 来自检查点 ③），可关闭——批改↔答疑联动的来路可见</li>
+        <li>思考过程：默认折叠、可展开回看，与 ZCode 同款；不计入会话历史</li>
+        <li>引用两种：课件节引用（虚线下划）与来源标号（mono 上标），点击跳转</li>
+        <li>工具在飞行（↳ 检索中…）实时可见；流式光标 + ■ 停止按钮；划词提示条常驻输入区上方</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+<div class="draft-tag">设计稿 · 课堂两翼 · <a href="reader.html">回阅读器全貌</a> · <a href="index.html">提案封面</a></div>
+</body>
+</html>

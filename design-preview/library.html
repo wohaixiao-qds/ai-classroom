@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设计稿 v2 · 课程库书架（现代 SaaS · 精修版）</title>
+<style>
+  :root{
+    --bg:#f6f6f8; --card:#ffffff; --text:#18181b; --muted:#6f6f78; --faint:#a1a1aa;
+    --line:#e7e7ec; --line-2:#f1f1f4;
+    --accent:#4655d4; --accent-deep:#3340a8; --accent-soft:#eef0fd;
+    --ok:#18915b; --ok-soft:#e9f6ef; --busy:#b7791f; --busy-soft:#faf3e3;
+    --ui:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;
+    --serif:"Noto Serif SC","Songti SC",Georgia,serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+    --shadow-1:0 1px 2px rgba(20,20,30,.05),0 2px 8px rgba(20,20,30,.04);
+    --shadow-2:0 1px 2px rgba(20,20,30,.05),0 10px 30px rgba(20,20,30,.09);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1200px 500px at 70% -10%, rgba(70,85,212,.05), transparent 60%),
+      radial-gradient(900px 400px at 0% 110%, rgba(24,145,91,.035), transparent 55%),
+      var(--bg);
+    color:var(--text);font-family:var(--ui);font-size:14px;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* 细颗粒纸纹 */
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.016 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  /* ── 顶部导航 ─────────────────────────── */
+  .nav{position:sticky;top:0;z-index:30;
+    background:color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter:blur(10px)}
+  .nav::after{content:"";position:absolute;inset:auto 0 0 0;height:1px;
+    background:linear-gradient(90deg,transparent,var(--line) 20%,var(--line) 80%,transparent)}
+  .nav .in{max-width:1120px;margin:0 auto;padding:0 28px;height:60px;
+    display:flex;align-items:center;gap:24px}
+  .logo{font-weight:700;font-size:15px;letter-spacing:.02em;display:flex;align-items:center;gap:9px}
+  .logo .mark{width:20px;height:20px;border-radius:6px;flex:none;
+    background:linear-gradient(135deg,var(--accent),var(--accent-deep));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 2px 6px rgba(70,85,212,.35)}
+  .nav a{color:var(--muted);text-decoration:none;font-size:13.5px;padding:6px 12px;border-radius:8px;
+    transition:color .15s,background .15s}
+  .nav a:hover{color:var(--text)}
+  .nav a.on{color:var(--text);font-weight:600;background:var(--card);
+    box-shadow:var(--shadow-1),inset 0 0 0 1px var(--line)}
+  .nav .right{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--faint)}
+  .nav .right .pulse{width:6px;height:6px;border-radius:50%;background:var(--ok);
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 15%,transparent)}
+
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 28px 90px;position:relative;z-index:1}
+
+  /* ── 今日横条 ─────────────────────────── */
+  .today{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;margin-bottom:40px}
+  .t-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    box-shadow:var(--shadow-1);padding:16px 18px;display:flex;align-items:center;gap:16px;
+    transition:box-shadow .18s ease, transform .18s ease}
+  .t-card:hover{box-shadow:var(--shadow-2);transform:translateY(-2px)}
+  /* 迷你书封 */
+  .mini{width:42px;height:58px;border-radius:4px 7px 7px 4px;flex:none;position:relative;
+    box-shadow:0 1px 2px rgba(20,20,30,.2),0 4px 10px rgba(20,20,30,.18);
+    display:flex;align-items:flex-end;padding:6px 5px}
+  .mini::before{content:"";position:absolute;inset:0;border-radius:inherit;
+    background:linear-gradient(90deg,rgba(0,0,0,.22),transparent 12%,rgba(255,255,255,.16) 30%,transparent 45%)}
+  .mini i{font-style:normal;font-family:var(--serif);font-size:9px;line-height:1.25;color:rgba(255,255,255,.92);
+    letter-spacing:.03em;writing-mode:vertical-rl;max-height:100%;overflow:hidden}
+  .t-card .t{font-size:11px;letter-spacing:.14em;color:var(--faint);margin-bottom:5px}
+  .t-card .d{font-size:15px;font-weight:650;letter-spacing:.01em}
+  .t-card .d small{font-weight:400;color:var(--muted);font-size:12.5px;margin-left:8px}
+  .streak{display:flex;gap:4px;margin-top:9px;align-items:center}
+  .streak b{font-size:11px;color:var(--faint);font-weight:400;margin-right:3px;font-family:var(--mono)}
+  .streak i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+  .streak i.hit{background:var(--accent)}
+  .t-card .go{margin-left:auto;font-size:12.5px;font-weight:600;color:var(--accent);white-space:nowrap}
+  /* 复习卡的大数字 */
+  .bignum{font-family:var(--mono);font-size:30px;font-weight:600;color:var(--busy);
+    line-height:1;flex:none;width:44px;text-align:center}
+  .bignum small{display:block;font-family:var(--ui);font-size:10px;color:var(--faint);
+    font-weight:400;margin-top:4px;letter-spacing:.08em}
+
+  /* ── 区块头 ─────────────────────────── */
+  .sec{display:flex;align-items:baseline;gap:12px;margin:0 0 18px}
+  .sec h2{font-size:16px;font-weight:700;letter-spacing:.01em}
+  .sec .rule{flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+  .sec .n{font-size:12px;color:var(--faint);font-family:var(--mono)}
+
+  /* ── 书架：真·书的形态 ─────────────────── */
+  .shelf{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:44px}
+  .book{background:var(--card);border:1px solid var(--line);border-radius:16px;
+    box-shadow:var(--shadow-1);overflow:hidden;
+    transition:box-shadow .18s ease, transform .18s ease}
+  .book:hover{box-shadow:var(--shadow-2);transform:translateY(-3px)}
+  .book .top{display:flex;gap:20px;padding:22px 22px 18px}
+  /* 立体封面 */
+  .cover{width:124px;height:168px;flex:none;border-radius:4px 10px 10px 4px;position:relative;
+    display:flex;flex-direction:column;padding:16px 12px 12px 18px;
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,.08),
+      0 1px 2px rgba(20,20,30,.25),
+      0 10px 22px rgba(20,20,30,.22);
+    transition:transform .2s ease}
+  .book:hover .cover{transform:perspective(700px) rotateY(-5deg)}
+  .cover::before{content:"";position:absolute;inset:0;border-radius:inherit;
+    background:
+      linear-gradient(90deg,rgba(0,0,0,.28) 0%,rgba(0,0,0,0) 9%,rgba(255,255,255,.14) 15%,rgba(255,255,255,0) 26%),
+      linear-gradient(180deg,rgba(255,255,255,.1),rgba(0,0,0,.08))}
+  .cover .series{font-family:var(--mono);font-size:8.5px;letter-spacing:.22em;
+    color:rgba(255,255,255,.72);margin-bottom:auto}
+  .cover .ct{font-family:var(--serif);font-size:19px;font-weight:700;line-height:1.45;
+    color:rgba(255,255,255,.97);letter-spacing:.04em;
+    text-shadow:0 1px 3px rgba(0,0,0,.25)}
+  .cover .cs{font-size:10px;color:rgba(255,255,255,.66);margin-top:8px;letter-spacing:.05em}
+  .cover .cc{margin-top:auto;font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.55);
+    display:flex;justify-content:space-between;align-items:center}
+  .cover .cc::after{content:"";width:22px;height:1px;background:rgba(255,255,255,.35)}
+  .cover.c1{background:linear-gradient(160deg,#5462dd 0%,#3a47b4 55%,#2b3588 100%)}
+  .cover.c2{background:linear-gradient(160deg,#7d8394 0%,#5d6274 55%,#474b5e 100%)}
+  .cover.c2 .ct{font-size:16.5px}
+  .cover.c2 .ct .zh{white-space:nowrap}
+
+  .book .body{min-width:0;display:flex;flex-direction:column;padding-top:4px}
+  .book h3{font-size:16px;font-weight:700;letter-spacing:.01em}
+  .book .sub{font-size:12.5px;color:var(--muted);margin-top:5px;line-height:1.6}
+  .chips{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+  .chip{font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);
+    color:var(--muted);display:inline-flex;align-items:center;gap:5px}
+  .chip i{width:5px;height:5px;border-radius:50%;background:var(--faint);font-style:normal}
+  .chip.ok{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
+  .chip.ok i{background:var(--ok)}
+  .chip.busy{background:var(--busy-soft);border-color:transparent;color:var(--busy)}
+  .chip.busy i{background:var(--busy)}
+
+  /* 分篇进度条 */
+  .bar{display:flex;gap:4px;margin:16px 0 8px}
+  .bar .seg{flex:1;height:5px;border-radius:999px;background:var(--line-2);overflow:hidden;position:relative}
+  .bar .seg i{display:block;height:100%;width:0;border-radius:999px;
+    background:linear-gradient(90deg,var(--accent-deep),var(--accent));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+  .bar .seg i.half{width:50%}
+  .bar .seg i.full{width:100%}
+  .pct{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+  .pct b{font-family:var(--mono);font-weight:600;color:var(--text)}
+  .pct .cap{letter-spacing:.06em;font-size:11px;color:var(--faint)}
+
+  .book .foot{display:flex;align-items:center;gap:12px;border-top:1px solid var(--line-2);
+    margin-top:6px;padding:13px 22px;background:color-mix(in srgb, var(--card) 60%, #fafafb)}
+  .book .cur{font-size:12.5px;color:var(--muted);min-width:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .book .cur b{color:var(--text);font-weight:600}
+  .book .cur .tri{color:var(--accent);margin-right:6px}
+  .book .btn{margin-left:auto;font-size:12.5px;font-weight:600;color:var(--accent);
+    border:1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+    border-radius:9px;padding:6px 14px;white-space:nowrap;cursor:pointer;background:var(--card);
+    box-shadow:var(--shadow-1);transition:background .15s,transform .15s}
+  .book .btn:hover{background:var(--accent-soft);transform:translateY(-1px)}
+
+  /* ── 大纲目录 ─────────────────────────── */
+  .outline{background:var(--card);border:1px solid var(--line);border-radius:16px;
+    box-shadow:var(--shadow-1);overflow:hidden}
+  .o-head{padding:17px 22px;border-bottom:1px solid var(--line-2);display:flex;align-items:baseline;gap:12px}
+  .o-head h3{font-size:15px;font-weight:700}
+  .o-head .g{font-size:11px;color:var(--faint);border:1px solid var(--line);
+    border-radius:999px;padding:2px 9px;white-space:nowrap}
+  .o-head .cnt{margin-left:auto;font-size:12px;color:var(--faint);font-family:var(--mono)}
+  .part .p-label{display:flex;align-items:center;gap:10px;padding:14px 22px 8px;
+    font-size:10.5px;letter-spacing:.2em;color:var(--faint)}
+  .part .p-label::after{content:"";flex:1;height:1px;background:var(--line-2)}
+  .row{display:flex;align-items:center;gap:12px;padding:10px 22px;
+    transition:background .12s}
+  .row:hover{background:#fbfbfd}
+  .row+.row{border-top:1px solid var(--line-2)}
+  .st{width:20px;height:20px;border-radius:50%;flex:none;font-size:11px;
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono)}
+  .st.done{background:var(--ok-soft);color:var(--ok);font-size:10px}
+  .st.now{background:var(--accent);color:#fff;font-size:9px;
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}
+  .st.todo{border:1.5px dashed var(--line);color:var(--faint)}
+  .row .name{font-size:13.5px;font-weight:600;letter-spacing:.01em;white-space:nowrap}
+  .row .goal{font-size:12px;color:var(--muted);min-width:0;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .row .pre{margin-left:auto;font-size:11px;color:var(--faint);font-family:var(--mono);white-space:nowrap}
+  .row .act{font-size:12px;font-weight:600;white-space:nowrap;border-radius:8px;padding:5px 12px;
+    transition:background .12s}
+  .row .act.read{color:var(--accent)}
+  .row .act.read:hover{background:var(--accent-soft)}
+  .row .act.plan{color:var(--muted);border:1px solid var(--line);background:var(--card)}
+  .row .act.busy{color:var(--busy);background:var(--busy-soft)}
+
+  .draft-tag{position:fixed;left:14px;bottom:14px;z-index:40;font-size:11px;letter-spacing:.1em;
+    color:var(--faint);background:color-mix(in srgb,var(--card) 88%,transparent);
+    backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:999px;
+    padding:5px 14px;box-shadow:var(--shadow-1)}
+  .draft-tag a{color:var(--accent);text-decoration:none}
+
+  @media (max-width:920px){.today,.shelf{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="in">
+    <span class="logo"><span class="mark"></span>AI 课堂</span>
+    <a class="on" href="#">课程库</a>
+    <a href="#">生成中心</a>
+    <a href="#">观测</a>
+    <span class="right"><span class="pulse"></span>glm-5.3 · 全部已审</span>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <!-- 今日横条 -->
+  <div class="today">
+    <div class="t-card">
+      <div class="mini c1" style="background:linear-gradient(160deg,#5462dd,#2b3588)">
+        <i>拆开一个 Agent</i>
+      </div>
+      <div>
+        <div class="t">继 续 读</div>
+        <div class="d">拆开一个 Agent<small>第 3 节 · 工具：模型的执行权代理</small></div>
+        <div class="streak"><b>本周</b><i class="hit"></i><i class="hit"></i><i class="hit"></i><i class="hit"></i><i></i><i></i><i></i></div>
+      </div>
+      <span class="go">接着学 →</span>
+    </div>
+    <div class="t-card">
+      <div class="bignum">2<small>到期</small></div>
+      <div>
+        <div class="t">今 日 复 习</div>
+        <div class="d">检查点复述 ×1<small>《上下文》第 2 节 · 昨天学的</small></div>
+        <div class="streak"><b>连击</b><i class="hit"></i><i class="hit"></i><i class="hit"></i><i></i><i></i><i></i><i></i></div>
+      </div>
+      <span class="go">去复习 →</span>
+    </div>
+  </div>
+
+  <!-- 书架 -->
+  <div class="sec"><h2>书架</h2><span class="rule"></span><span class="n">2 BOOKS · 6 COURSES</span></div>
+  <div class="shelf">
+
+    <div class="book">
+      <div class="top">
+        <div class="cover c1">
+          <div class="series">AI CLASSROOM · VOL.1</div>
+          <div class="ct">Agent<br>Harness</div>
+          <div class="cs">模型的执行权、循环与护栏</div>
+          <div class="cc"><span>4 篇 · 8 门</span></div>
+        </div>
+        <div class="body">
+          <h3>Agent Harness</h3>
+          <div class="sub">从「画出模型与 Harness 的边界图」到「组装微型编码 Harness」的零基础完整路线</div>
+          <div class="chips">
+            <span class="chip ok"><i></i>已出 6 门</span>
+            <span class="chip"><i></i>已学 2 / 6</span>
+            <span class="chip busy"><i></i>1 门备课中</span>
+          </div>
+          <div class="bar">
+            <span class="seg"><i class="full"></i></span>
+            <span class="seg"><i class="full"></i></span>
+            <span class="seg"><i class="half"></i></span>
+            <span class="seg"><i></i></span>
+          </div>
+          <div class="pct"><span class="cap">学 习 进 度 · 按 篇</span><b>2 / 6</b></div>
+        </div>
+      </div>
+      <div class="foot">
+        <span class="cur"><span class="tri">▶</span>当前课 <b>03 · 工具：模型的执行权代理</b></span>
+        <button class="btn">继续读</button>
+      </div>
+    </div>
+
+    <div class="book">
+      <div class="top">
+        <div class="cover c2">
+          <div class="series">AI CLASSROOM · VOL.2</div>
+          <div class="ct">Harness<br>Eval <span class="zh">层建设</span></div>
+          <div class="cs">评测、可观测与可信依据</div>
+          <div class="cc"><span>3 篇 · 7 门</span></div>
+        </div>
+        <div class="body">
+          <h3>Harness Eval 层建设</h3>
+          <div class="sub">给 agent 建评测与观测：裁判、抽样、来源核验与发布门禁的完整建设路线</div>
+          <div class="chips">
+            <span class="chip"><i></i>已出 0 门</span>
+            <span class="chip ok"><i></i>大纲已审查通过</span>
+          </div>
+          <div class="bar">
+            <span class="seg"><i></i></span>
+            <span class="seg"><i></i></span>
+            <span class="seg"><i></i></span>
+          </div>
+          <div class="pct"><span class="cap">学 习 进 度 · 按 篇</span><b>0 / 7</b></div>
+        </div>
+      </div>
+      <div class="foot">
+        <span class="cur">从第一门《Harness Eval 层建设》开始点单</span>
+        <button class="btn">查看大纲</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 大纲目录预览 -->
+  <div class="sec"><h2>Agent Harness · 书内目录</h2><span class="rule"></span><span class="n">COURSE 03 IN READING</span></div>
+  <div class="outline">
+    <div class="o-head">
+      <h3>拆开一个 Agent：模型止于何处，Harness 始于何处</h3>
+      <span class="g">先修：无 · 入门课</span>
+      <span class="cnt">6 节 · 5 检查点 · 已读 42%</span>
+    </div>
+    <div class="part">
+      <div class="p-label">第 一 篇 · 起 步</div>
+      <div class="row">
+        <span class="st done">✓</span><span class="name">01 · 模型与 Harness 的边界</span>
+        <span class="goal">画出一张图：模型在哪里结束，Harness 从哪里开始</span>
+        <span class="pre">—</span><span class="act read">重读</span>
+      </div>
+      <div class="row">
+        <span class="st done">✓</span><span class="name">02 · 上下文：会话状态与记忆</span>
+        <span class="goal">解释无状态模型为什么需要 Harness 替它记账</span>
+        <span class="pre">← 01</span><span class="act read">重读</span>
+      </div>
+      <div class="row">
+        <span class="st now">▶</span><span class="name">03 · 工具：模型的执行权代理</span>
+        <span class="goal">说清动作空间刚好原则与工具精选装配</span>
+        <span class="pre">← 02</span><span class="act read">继续读</span>
+      </div>
+      <div class="p-label">第 二 篇 · 核 心 机 制</div>
+      <div class="row">
+        <span class="st todo">4</span><span class="name">04 · 循环：步进与终止条件</span>
+        <span class="goal">设计一个不会失控也不会空转的 agent 循环</span>
+        <span class="pre">← 03</span><span class="act plan">点单备课</span>
+      </div>
+      <div class="row">
+        <span class="st todo">5</span><span class="name">05 · 护栏：错误处理与守卫</span>
+        <span class="goal">给循环装上错误恢复与假引用门禁</span>
+        <span class="pre">← 04</span><span class="act busy">备课中…</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="draft-tag">设计稿 v2 · SaaS 工具面精修 · <a href="index.html">返回提案封面</a></div>
+
+</body>
+</html>

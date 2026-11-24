@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设计稿 · AI 课堂 UI 重设计（方向 C）</title>
+<style>
+  :root{
+    --paper:#f7f3ea; --card:#fffdf7; --ink:#33302a; --ink-2:#6f695c;
+    --line:#e5decf; --accent:#b4532a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    padding:48px 24px;
+  }
+  .sheet{max-width:760px;width:100%}
+  .tag{
+    display:inline-block;font-size:12px;letter-spacing:.14em;color:var(--accent);
+    border:1px solid var(--accent);border-radius:999px;padding:4px 14px;margin-bottom:20px;
+  }
+  h1{font-size:28px;font-weight:700;letter-spacing:.02em;margin-bottom:10px}
+  .sub{color:var(--ink-2);font-size:15px;line-height:1.9;margin-bottom:36px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  a.mock{
+    display:block;background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:24px;text-decoration:none;color:inherit;
+    transition:transform .18s ease, box-shadow .18s ease;
+  }
+  a.mock:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(51,48,42,.10)}
+  .mock .k{font-size:12px;letter-spacing:.12em;color:var(--ink-2);margin-bottom:8px}
+  .mock h2{font-size:19px;margin-bottom:10px}
+  .mock p{font-size:14px;line-height:1.85;color:var(--ink-2)}
+  .mock .go{margin-top:16px;font-size:14px;color:var(--accent)}
+  .note{
+    margin-top:36px;border-top:1px dashed var(--line);padding-top:20px;
+    font-size:13px;line-height:2;color:var(--ink-2);
+  }
+  .note b{color:var(--ink)}
+  @media (max-width:640px){.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+  <main class="sheet">
+    <span class="tag">设 计 稿 · 仅 评 审 用 · 非 产 品 代 码</span>
+    <h1>AI 课堂 · UI 重设计提案</h1>
+    <p class="sub">方向 C（混合分区）：沉浸学习的「阅读面」走纸感路线——安静、排版为王、界面退后；
+      频繁操作的「工具面」走现代 SaaS 路线——克制灰阶、单一强调色、信息密度高。
+      两张高保真稿各代表一个气质区，配色与字体均为提案值，最终以 token 落地。</p>
+    <div class="cards">
+      <a class="mock" href="reader.html">
+        <div class="k">气质区一 · 阅读面</div>
+        <h2>书页阅读器 · 纸感路线</h2>
+        <p>暖纸底 + 墨色正文 + 赭石点缀，霞鹜文楷正文，
+           目录/答疑栏退成浅色伴侣，检查点卡融入纸面。</p>
+        <div class="go">查看设计稿 →</div>
+      </a>
+      <a class="mock" href="library.html">
+        <div class="k">气质区二 · 工具面</div>
+        <h2>课程库书架 · 现代 SaaS 路线</h2>
+        <p>冷灰底 + 近黑文字 + 单一靛蓝强调，今日横条与书卡
+           高密度排布，进度与状态一眼可读。</p>
+        <div class="go">查看设计稿 →</div>
+      </a>
+    </div>
+    <div class="note">
+      <b>评审时建议看四件事：</b>
+      ① 阅读面「想不想在里面读 30 分钟」；② 工具面「找一门课、看进度快不快」；
+      ③ 两个气质区放在一起是否协调（同一套间距与圆角语言）；
+      ④ 有没有哪一处让你觉得「还是丑」——记下来，那是下一版要改的点。
+    </div>
+  </main>
+</body>
+</html>

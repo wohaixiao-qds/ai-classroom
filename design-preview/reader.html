@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设计稿 · 书页阅读器（纸感路线）</title>
+<style>
+  :root{
+    --bg:#f4efe3;          /* 纸面底 */
+    --card:#fdfbf3;        /* 正文纸 */
+    --ink:#33302a;         /* 墨 */
+    --ink-2:#7a7263;       /* 淡墨 */
+    --ink-3:#a49a86;       /* 极淡 */
+    --line:#e4dcc8;        /* 纸纹线 */
+    --accent:#b4532a;      /* 赭石 */
+    --accent-soft:#f3e2d6;
+    --ok:#5b7a5e;
+    --warn-bg:#f5ead6; --warn-line:#d8bd90; --warn-ink:#8a6a35;
+    --code-bg:#ece5d2;
+    --ui:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;
+    --read:"LXGW WenKai","LXGW WenKai Lite","Kaiti SC","Songti SC",Georgia,serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--ui);font-size:14px}
+
+  /* ── 三栏骨架 ─────────────────────────── */
+  .app{display:grid;grid-template-columns:216px minmax(0,1fr) 316px;height:100vh}
+
+  /* ── 顶部.chrome ─────────────────────── */
+  .topbar{
+    position:fixed;inset:0 0 auto 0;height:52px;z-index:30;
+    display:flex;align-items:center;gap:16px;padding:0 20px;
+    background:color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line);
+  }
+  .back{color:var(--ink-2);text-decoration:none;font-size:13px}
+  .back:hover{color:var(--ink)}
+  .book{font-size:14px;font-weight:600;letter-spacing:.02em}
+  .chap{font-size:12.5px;color:var(--ink-2)}
+  .spacer{flex:1}
+  .meta{font-size:12px;color:var(--ink-2)}
+  .meta b{color:var(--accent);font-weight:600}
+  .progress{position:fixed;top:52px;left:0;right:0;height:2px;z-index:30;background:var(--line)}
+  .progress i{display:block;height:100%;width:42%;background:var(--accent)}
+
+  /* ── 左栏 · 目录 ─────────────────────── */
+  .toc{
+    margin-top:54px;border-right:1px solid var(--line);
+    padding:24px 14px;overflow:auto;
+  }
+  .toc .label{font-size:11px;letter-spacing:.18em;color:var(--ink-3);padding:0 10px;margin-bottom:12px}
+  .toc a{
+    display:flex;align-items:baseline;gap:8px;
+    padding:9px 10px;border-radius:8px;margin-bottom:2px;
+    color:var(--ink-2);text-decoration:none;font-size:13.5px;line-height:1.5;
+  }
+  .toc a:hover{background:color-mix(in srgb, var(--card) 70%, transparent);color:var(--ink)}
+  .toc a.active{background:var(--card);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line);font-weight:600}
+  .toc .no{font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums;min-width:18px}
+  .toc a.active .no{color:var(--accent)}
+  .toc .done{margin-left:auto;color:var(--ok);font-size:12px}
+
+  /* ── 中栏 · 正文 ─────────────────────── */
+  .main{margin-top:54px;overflow:auto;scroll-behavior:smooth}
+  .article{max-width:44rem;margin:0 auto;padding:56px 48px 96px;font-family:var(--read)}
+  .crumb{font-family:var(--ui);font-size:12px;letter-spacing:.14em;color:var(--accent);margin-bottom:14px}
+  h1{font-size:27px;font-weight:700;letter-spacing:.01em;line-height:1.5;margin-bottom:30px}
+  .article p{font-size:17.5px;line-height:1.95;letter-spacing:.012em;color:var(--ink);
+    text-align:justify;margin-bottom:1.35em}
+  .article p.dim{color:var(--ink-2)}
+  sup.src{font-family:var(--ui);font-size:11px;color:var(--accent);cursor:pointer}
+  sup.src:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.82em;
+    background:var(--code-bg);border-radius:5px;padding:2px 6px}
+
+  /* 插图占位（mermaid 位） */
+  figure{margin:2em 0 2.2em;padding:22px;background:var(--card);
+    border:1px solid var(--line);border-radius:12px}
+  figcaption{font-family:var(--ui);font-size:12px;color:var(--ink-2);margin-top:14px;text-align:center}
+  .diagram{display:flex;align-items:center;justify-content:center;gap:14px;font-family:var(--ui)}
+  .box{border:1.5px solid var(--ink-2);border-radius:10px;padding:12px 18px;font-size:13px;
+    background:color-mix(in srgb, var(--card) 60%, var(--bg));text-align:center;line-height:1.6}
+  .box.model{border-style:dashed;color:var(--ink-2)}
+  .box.harness{border-color:var(--accent);color:var(--ink)}
+  .arrow{color:var(--ink-3);font-size:18px}
+
+  /* 坑 callout */
+  .pitfall{margin:1.8em 0;padding:16px 18px;background:var(--warn-bg);
+    border:1px solid var(--warn-line);border-left:3px solid var(--warn-ink);border-radius:10px}
+  .pitfall .t{font-family:var(--ui);font-size:12.5px;font-weight:700;color:var(--warn-ink);
+    letter-spacing:.06em;margin-bottom:6px}
+  .pitfall p{font-size:15.5px;line-height:1.9;margin-bottom:.5em}
+  .pitfall p:last-child{margin-bottom:0}
+
+  /* 复述检查点 */
+  .checkpoint{margin:2.4em 0 0;padding:22px 24px;background:var(--card);
+    border:1.5px dashed color-mix(in srgb, var(--accent) 55%, var(--line));
+    border-radius:14px}
+  .checkpoint .head{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-family:var(--ui)}
+  .badge{font-size:11px;letter-spacing:.12em;color:var(--accent);
+    border:1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+    border-radius:999px;padding:3px 10px}
+  .checkpoint .head .st{font-size:12px;color:var(--ink-3)}
+  .checkpoint .q{font-size:16.5px;line-height:1.9;margin-bottom:16px}
+  .checkpoint .btns{display:flex;gap:10px;font-family:var(--ui)}
+  .btn{border-radius:9px;padding:9px 18px;font-size:13.5px;cursor:pointer;border:1px solid var(--line);
+    background:transparent;color:var(--ink-2)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fdf9f2;font-weight:600}
+  .btn.primary:hover{filter:brightness(1.06)}
+  .btn:hover{color:var(--ink)}
+
+  /* 来源区 */
+  .sources{margin-top:48px;padding-top:22px;border-top:1px solid var(--line);font-family:var(--ui)}
+  .sources .label{font-size:11px;letter-spacing:.18em;color:var(--ink-3);margin-bottom:10px}
+  .sources li{list-style:none;font-size:13px;color:var(--ink-2);line-height:2;
+    display:flex;gap:8px;align-items:baseline}
+  .sources .n{color:var(--accent);font-size:11px;min-width:22px}
+  .sources a{color:var(--ink-2)}
+
+  /* ── 右栏 · 答疑 ─────────────────────── */
+  .chat{margin-top:54px;border-left:1px solid var(--line);display:flex;flex-direction:column;
+    background:color-mix(in srgb, var(--card) 55%, var(--bg))}
+  .chat .head{padding:16px 18px 12px;border-bottom:1px solid var(--line)}
+  .chat .head .t{font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .avatar{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fdf9f2;
+    display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+  .chat .head .s{font-size:12px;color:var(--ink-2);margin-top:3px}
+  .msgs{flex:1;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
+  .m{max-width:92%;border-radius:12px;padding:10px 13px;font-size:13.5px;line-height:1.85}
+  .m.user{align-self:flex-end;background:var(--accent-soft);color:var(--ink);
+    border:1px solid color-mix(in srgb, var(--accent) 25%, transparent)}
+  .m.ai{align-self:flex-start;background:var(--card);border:1px solid var(--line)}
+  .m.ai .cite{font-family:var(--ui);font-size:12px;color:var(--accent);
+    border-bottom:1px dashed color-mix(in srgb, var(--accent) 50%, transparent);cursor:pointer}
+  .thinking{align-self:flex-start;font-size:12px;color:var(--ink-3)}
+  .thinking summary{cursor:pointer;list-style:none}
+  .sel-hint{margin:0 14px 10px;padding:8px 12px;background:var(--accent-soft);border-radius:9px;
+    font-size:12.5px;color:var(--ink);display:flex;align-items:center;gap:8px}
+  .sel-hint .q{margin-left:auto;color:var(--accent);font-weight:600;cursor:pointer;white-space:nowrap}
+  .input{padding:14px;border-top:1px solid var(--line)}
+  .input .box{background:var(--card);border:1px solid var(--line);border-radius:11px;
+    padding:10px 12px;font-size:13.5px;color:var(--ink-3);line-height:1.6}
+
+  /* 设计稿水印条 */
+  .draft-tag{position:fixed;left:12px;bottom:12px;z-index:40;font-family:var(--ui);
+    font-size:11px;letter-spacing:.1em;color:var(--ink-3);
+    background:color-mix(in srgb, var(--card) 80%, transparent);
+    border:1px solid var(--line);border-radius:999px;padding:4px 12px}
+  .draft-tag a{color:var(--accent);text-decoration:none}
+
+  @media (max-width:1100px){.app{grid-template-columns:200px minmax(0,1fr)}.chat{display:none}}
+  @media (max-width:760px){.app{grid-template-columns:minmax(0,1fr)}.toc{display:none}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="back" href="library.html">‹ 书架</a>
+  <span class="book">拆开一个 Agent</span>
+  <span class="chap">模型止于何处，Harness 始于何处</span>
+  <span class="spacer"></span>
+  <span class="meta">第 3 / 6 节 · 检查点 <b>2/3</b> 通过</span>
+</header>
+<div class="progress"><i></i></div>
+
+<div class="app">
+
+  <nav class="toc">
+    <div class="label">本 书 目 录</div>
+    <a href="#"><span class="no">01</span>模型与 Harness 的边界<span class="done">✓</span></a>
+    <a href="#"><span class="no">02</span>上下文：会话状态与记忆<span class="done">✓</span></a>
+    <a class="active" href="#"><span class="no">03</span>工具：模型的执行权代理</a>
+    <a href="#"><span class="no">04</span>循环：步进与终止条件</a>
+    <a href="#"><span class="no">05</span>护栏：错误处理与守卫</a>
+    <a href="#"><span class="no">06</span>从零组装一个微型 Harness</a>
+  </nav>
+
+  <main class="main">
+    <article class="article">
+      <div class="crumb">03 · 工具</div>
+      <h1>工具：模型的执行权代理</h1>
+
+      <p>模型本身只会生成文本——它不能读文件、不能发请求、不能改代码。
+        让它「做到」这些事的，是 Harness 替它代持的<b>执行权</b>：
+        你把每个能力包装成一个<b>工具</b>，模型在需要时说出工具名和参数，
+        Harness 负责真正执行，再把结果回填给它。</p>
+
+      <p>一次典型的回合是这样走的：模型输出
+        <code>{"tool":"read_file","path":"main.py"}</code>，
+        Harness 读到文件内容，以 <code>tool_result</code> 的身份塞回对话，
+        模型看到内容后继续推理——要么再调一个工具，要么给出最终回答。
+        这个「说→执行→回填→再说」的循环，就是 agent 与普通对话的全部区别<sup class="src">源[1]</sup>。</p>
+
+      <figure>
+        <div class="diagram">
+          <div class="box model">模型<br><span style="font-size:11px;color:inherit">只会说话</span></div>
+          <div class="arrow">⇄</div>
+          <div class="box harness">Harness<br><span style="font-size:11px;color:var(--ink-2)">代持执行权</span></div>
+          <div class="arrow">→</div>
+          <div class="box">世界<br><span style="font-size:11px;color:var(--ink-2)">文件 / 网络 / 代码</span></div>
+        </div>
+        <figcaption>图 1 · 执行权始终在 Harness 手里，模型只发出意图</figcaption>
+      </figure>
+
+      <div class="pitfall">
+        <div class="t">⚠ 坑是主菜 · 工具给多了，模型反而变笨</div>
+        <p>新手最容易犯的错，是把所有能力一股脑塞进工具清单——「反正多多益善」。
+          实际后果是模型要在几十个工具里反复犹豫，选错的概率随清单长度上升，
+          token 花在选择上而不是干事上。</p>
+        <p>怎么避免：每个 agent 只装配它职责内的工具。
+          答疑 agent 永远不需要 <code>write_file</code>——
+          给它就是埋一颗误操作的地雷。</p>
+      </div>
+
+      <p>所以工具设计的第一性原理不是「能力齐全」，而是<b>动作空间刚好</b>：
+        少一个干不了活，多一个就多一分选错的风险。下一节我们把这套思路
+        放进循环里，看步进和终止条件怎么定<sup class="src">源[2]</sup>。</p>
+
+      <div class="checkpoint">
+        <div class="head">
+          <span class="badge">复述检查点 ③</span>
+          <span class="st">用自己的话说清，才算学会</span>
+        </div>
+        <div class="q">为什么「工具给模型」的本质是「执行权的代理」？
+          用你自己的话，说说模型、Harness、真实世界三者各负责什么。</div>
+        <div class="btns">
+          <button class="btn primary">用我自己的话复述</button>
+          <button class="btn">没懂，问 AI 老师</button>
+        </div>
+      </div>
+
+      <div class="sources">
+        <div class="label">本 节 来 源</div>
+        <ul>
+          <li><span class="n">源[1]</span><a href="#">Anthropic Docs · Tool use — How tool use works</a></li>
+          <li><span class="n">源[2]</span><a href="#">OpenAI Docs · Function calling — Best practices</a></li>
+        </ul>
+      </div>
+    </article>
+  </main>
+
+  <aside class="chat">
+    <div class="head">
+      <div class="t"><span class="avatar">师</span>AI 老师</div>
+      <div class="s">认识全书 9 门课与你的学习进度 · 回答会标注课件出处</div>
+    </div>
+    <div class="msgs">
+      <div class="m user">工具和 function calling 到底是什么关系？</div>
+      <div class="m ai">一回事的两个名字：function calling 是各家 API
+        里「模型说要调哪个函数」的<b>机制名</b>，工具是 Harness 视角下
+        「被调的那个能力」的<b>产物名</b>。你在<span class="cite">课件第 2 节</span>
+        见过的消息回填，就是两者咬合的齿轮。</div>
+      <details class="thinking"><summary>▸ 思考过程 · 6.2s</summary>
+        <div style="margin-top:6px">先确认用户问的是概念映射而非用法……
+          呼应已学的第 2 节回填机制，避免引入新术语。</div>
+      </details>
+      <div class="m user">那 MCP 又算什么？</div>
+      <div class="m ai">MCP 是把「工具怎么提供给 agent」标准化成协议——
+        相当于工具的 USB-C 接口。这块在《MCP》那本书里，你还没开始，
+        学完本节可以直接跳过去<sup class="src">源[1]</sup>。</div>
+    </div>
+    <div class="sel-hint">选中了「执行权」<span class="q">解释一下</span></div>
+    <div class="input"><div class="box">问点什么……（Enter 发送 · Shift+Enter 换行）</div></div>
+  </aside>
+
+</div>
+
+<div class="draft-tag">设计稿 · 纸感阅读面 · <a href="index.html">返回提案封面</a></div>
+
+</body>
+</html>
