@@ -17,6 +17,7 @@ export interface CheckpointAskPayload {
   pass_rule: string | null;
   answer: string;
   verdict: string;
+  gaps?: string[]; // 上次复述的结构化缺失点(T2);空/缺省=无错因记录
 }
 
 /** 「源[N]」→ 页尾来源清单锚点(溯源):备课管线的调研来源硬闸在课件 meta.sources
@@ -291,6 +292,8 @@ function QuizCard({
     precise?: string;
     answer: string;
   } | null>(null);
+  // 上次复述的错因(T2):回查拿到就在未过态显示「上次漏了」,复习回测先看旧缺口
+  const [lastGaps, setLastGaps] = useState<string[]>([]);
   const passed = passedResult !== null;
 
   // 结果回查(P7):挂载时查最近一次批改——刷新/隔天再来看,通过态不丢
@@ -299,7 +302,7 @@ function QuizCard({
       `/api/v1/grade/last?course_id=${encodeURIComponent(courseId)}&page_id=${encodeURIComponent(block.id)}`,
     )
       .then((r) => r.json())
-      .then((d: { found: boolean; verdict?: string; score?: number; comment?: string; precise?: string; answer?: string }) => {
+      .then((d: { found: boolean; verdict?: string; score?: number; comment?: string; precise?: string; answer?: string; gaps?: string[] }) => {
         if (d.found && d.verdict === "pass" && d.score !== undefined) {
           setPassedResult({
             score: d.score,
@@ -307,6 +310,9 @@ function QuizCard({
             precise: d.precise ?? undefined,
             answer: d.answer ?? "",
           });
+        }
+        if (d.found && Array.isArray(d.gaps)) {
+          setLastGaps(d.gaps.filter((g) => typeof g === "string" && g.trim() !== ""));
         }
       })
       .catch(() => {});
@@ -318,6 +324,16 @@ function QuizCard({
       <p className="mb-2 font-mono text-[11px] tracking-widest text-primary">◆ 复述检查点</p>
       <p className="text-[15px] leading-7">{block.question}</p>
       {block.hint && <p className="mt-1 text-[13px] text-muted-foreground">提示: {block.hint}</p>}
+      {!passed && lastGaps.length > 0 && (
+        <div className="mt-2 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-[13px] leading-6">
+          <p className="font-medium text-warning">上次漏了:</p>
+          <ul className="space-y-0.5">
+            {lastGaps.map((g, i) => (
+              <li key={i} className="break-words text-foreground/80">· {g}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="mt-3">
         {passed ? (
           <span className="anim-pop inline-flex items-center gap-1.5 text-sm text-success">
@@ -360,13 +376,15 @@ function QuizCard({
               setOpen(false);
             }}
             onClose={() => setOpen(false)}
-          onAskTutor={(answer, verdict) => {
+          onAskTutor={(answer, verdict, gaps) => {
             setOpen(false);
             onAskTutor?.({
               question: block.question,
               pass_rule: block.pass_rule,
               answer,
               verdict,
+              // 弹层本次批改的错因优先;没批过(「没懂」直问)回落到回查到的历史错因
+              gaps: gaps && gaps.length > 0 ? gaps : lastGaps,
             });
           }}
           />

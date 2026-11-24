@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from app.core.config import settings
+from app.core.learning_store import latest_gaps
 from app.schemas.csl import AnyCourse, parse_course
 from app.schemas.learning import ReviewDue, ReviewItem
 
@@ -146,6 +147,8 @@ def due_reviews() -> ReviewDue:
             page_title, question = f"闪卡 · {sec_title}", front
         else:
             continue  # 课件改版删了该卡 → 该卡作废
+        # 错因结构化(T2):检查点卡带「上次漏了」(最近一次非空 gaps);闪卡无批改不带
+        gaps = latest_gaps(cid, r["page_id"]) if hit is not None else []
         items.append(
             ReviewItem(
                 course_id=cid,
@@ -157,6 +160,7 @@ def due_reviews() -> ReviewDue:
                 mastery=r["mastery"],
                 next_review_at=r["next_review_at"],
                 overdue_days=max(0, (now - due).days),
+                gaps=gaps,
             )
         )
     items.sort(key=lambda x: x.next_review_at)  # 逾期最久的最先

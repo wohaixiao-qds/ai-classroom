@@ -157,7 +157,7 @@ def run_tutor(
         context_parts.append(f"[我正在学第「{current_page}」页]")
     if checkpoint:
         # 批改→答疑联动(P7 补):复述没过,老师拿全上下文做引导式解答
-        context_parts.append(
+        brief = (
             "[复述检查点没过,请引导式解答:先点破薄弱点,引导学员自己想通,"
             "不要直接给完整标准答案]\n"
             f"检查点问题:{checkpoint.get('question', '')}\n"
@@ -165,6 +165,16 @@ def run_tutor(
             f"学员回答:{checkpoint.get('answer', '')}\n"
             f"判定:{checkpoint.get('verdict', 'warn')}"
         )
+        # 错因结构化(T2):把上次复述的结构化缺失点直接指给老师,引导对症;空则不加
+        gaps = checkpoint.get("gaps")
+        if isinstance(gaps, list):
+            clean = [str(g).strip() for g in gaps if str(g).strip()]
+            if clean:
+                brief += (
+                    "\n学员上次复述的缺失点:" + "；".join(clean)
+                    + ",请针对性引导补齐这些缺口"
+                )
+        context_parts.append(brief)
     first_user = "\n\n".join([*context_parts, question])
     history = load_messages(session_id)
     messages: list[dict] = [*history, {"role": "user", "content": first_user}]

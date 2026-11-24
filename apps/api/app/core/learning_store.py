@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS learning_grades (
     page_id TEXT NOT NULL,
     verdict TEXT NOT NULL,
     ts TEXT NOT NULL,
-    result TEXT NOT NULL
+    result TEXT NOT NULL,
+    gaps TEXT                              -- JSON 数组字符串;NULL=该次批改无错因(T2)
 );
 CREATE INDEX IF NOT EXISTS idx_learning_grades_checkpoint
     ON learning_grades(course_id, page_id, ts DESC);
@@ -37,8 +38,17 @@ def _insert(c: sqlite3.Connection, rec: dict[str, Any], rid: str) -> None:
         return
     if not rec.get("course_id") or not rec.get("page_id"):
         return
+    # 错因结构化(T2):空错因存 NULL(与历史行同语义),非空列表才落 JSON 文本
+    gaps = rec.get("gaps")
+    gap_text = (
+        json.dumps(gaps, ensure_ascii=False)
+        if isinstance(gaps, list) and any(str(g).strip() for g in gaps)
+        else None
+    )
     c.execute(
-        "INSERT OR IGNORE INTO learning_grades VALUES(?,?,?,?,?,?)",
+        "INSERT OR IGNORE INTO learning_grades"
+        " (id, course_id, page_id, verdict, ts, result, gaps)"
+        " VALUES(?,?,?,?,?,?,?)",
         (
             rid,
             rec["course_id"],
@@ -46,6 +56,7 @@ def _insert(c: sqlite3.Connection, rec: dict[str, Any], rid: str) -> None:
             rec["verdict"],
             rec.get("ts") or time.strftime("%Y-%m-%dT%H:%M:%S"),
             json.dumps(rec, ensure_ascii=False),
+            gap_text,
         ),
     )
 
@@ -103,6 +114,14 @@ def _conn() -> sqlite3.Connection:
                             f"mastery-{row['course_id']}-{row['page_id']}",
                         )
             c.execute("INSERT INTO learning_migrations VALUES('grade-runtime-v1')")
+        # 错因结构化(T2):旧库增量加 gaps 列;新库建表已含,ALTER 容错跳过
+        if not c.execute(
+            "SELECT 1 FROM learning_migrations WHERE name='grade-gaps-v1'"
+        ).fetchone():
+            cols = {r["name"] for r in c.execute("PRAGMA table_info(learning_grades)").fetchall()}
+            if "gaps" not in cols:
+                c.execute("ALTER TABLE learning_grades ADD COLUMN gaps TEXT")
+            c.execute("INSERT INTO learning_migrations VALUES('grade-gaps-v1')")
         c.commit()
     except BaseException:
         c.rollback()
@@ -164,6 +183,30 @@ def last_result(
     with _conn() as c:
         row = c.execute(sql + " ORDER BY ts DESC, rowid DESC LIMIT 1", params).fetchone()
     return json.loads(row[0]) if row else {}
+
+
+def latest_gaps(course_id: str, page_id: str) -> list[str]:
+    """该检查点最近一次「带错因」批改的 gaps(T2:复习卡「上次漏了」/答疑对症引导)。
+
+    语义=最新非空:先错后过时仍取错的那次(历史缺口值得在复习时点名);
+    旧数据列值 NULL / 空数组 / 坏 JSON 一律视为无错因,返回空列表。
+    """
+    with _conn() as c:
+        row = c.execute(
+            "SELECT gaps FROM learning_grades"
+            " WHERE course_id=? AND page_id=? AND gaps IS NOT NULL AND gaps != '[]'"
+            " ORDER BY ts DESC, rowid DESC LIMIT 1",
+            (course_id, page_id),
+        ).fetchone()
+    if row is None or not row["gaps"]:
+        return []
+    try:
+        parsed = json.loads(row["gaps"])
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(g) for g in parsed if str(g).strip()]
 
 
 def grade_history(course_id: str, limit: int = 200) -> list[dict[str, Any]]:

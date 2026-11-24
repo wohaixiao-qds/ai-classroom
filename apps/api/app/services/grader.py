@@ -2,6 +2,7 @@
 
 输入: 复述文本 + 该节内容 + 检查点的 pass_rule(T1 埋好的通过标准)
 输出: 百分制 score + pass/fail(score≥70 过;<70 需重学或问 AI 老师后再复述)
+      + gaps 错因列表(T2 错因结构化:机器可读,落 learning_grades 供复习卡/答疑消费)
       + 🎯 精准版对照(无论分数都给,pass 时作为「更完整的说法」→ 落笔记)。
 """
 
@@ -36,6 +37,24 @@ GRADE_PROMPT = (
 
 # 同步批改场景:中转间歇 502/坏 JSON 常见,最多试 3 次(1.5s 递增退避)
 _ATTEMPTS = 3
+# 产出规范的上限:最多 4 条缺失点(T2 错因结构化,防模型超发刷屏)
+_MAX_GAPS = 4
+
+
+def _normalize_gaps(value: Any) -> list[str]:
+    """错因结构化(T2):把模型输出的 gaps 归一成非空字符串列表。
+
+    旧格式输出无 gaps / 字段不是数组 / 含空白项一律容忍——视为空列表,
+    批改主流程(score/verdict/comment)不受影响;超上限截断。
+    """
+    if not isinstance(value, list):
+        return []
+    items: list[str] = []
+    for g in value:
+        text = str(g).strip()
+        if text:
+            items.append(text)
+    return items[:_MAX_GAPS]
 
 
 def _locate_v2(d: dict[str, Any], page_id: str) -> tuple[dict[str, Any], str]:
@@ -133,6 +152,8 @@ def grade_recitation(
     if result is None:
         msg = "批改返回格式异常: 不是可解析的 JSON 对象"
         raise RuntimeError(msg)
+    # 错因结构化(T2):gaps 平行提取(缺哪几条),旧格式无此字段 → 空列表
+    result["gaps"] = _normalize_gaps(result.get("gaps"))
     # 百分制判分:score≥70 过,<70 需重学/答疑后再复述;tutored 保底 70
     try:
         score = max(0, min(100, int(result.get("score", 0))))

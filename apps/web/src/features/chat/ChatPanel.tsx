@@ -26,6 +26,7 @@ export interface ChatSeed {
     pass_rule: string | null;
     answer: string;
     verdict: string;
+    gaps?: string[]; // 上次复述的结构化缺失点(T2),答疑老师针对性引导
   };
 }
 

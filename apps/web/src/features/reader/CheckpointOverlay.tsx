@@ -80,8 +80,9 @@ export function CheckpointOverlay({
   onPass: (result: { score: number; comment: string; precise?: string; answer: string }) => void;
   /** 可选退出口:阅读器是用户手点的,要能反悔 */
   onClose?: () => void;
-  /** 批改→答疑联动(P7 补):没过时把「我的回答+判定」带给答疑面板 */
-  onAskTutor?: (answer: string, verdict: string) => void;
+  /** 批改→答疑联动(P7 补):没过时把「我的回答+判定」带给答疑面板;
+   *  T2 起第三参带本次批改的 gaps 错因(未批过时不传,调用方回落历史错因) */
+  onAskTutor?: (answer: string, verdict: string, gaps?: string[]) => void;
 }) {
   const [answer, setAnswer] = useState(() => {
     // 草稿持久(P7):关弹层/刷新不丢学员写了一半的回答
@@ -97,6 +98,7 @@ export function CheckpointOverlay({
     score: number;
     comment: string;
     precise?: string;
+    gaps?: string[];
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [waited, setWaited] = useState(0); // 批改已等待秒数(活体信号:秒数在走=没卡)
@@ -139,8 +141,8 @@ export function CheckpointOverlay({
 
   const passed = result?.verdict === "pass";
   const feedbackRows = result ? parseFeedback(result.comment) : null;
-  const askTutor = (verdict: string) => {
-    onAskTutor?.(answer, verdict);
+  const askTutor = (verdict: string, gaps?: string[]) => {
+    onAskTutor?.(answer, verdict, gaps);
     setTutored(true); // 问过老师:下一次复述保底 70(答疑学过一轮)
   };
 
@@ -275,7 +277,7 @@ export function CheckpointOverlay({
             )}
             <div className="flex flex-wrap justify-end gap-2">
               {!passed && onAskTutor && (
-                <Button variant="secondary" size="sm" onClick={() => askTutor(result.verdict)}>
+                <Button variant="secondary" size="sm" onClick={() => askTutor(result.verdict, result.gaps)}>
                   没懂,问 AI 老师
                 </Button>
               )}

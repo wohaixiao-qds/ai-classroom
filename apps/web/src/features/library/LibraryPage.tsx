@@ -192,6 +192,15 @@ export function LibraryPage() {
                         {Math.round(r.mastery * 100)}%
                       </Badge>
                     </Link>
+                    {/* 上次漏了(T2 错因结构化):带着旧缺口去复测,每条一句 */}
+                    {r.gaps.length > 0 && (
+                      <p
+                        className="truncate px-2 pt-0.5 text-[12px] leading-5 text-warning/90"
+                        title={r.gaps.join("；")}
+                      >
+                        上次漏了: {r.gaps.join("；")}
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -36,6 +36,7 @@ class CheckpointContext(BaseModel):
     pass_rule: str | None = None
     answer: str = ""
     verdict: str | None = None
+    gaps: list[str] = []  # 该检查点最近一次批改的缺失点(T2);空=无错因记录
 
 
 class FlashReportRequest(BaseModel):

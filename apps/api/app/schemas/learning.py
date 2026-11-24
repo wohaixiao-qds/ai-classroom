@@ -43,6 +43,7 @@ class ReviewItem(BaseModel):
     mastery: float  # 0~1,当前掌握度
     next_review_at: str
     overdue_days: int  # 逾期天数(0=今天到期)
+    gaps: list[str] = []  # 最近一次带错因批改的缺失点(T2「上次漏了」);闪卡/旧数据为空
 
 
 class ReviewDue(BaseModel):

@@ -837,6 +837,11 @@ export interface components {
             answer: string;
             /** Verdict */
             verdict?: string | null;
+            /**
+             * Gaps
+             * @default []
+             */
+            gaps: string[];
         };
         /** CompletionState */
         CompletionState: {
@@ -1519,6 +1524,11 @@ export interface components {
             next_review_at: string;
             /** Overdue Days */
             overdue_days: number;
+            /**
+             * Gaps
+             * @default []
+             */
+            gaps: string[];
         };
         /** SessionCreateResponse */
         SessionCreateResponse: {
