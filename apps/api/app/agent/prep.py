@@ -829,6 +829,7 @@ def run_prep(
     learning_goal: str = "",
     prerequisite_titles: list[str] | None = None,
     revision_feedback: str = "",
+    revision_section_id: str = "",
 ) -> dict[str, Any]:
     if resume_course_id and not learning_goal:
         saved_contract = _load(_plan_path(resume_course_id)) or {}
@@ -937,12 +938,34 @@ def run_prep(
         )
     if revision_feedback:
         # 外部审查反馈是待处理数据,不继承裁判的对话或推理。
-        prompt += ("\n发布审查发现以下问题,保留原规划,只重交相关节修订。"
-                   "**修订模式:必须用 write_section 工具提交修改后的节;不调用工具的纯文本"
-                   "回复不会改变课件,视为未完成修订。**"
-                   "补证必须来自材料真实原文;不能把事实改标示例逃避核查:\n" + revision_feedback)
-        # 不再附课件全文 JSON dump:76 块 2.2 万字符叠加材料渲染曾触发端点 400
-        # (单条消息超限);已有内容看上方 existing_sections 摘要,改错用 upsert 原语。
+        if revision_section_id:
+            # 修订单节微任务:只处理这一个节。prompt 只保留待修节正文与意见,
+            # 不给全课叙事空间——作者没有可写长分析的素材,只能动手改节。
+            rc_sections = {s.get("id"): s for s in (rc or {}).get("sections", [])}
+            target = rc_sections.get(revision_section_id)
+            prompt = (
+                "你是课件修订工。交付一个修订后的节,除此之外不做任何事。\n"
+                f"课件:{resume_course_id} · 待修节 id:{revision_section_id}\n\n"
+                f"# 该节当前正文\n"
+                + json.dumps(target, ensure_ascii=False, indent=1)
+                + "\n\n# 该节未通过的审查意见(逐条)\n"
+                + revision_feedback
+                + "\n\n# 本节对应的材料(唯一可用证据来源)\n"
+                + _render_material(material)
+                + "\n\n硬规则:用 write_section 工具重交修订后的节(同 id:"
+                + revision_section_id
+                + "),只消除意见指出的无据断言——删掉或改写为材料撑得住的表述,"
+                "其余内容原样保留;补证只能来自上方材料原文;不许改其他节,"
+                "不许输出分析文字——不调用工具即失败。"
+            )
+            tools = [t for t in tools if t["name"] == "write_section"]
+        else:
+            prompt += ("\n发布审查发现以下问题,保留原规划,只重交相关节修订。"
+                       "**修订模式:必须用 write_section 工具提交修改后的节;不调用工具的纯文本"
+                       "回复不会改变课件,视为未完成修订。**"
+                       "补证必须来自材料真实原文;不能把事实改标示例逃避核查:\n" + revision_feedback)
+            # 不再附课件全文 JSON dump:76 块 2.2 万字符叠加材料渲染曾触发端点 400
+            # (单条消息超限);已有内容看上方 existing_sections 摘要,改错用 upsert 原语。
     # 离线批量循环放宽单次超时:模型一轮会写几千 token 的规划+页 JSON,
     # 中转慢速时 60s 必掐死(实测 191s);chat 的 60s 交互护栏不受影响
     client = get_llm_client().with_options(timeout=240.0)
@@ -991,16 +1014,39 @@ def run_prep(
         text_out = "".join(b.text for b in resp.content if b.type == "text")
 
         if resp.stop_reason != "tool_use":
-            errs = final_check()
-            if revision_feedback and not any(c["name"] == "write_section" for c in tool_calls):
-                # 修订收笔守卫:E2E 实测作者输出 16.4k 字修订分析却不用工具提交,循环按
-                # 收笔返回未修改课件,定点修订全程空转(hash 三轮相同)。终验只查结构,
-                # 已过终验的草稿零修改也「合格」——修订模式必须见到 write_section 才算数。
+            if revision_section_id:
+                # 微任务收笔判定:目标节已被 write_section 重交即完成——
+                # 不跑全课 final_check(其它节不在本任务范围,终验由外层重审承担)。
+                if any(c["name"] == "write_section" for c in tool_calls):
+                    course = _load(_course_path(state["course_id"]))
+                    if course is not None:
+                        trace_prep(
+                            course_id=str(course["id"]),
+                            subtopic=str(material.get("subtopic")),
+                            sections=len(course.get("sections", [])),
+                            validate_failures=validate_failures,
+                            ok=True,
+                            elapsed_s=time.perf_counter() - t0,
+                            tool_calls=tool_calls,
+                            usage=usage,
+                        )
+                        _op_log(state["course_id"], "deliver",
+                                f"微任务修订完成:{revision_section_id}")
+                        return {"ok": True, "course": course, "report": text_out, "usage": usage}
+                errs = [f"微任务未完成:用 write_section 重交节 {revision_section_id}"]
+            else:
+                failed = final_check()  # None=通过,走下方交付;非 None=打回重修
+                errs = failed if failed is not None else []
+            if not revision_section_id and revision_feedback \
+                    and not any(c["name"] == "write_section" for c in tool_calls):
+                # 修订收笔守卫(全课模式):E2E 实测作者输出 16.4k 字修订分析却不用工具
+                # 提交,循环按收笔返回未修改课件,定点修订全程空转(hash 三轮相同)。
+                # 终验只查结构,已过终验的草稿零修改也「合格」——必须见到 write_section。
                 errs = (errs or []) + [
                     "修订模式:你还没有用 write_section 提交任何修改;"
                     "按发布审查意见逐条修订并用 write_section 重交相关节",
                 ]
-            if errs is None:
+            if not errs:
                 course = _load(_course_path(state["course_id"])) if state["course_id"] else None
                 if course is not None:
                     trace_prep(
@@ -1053,6 +1099,26 @@ def run_prep(
             print(f"  [{b.name}] {str(out)[:200]}")  # CLI 实时可见,复盘不用翻盘上文件
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": out})
         messages.append({"role": "user", "content": results})
+        if revision_section_id and any(
+            c["name"] == "write_section" and not c["error"] for c in tool_calls
+        ):
+            # 微任务短路:目标节已成功重交即完成,不再向模型要下一轮响应——
+            # 修订是确定性工作,多问一轮只会诱发无意义的收尾分析。
+            course = _load(_course_path(state["course_id"]))
+            if course is not None:
+                trace_prep(
+                    course_id=str(course["id"]),
+                    subtopic=str(material.get("subtopic")),
+                    sections=len(course.get("sections", [])),
+                    validate_failures=validate_failures,
+                    ok=True,
+                    elapsed_s=time.perf_counter() - t0,
+                    tool_calls=tool_calls,
+                    usage=usage,
+                )
+                _op_log(state["course_id"], "deliver",
+                        f"微任务修订完成:{revision_section_id}")
+                return {"ok": True, "course": course, "report": text_out, "usage": usage}
 
     # 软着陆:交付当前版本(已写页都在盘上)
     cid = state["course_id"]

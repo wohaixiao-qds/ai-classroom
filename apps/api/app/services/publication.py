@@ -439,16 +439,34 @@ def ensure_publication(
 
         emit_progress("revision", "running", f"定点修订 {attempt + 1}/2："
                       f"{len(report['errors'])} 项待处理意见")
-        result = run_prep(
-            material,
-            resume_course_id=str(course["id"]),
-            learning_goal=learning_goal,
-            job_binding=job_binding,
-            prerequisite_titles=prerequisite_titles,
-            revision_feedback="\n".join(report["errors"]),
-        )
-        if not result.get("ok"):
-            break
-        emit_progress("revision", "completed", "修订章节已保存，等待重新审查")
-        course = result["course"]
+        # 修订单节微任务:按待修块归属的节拆分,每节独立一轮 run_prep——
+        # E2E 实证全课上下文+自由收笔权会让作者连写数轮长分析而不动手
+        # (4 次 16k 输出零 write_section);微任务只投喂待修节,无处可分析。
+        error_text = "\n".join(report["errors"])
+        # errors 形如 "s2-model-gaps:1 [partial] …";取块 id 冒号前的节 id。
+        section_ids = sorted({
+            e.split(":", 1)[0]
+            for e in report["errors"] if ":" in e and not e.startswith(("第", "课件"))
+        })
+        course_sections = {s.get("id"): s for s in course.get("sections", [])}
+        targets = [sid for sid in section_ids if sid in course_sections] or list(course_sections)
+        course = dict(course)
+        for sid in targets:
+            section_feedback = "\n".join(
+                e for e in report["errors"] if e.startswith(f"{sid}:")
+            ) or error_text
+            result = run_prep(
+                material,
+                resume_course_id=str(course["id"]),
+                learning_goal=learning_goal,
+                job_binding=job_binding,
+                prerequisite_titles=prerequisite_titles,
+                revision_feedback=section_feedback,
+                revision_section_id=sid,
+            )
+            if not result.get("ok"):
+                break
+            course = result["course"]
+        else:
+            emit_progress("revision", "completed", "修订章节已保存，等待重新审查")
     raise PublicationBlocked(f"课程未发布:最终课件审查未通过;报告 {report_path(str(course['id']))}")

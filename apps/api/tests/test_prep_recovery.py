@@ -57,7 +57,7 @@ class PrepRecoveryTests(unittest.TestCase):
         tty_patch = patch.object(sys.stdin, "isatty", return_value=False)
         tty_patch.start()
         self.addCleanup(tty_patch.stop)
-        self.plan = [
+        self.plan: list[dict[str, Any]] = [
             {"id": f"s{i}", "heading": f"主题{i}", "has_quiz": True, "covers": f"材料{i}"}
             for i in range(1, 4)
         ]
@@ -172,6 +172,28 @@ class PrepRecoveryTests(unittest.TestCase):
                 prep.run_prep(self.material, resume_course_id="test", source="test")
         model.assert_not_called()
 
+    def test_revision_micro_task_per_section(self) -> None:
+        # 修订单节微任务:prompt 只带待修节正文+意见,工具只留 write_section——
+        # E2E 实证全课上下文让作者连写数轮分析不动手;微任务无处可分析。
+        self.init()
+        self.dispatch["write_section"]({"section": section("s1")})
+        result, client = self.run_model(
+            [response(("write_section", {"section": section("s1")}))],
+            revision_feedback="s1:1 [partial] 末句引申无据",
+            revision_section_id="s1",
+        )
+        self.assertTrue(result["ok"])
+        prompt = client.messages.create.call_args.kwargs["messages"][0]["content"]
+        self.assertIn("修订工", prompt)          # 微任务指令头
+        self.assertIn("s1:1 [partial]", prompt)  # 打回意见
+        self.assertIn('"id": "s1"', prompt)      # 待修节正文
+        self.assertNotIn("submit_plan", prompt)  # 无规划叙事
+        tools = client.messages.create.call_args.kwargs["tools"]
+        self.assertEqual({t["name"] for t in tools}, {"write_section"})
+        course = prep._load(prep._course_path("test"))
+        assert course is not None
+        self.assertEqual(len(course["sections"]), 1)  # 只动了待修节
+
     def test_revision_mode_rejects_text_only_natural_stop(self) -> None:
         # 修订收笔守卫:纯文本收笔(零工具调用)不能返回未修改课件——E2E 实测修订空转的根因。
         self.init()
@@ -208,10 +230,19 @@ class PrepRecoveryTests(unittest.TestCase):
         })
         self.dispatch["write_section"]({"section": drifted})
         course = prep._load(prep._course_path("test"))
-        quiz = next(b for s in course["sections"] if s["id"] == "s1"
-                    for b in s["blocks"] if b.get("type") == "quiz")
-        self.assertEqual(quiz["question"], self.plan[0]["goal_check"]["question"])
-        self.assertEqual(quiz["pass_rule"], self.plan[0]["goal_check"]["pass_rule"])
+        assert course is not None
+        quiz = next(
+            (b for s in course["sections"] if s["id"] == "s1"
+             for b in s["blocks"] if b.get("type") == "quiz"),
+            None,
+        )
+        assert quiz is not None
+        question = str(quiz["question"])
+        pass_rule = str(quiz["pass_rule"])
+        check = self.plan[0]["goal_check"]
+        assert check is not None
+        self.assertEqual(question, check["question"])
+        self.assertEqual(pass_rule, check["pass_rule"])
 
     def test_plan_delivery_rejects_duplicate_sections_and_empty_quiz_rule(self) -> None:
         sections = [section("s1"), section("s1"), section("s3")]
