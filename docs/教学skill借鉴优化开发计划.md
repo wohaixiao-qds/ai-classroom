@@ -24,6 +24,7 @@
 | 间隔序列 `[1,3,7,14,30,60]` 调整 | Cepeda 317 实验结论恰是「无万能公式」，现固定扩张是诚实选择。备忘：将来收到「怎么老在复习旧的」反馈，标准答案是 Kornell & Bjork（2008）——学员体感是反信号，别拿体感当间隔效果评价指标 |
 | lesson-generator 的 6~8 课紧凑预算 | 已按证据密度定块数（块/点比），两套预算混用会打架 |
 | ppt-master 的 PPTX 输出 | v2 书页形态已定，幻灯片已退役。仅其 SKILL.md 执行纪律七条（阻断闸/最浅拥有层修复/禁投机执行）留作 prep 循环下次改造的对标范文 |
+| Jane Street skill map 0~5 能力等级图（ASCII 掌握度地图） | 候选但重：需把掌握度从检查点粒度重构到概念粒度，单人系统收益存疑，暂不做 |
 
 ---
 
@@ -62,14 +63,26 @@
   1. 抽样策略：薄弱优先（低掌握度/到期未测）/ 均匀跨课覆盖 / 混合——**推荐薄弱 + 跨课覆盖**
   2. 入口形态：书页顶部横幅 / 学习台卡
   3. 复测结果是否进掌握度排期：**推荐进**（pass 照常进位，fail 不额外惩罚、给重读对应节的指路）
+- 合流项：答对后的压力测试（Jane Street devil's advocate——答对也追问「你确定吗？那 X 情况呢？」）与本任务同一思想，应用型考题题面可吸收对抗性追问形态；交互面与 T4 对齐时一并定。
 - **验收**：隔离课件全链真跑（组卷→复测→落库→排期联动）；unittest。
 
 ### T4 答疑提示阶梯（最后 · 学习区闸，动 agent 循环）
 
-**借鉴来源**：education-agent-skills 的 `worked-example-fading-designer`（渐隐式示范：全示范 → 半提示 → 独立完成）。现状：tutor 引导是单档的（一次到位）。
+**借鉴来源**：education-agent-skills 的 `worked-example-fading-designer`（渐隐式示范：全示范 → 半提示 → 独立完成）；Jane Street socratic-tutor 的答错处理公式（出处与证据存档见附录 C）。现状：tutor 引导是单档的（一次到位）。
 
 - 方向：单档引导 → L1 点拨 / L2 半示范 / L3 直接讲，按同检查点卡壳次数升级。
-- **动手前须专门对齐**（§1.4 学习区闸，不踩线）：卡壳判定在哪一层（路由层计数 vs 会话内轮次）、分档 prompt 注入位置、与三抽屉/侧信道/划词提问的交互。工作量待对齐后评估。
+- **动手前须专门对齐**（§1.4 学习区闸，不踩线）：卡壳判定在哪一层（路由层计数 vs 会话内轮次）、分档 prompt 注入位置、与三抽屉/侧信道/划词提问的交互，以及下表逐条拍板。工作量待对齐后评估。
+
+**候选参数**（2026-11-24 讲课风格探索产出，对齐会上逐条拍板，不预授权）：
+
+| 参数 | 候选值 | 来源 |
+|---|---|---|
+| 直讲阈值 | 答错后问更窄的矛盾暴露题，2~3 次失败才直接讲 | Jane Street 答错公式 |
+| 直讲之后 | 立刻换角度重测同一概念（不是讲完就过） | 同上 |
+| 触发方式 | 出错型/请求型/时间型三型，默认出错型+请求型 | adaptive-hint-sequence-designer |
+| 阶梯尽头 | bottom-out 兜底显式化（给答案 vs 给类比题，需拍板） | 同上 |
+| 逃生门 | 「直接告诉我」单题豁免，苏格拉底模式必配 | Jane Street "just tell me" |
+| 意图闸 | 「彻底搞懂 X」→ 摸底+循环模式；「X 是什么」→ 正常回答不开循环 | Jane Street intent guard |
 
 ---
 
@@ -117,3 +130,30 @@ T2（先做,总开关）
 | [GarethManning/education-agent-skills](https://github.com/GarethManning/education-agent-skills) | 1.0k | 165 个教育 skills × 20 域，证据分级+typed schema | T4 渐隐示范；间隔/检索科学背书 |
 | [mattpocock/skills 的 /teach](https://github.com/mattpocock/skills/blob/main/skills%2Fproductivity%2Fteach%2FSKILL.md) | — | 有状态教学 workspace（MISSION/学习记录/ZPD） | T2 错因结构化的理论来源；T1 反出千规则 |
 | [dair-ai/dair-academy-plugins 的 lesson-generator](https://github.com/dair-ai/dair-academy-plugins/blob/main/plugins/lesson-generator/skills/lesson-generator/SKILL.md) | — | 自包含多课 HTML 课程（objectives/闪卡/quiz/来源卡） | T3 综合复习思想；T1 先例后抽象 |
+| [janestreet/agent_skills 的 socratic-tutor](https://github.com/janestreet/agent_skills/blob/master/socratic-tutor/SKILL.md) | ~8k | 结构化苏格拉底辅导：意图闸/答错处理公式/strict 评估/逃生门 | T4 参数来源（附录 C） |
+| [GitHub topic: socratic-tutor](https://github.com/topics/socratic-tutor) | — | 22 个苏格拉底导师仓库的品类现象 | 品类印证，无单独采纳项 |
+
+## 附录 C：讲课风格探索记录（2026-11-24 第二轮，喂 T4 对齐）
+
+调研「AI 老师怎么说话」这条线的头部发现与证据锚点存档，供 T4 设计对齐时引用，防止重新搜索。
+
+### C.1 头部仓库
+
+- **[janestreet/agent_skills 的 socratic-tutor](https://github.com/janestreet/agent_skills/blob/master/socratic-tutor/SKILL.md)**（Jane Street 开源，MIT，发布即数千星）：单文件 SKILL.md 把讲课风格写到纪律级颗粒度——①意图闸：一次性提问正常回答不开教学循环，模糊时问一句「快答案还是正式学？」；②一次只问一题，问题后消息立即结束（不准跟提示/示例/教学内容）；③答错公式：不给答案→问更窄的矛盾暴露题→2~3 次失败才直讲→直讲后立刻换角度重测；④答对压力测试（devil's advocate）；⑤「just tell me」单题豁免；⑥strict 评估：升级需 2+ 独立验证（至少一次非提示自发回忆），含糊/部分正确不算对；⑦Do not flatter。
+- **[RalucaNicola 四阶段导师状态机 gist](https://gist.github.com/RalucaNicola/af42f35b54f96252fd0ab5e0920fbd24)**：话题引出→诊断（难度 5 级递进，连续两错=到顶提前停）→缺口分析→教与探循环。诊断式摸底是本项目没有的形态（记录在案，暂缓）。
+- **[GitHub topic: socratic-tutor](https://github.com/topics/socratic-tutor)**：22 仓库已成品类。代表：ProjectSchola（自有 PDF/视频教学+引用核验+间隔复习+Obsidian 笔记）、板书式 MCP 讲解窗口。
+
+### C.2 education-agent-skills 风格域证据锚点
+
+| Skill | 核心结论 | 证据 |
+|---|---|---|
+| `adaptive-hint-sequence-designer` | 提示从最泛到最具体逐级揭示；触发分出错型/请求型/时间型；阶梯尽头必须 bottom-out 显式 | VanLehn (2011) 元分析：智能辅导系统效应量 0.76；Razzaq & Heffernan (2010)：提示主动给 vs 等学员要 |
+| `socratic-questioning-sequence-generator` | 真苏格拉底（开放探究）vs 诱导式（funnel 到预设答案）必须区分；追问质量比初始问题更决定对话生死 | Paul & Elder (2008) 六类问题；Chin (2007)：课堂 60~80% 提问是低水平回忆题；Nystrand (1997)：无预设答案的真问题最强预测学员投入度；Dillon (1988)；Walsh & Sattes (2005)：3~5 秒等待时间显著提升回答质量 |
+| `self-explanation-prompt-designer` | 自解释提示应插在材料关键点位，不只节尾测验 | Chi et al. (1989/1994) 自解释效应，Strong 级 |
+| `erroneous-example-designer` | 错误示例设计（给似是而非的案例让学员挑错） | 「坑是主菜」四宝石的科学版，同域 Strong |
+
+### C.3 全流程对照结论
+
+- **已对齐无需动**：低置信封顶 = earned not given；✓不空夸 = do not flatter；复述检查点 = 自解释效应（Chi）；到期不预告突袭重测 = spaced review without warning。四条现有规则全部踩在证据上。
+- **答疑层四缺口**（由 T4 吸收）：意图闸缺失 / 引导细则粗糙（阈值+换角度重测）/ 答对压力测试缺失（合流 T3）/ 缺「直接告诉我」逃生门。
+- **暂缓记录**：skill map 0~5 能力等级图（已钉进 §1 不借鉴清单）；节中自解释提示（schema 动刀）；诊断式摸底（意图闸的远期形态）。
