@@ -1127,7 +1127,8 @@ def research_material(
             research_context=context,
             material_filename=path,
         )
-    except TimeoutError as exc:
+    except RuntimeError as exc:
+        # _loop 轮次耗尽抛 RuntimeError(含覆盖缺口清单);非缺口类失败照旧上抛
         msg = str(exc)
         if "材料覆盖缺口" not in msg:
             raise
@@ -1160,7 +1161,7 @@ def research_material(
                 material_filename=path,
                 max_turns=6,
             )
-        except TimeoutError as exc2:
+        except RuntimeError as exc2:
             msg2 = str(exc2)
             if "材料覆盖缺口" not in msg2:
                 raise
