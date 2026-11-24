@@ -9,12 +9,30 @@ from __future__ import annotations
 import html as html_mod
 import json
 import re
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
+
+
+def _net_retry(fn: Any, *args: Any, attempts: int = 3, **kwargs: Any) -> Any:
+    """网络类失败的幂等重试(E2E 缺陷#2:SSL 握手超时/连接被掐直接回给模型,
+    模型重试又烧 agent 轮次——34 次调用 10 次失败,16 轮烧光未交付)。
+    指数退避 2/4/8s;HTTP 4xx(参数/配额类)不重试,直接抛给调用方。"""
+    last: Exception | None = None
+    for i in range(attempts):
+        try:
+            return fn(*args, **kwargs)
+        except urllib.error.HTTPError:
+            raise
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
+            last = exc
+            if i < attempts - 1:
+                time.sleep(2.0 * (2**i))
+    raise last  # type: ignore[misc]
 
 
 def _bocha_search(query: str, recency: str | None = None) -> str:
@@ -146,15 +164,18 @@ def web_search(query: str, recency: str | None = None) -> str:
 
 def web_search_multi(query: str, recency: str | None = None) -> str:
     """多引擎合并观测(找资料 agent 用):博查中文生态 + AnySearch/Tavily 官方英文互补;
-    单引擎失败不拖垮整体——把「社区视角」和「官方最新视角」都摆给模型。"""
+    单引擎失败不拖垮整体——把「社区视角」和「官方最新视角」都摆给模型。
+    网络类失败每引擎自动重试 3 次(_net_retry)。"""
     parts: list[str] = []
     for name, fn, has_key in _ENGINES:
         if not has_key():
             continue
         try:
-            r = fn(query, recency)
+            r = _net_retry(fn, query, recency)
         except urllib.error.HTTPError as e:
             r = f"(该引擎失败 HTTP {e.code},忽略)"
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+            r = f"(该引擎网络失败 {type(e).__name__},已重试仍失败,忽略)"
         parts.append(f"## 搜索引擎 {name}\n{r}")
     return "\n\n".join(parts) if parts else web_search(query, recency)
 
@@ -185,6 +206,7 @@ def fetch_page(url: str) -> str:
     """抓网页正文:优先 AnySearch 提取(干净 Markdown),失败回落本地剥标签(截断防超上下文)。
 
     返回体强制带 [标题|URL] 头——调用方(找资料 agent)引用内容时一定拿得到出处。
+    网络类失败自动重试 3 次(_net_retry),不烧 agent 轮次。
     """
     try:
         return anysearch_extract(url)
@@ -193,7 +215,7 @@ def fetch_page(url: str) -> str:
     req = urllib.request.Request(
         url, headers={"User-Agent": "Mozilla/5.0 (compatible; ClassroomResearch/1.0)"}
     )
-    with urllib.request.urlopen(req, timeout=20) as resp:
+    with _net_retry(urllib.request.urlopen, req, timeout=20) as resp:
         raw = resp.read(2_000_000)
         ctype = resp.headers.get("content-type", "")
 
