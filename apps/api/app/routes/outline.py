@@ -17,6 +17,7 @@ from app.agent.research import validate_framework
 from app.core.catalog_store import record_action
 from app.core.config import settings
 from app.core.job_store import get_binding, incomplete_course_ids
+from app.schemas.learning import CumulativePaper
 from app.services.executor import reconcile_job, start_job
 from app.services.outline_attribution import _load_outline, _outline_path
 from app.services.publication import is_review_draft
@@ -287,6 +288,21 @@ def outline_jobs() -> list[dict[str, Any]]:
             }
         )
     return out
+
+
+@router.get("/books/{topic}/cumulative", response_model=CumulativePaper)
+def book_cumulative(topic: str) -> CumulativePaper:
+    """书末综合复测组卷(T3):一本书全部课程读完后的邀请状态 + 抽样卷。
+
+    只读端点;答题复用现有 POST /api/v1/grade(course_id + page_id 即卷内定位),
+    判过照常进 mastery 间隔轮。与 due_reviews(今日到期队列)是两条独立入口。
+    """
+    from app.services.cumulative import build_paper
+
+    try:
+        return build_paper(topic)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from None
 
 
 @router.post("/outlines/attribute-all")

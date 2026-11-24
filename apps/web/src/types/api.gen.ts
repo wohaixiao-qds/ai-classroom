@@ -476,6 +476,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/books/{topic}/cumulative": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Book Cumulative
+         * @description 书末综合复测组卷(T3):一本书全部课程读完后的邀请状态 + 抽样卷。
+         *
+         *     只读端点;答题复用现有 POST /api/v1/grade(course_id + page_id 即卷内定位),
+         *     判过照常进 mastery 间隔轮。与 due_reviews(今日到期队列)是两条独立入口。
+         */
+        get: operations["book_cumulative_api_v1_books__topic__cumulative_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outlines/attribute-all": {
         parameters: {
             query?: never;
@@ -907,6 +930,67 @@ export interface components {
              * @default false
              */
             ready: boolean;
+        };
+        /**
+         * CumulativeItem
+         * @description 书末综合复测卷的一道题(T3):定位信息 + 题面,提交走现有 /grade 链。
+         *
+         *     page_id 即 quiz 块 id——前端拿 (course_id, page_id) 直接 POST /api/v1/grade,
+         *     与阅读器复述卡同一入参形态;pass_rule 是出题人写的判分标准(批改端作通过标准)。
+         */
+        CumulativeItem: {
+            /** Course Id */
+            course_id: string;
+            /** Course Title */
+            course_title: string;
+            /** Section Id */
+            section_id: string;
+            /** Section No */
+            section_no: number;
+            /** Section Heading */
+            section_heading: string;
+            /** Page Id */
+            page_id: string;
+            /** Question */
+            question: string;
+            /** Hint */
+            hint?: string | null;
+            /** Pass Rule */
+            pass_rule?: string | null;
+            /** Mastery */
+            mastery?: number | null;
+            /**
+             * Due
+             * @default false
+             */
+            due: boolean;
+            /**
+             * Fresh Pass
+             * @default false
+             */
+            fresh_pass: boolean;
+        };
+        /**
+         * CumulativePaper
+         * @description 书末综合复测组卷(T3):一本书全部课程读完后的邀请状态 + 抽样卷。
+         *
+         *     status: not_ready=书没读完(前端不显横幅) / available=邀请复测 /
+         *     completed=本轮综合复测已通过(横幅不再自动出,可重测但明确标注)。
+         */
+        CumulativePaper: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_ready" | "available" | "completed";
+            /** Topic */
+            topic: string;
+            /** Total Checkpoints */
+            total_checkpoints: number;
+            /** Passed Count */
+            passed_count: number;
+            /** Items */
+            items: components["schemas"]["CumulativeItem"][];
         };
         /** EvalGaps */
         EvalGaps: {
@@ -2758,6 +2842,37 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+        };
+    };
+    book_cumulative_api_v1_books__topic__cumulative_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                topic: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CumulativePaper"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

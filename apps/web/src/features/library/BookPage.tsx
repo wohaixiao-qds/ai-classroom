@@ -1,12 +1,15 @@
 /** 书页(P7 两层导航新增):一本书的目录——篇(part)→大纲课,挂接课件平铺真实标题。
- *  课程库是书架(封面卡),点书进这里,点课件行去阅读——解决「目录行名≠课件标题,
- *  挂接课折叠在手风琴里找不到」的问题:这一层全部平铺,名字用课件真名。 */
+ *  课程库是书架(封面卡),点书进 /books/:topic,点课件行去阅读——解决「目录行名≠课件标题,
+ *  挂接课折叠在手风琴里找不到」的问题:这一层全部平铺,名字用课件真名。
+ *  T3 书末综合复测:全书读完 → 顶部横幅邀请 3~5 题抽样复测(薄弱优先,走 /grade 链)。 */
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   BookOpen,
+  Circle,
   CircleCheck,
   FileText,
+  GraduationCap,
   LoaderCircle,
   Play,
 } from "lucide-react";
@@ -15,10 +18,13 @@ import { PageError, PageLoading } from "../../components/PageState";
 import { Button } from "../../components/ui/button";
 import { cn } from "../../lib/utils";
 import { fetchAllCourses } from "../../lib/learningPath";
+import { CheckpointOverlay } from "../reader";
 import type { components } from "../../types/api.gen";
 
 type OutlineCourse = components["schemas"]["OutlineCourse"];
 type OutlineDetail = components["schemas"]["OutlineDetail"];
+type CumulativePaper = components["schemas"]["CumulativePaper"];
+type CumulativeItem = components["schemas"]["CumulativeItem"];
 
 export function BookPage() {
   const { topic = "" } = useParams();
@@ -26,6 +32,12 @@ export function BookPage() {
   const [readyById, setReadyById] = useState<Map<string, boolean>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
+  // T3 书末综合复测:全书读完才拉组卷;横幅可「稍后」收起,面板逐题复用复述卡
+  const [paper, setPaper] = useState<CumulativePaper | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [activeIdx, setActiveIdx] = useState<number | null>(null);
+  const [passedIds, setPassedIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -46,6 +58,12 @@ export function BookPage() {
   useEffect(() => {
     setDetail(null);
     setError(null);
+    // T3 复测相关状态一并重置(换书不留上一本的横幅/面板/作答进度)
+    setPaper(null);
+    setPanelOpen(false);
+    setActiveIdx(null);
+    setPassedIds(new Set());
+    setDismissed(false);
     void load();
   }, [load]);
 
@@ -58,6 +76,34 @@ export function BookPage() {
     const t = window.setInterval(() => void load(), 8000);
     return () => window.clearInterval(t);
   }, [cooking, load]);
+
+  // T3:全书读完(与下方 rowComplete 同语义)才拉综合复测组卷;没读完/拉失败 → 无横幅
+  const bookFinished =
+    detail !== null &&
+    detail.courses.length > 0 &&
+    detail.courses.every(
+      (c) =>
+        (c.course_file_ids ?? []).length > 0 &&
+        (c.course_file_ids ?? []).every((r) => readyById.get(r)),
+    );
+  const loadPaper = useCallback(async (): Promise<CumulativePaper | null> => {
+    try {
+      const r = await fetch(`/api/v1/books/${encodeURIComponent(topic)}/cumulative`);
+      return r.ok ? ((await r.json()) as CumulativePaper) : null;
+    } catch {
+      return null;
+    }
+  }, [topic]);
+  useEffect(() => {
+    if (!bookFinished) return; // 没读完不拉卷(渲染处也按 bookFinished 短路,无横幅)
+    let alive = true;
+    void loadPaper().then((p) => {
+      if (alive) setPaper(p);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [bookFinished, loadPaper]);
 
   const prep = async (title: string) => {
     setMsg("");
@@ -73,6 +119,29 @@ export function BookPage() {
     }
     setMsg(`「${title}」已排队,正在备课…`);
     await load();
+  };
+
+  // T3 复测面板:开场重置本轮作答,从第 1 题开始;逐题过复述卡(CheckpointOverlay
+  // 自带 /grade 提交与批改展示),全过或中途收起后回小结
+  const openPanel = () => {
+    setPassedIds(new Set());
+    setPanelOpen(true);
+    setActiveIdx(paper && paper.items.length > 0 ? 0 : null);
+  };
+  const handleItemPass = (item: CumulativeItem) => {
+    setPassedIds((prev) => new Set(prev).add(item.page_id));
+    if (paper && activeIdx !== null && activeIdx + 1 < paper.items.length) {
+      setActiveIdx(activeIdx + 1);
+    } else {
+      setActiveIdx(null); // 最后一题过 → 留在小结;服务端状态在收起面板时再刷新(防列表中途换卷)
+    }
+  };
+  const closePanel = () => {
+    setPanelOpen(false);
+    setActiveIdx(null);
+    void loadPaper().then((p) => {
+      if (p) setPaper(p); // 收起后刷新横幅状态(全部重测过会翻 completed)
+    });
   };
 
   if (error) return <PageError message={`书目录加载失败:${error}`} />;
@@ -93,6 +162,8 @@ export function BookPage() {
   );
   const cursorFile = cursor?.course_file_ids?.find((r) => !readyById.get(r)) ?? null;
   const doneCount = detail.courses.filter(rowComplete).length;
+  // T3 当前作答的题(越界/未开答 → null;CheckpointOverlay 全屏弹层在面板之后渲染)
+  const activeItem = activeIdx !== null && paper ? paper.items[activeIdx] : null;
 
   // 按篇分组(保序);无 part 归「正文」
   const groups: { part: string; items: { c: OutlineCourse; i: number }[] }[] = [];
@@ -147,6 +218,117 @@ export function BookPage() {
         >
           {msg}
         </p>
+      )}
+
+      {/* T3 书末综合复测横幅:available=邀请,completed=已完成可重测(明确标注);稍后可收起 */}
+      {bookFinished && paper && !dismissed && paper.status !== "not_ready" && paper.items.length > 0 && (
+        <div className="anim-drop mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-primary/40 bg-primary/5 px-4 py-3">
+          <GraduationCap size={16} className="shrink-0 text-primary" aria-hidden="true" />
+          {paper.status === "completed" ? (
+            <>
+              <span className="mr-auto text-sm text-muted-foreground">
+                综合复测已完成——全书 {paper.total_checkpoints} 个检查点都重新确认过了
+              </span>
+              <Button variant="outline" size="sm" onClick={openPanel}>
+                再测一轮
+              </Button>
+            </>
+          ) : (
+            <>
+              <span className="mr-auto text-sm font-medium">
+                全书读完——来一次综合复测?
+              </span>
+              <span className="hidden text-xs text-muted-foreground sm:inline">
+                抽 {paper.items.length} 题 · 薄弱优先 · 跨课覆盖 · 判过照常进复习排期
+              </span>
+              <Button size="sm" onClick={openPanel}>
+                开始复测
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setDismissed(true)}>
+                稍后
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* 复测面板:逐题清单 + 本轮进度;答题弹层在面板之后渲染(全屏复述卡) */}
+      {panelOpen && paper && (
+        <section className="anim-rise mb-6 rounded-xl border border-border bg-card p-4">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-medium">综合复测 · {paper.topic}</h2>
+            <span className="ml-auto font-mono text-xs text-muted-foreground">
+              本轮已过 {passedIds.size} / {paper.items.length}
+            </span>
+          </div>
+          <ul className="space-y-1">
+            {paper.items.map((it, i) => {
+              const passed = passedIds.has(it.page_id);
+              return (
+                <li
+                  key={`${it.course_id}:${it.page_id}`}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm"
+                >
+                  {passed ? (
+                    <CircleCheck size={14} className="anim-pop shrink-0 text-success" />
+                  ) : (
+                    <Circle size={14} className="shrink-0 text-muted-foreground/50" />
+                  )}
+                  <span className="w-5 shrink-0 font-mono text-[10px] text-muted-foreground">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate" title={it.question}>
+                    {it.question}
+                  </span>
+                  <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:inline">
+                    {it.course_title}
+                  </span>
+                  <Link
+                    to={`/read/${it.course_id}?section=${it.section_no}`}
+                    viewTransition
+                    className="shrink-0 text-[11px] text-primary underline-offset-2 hover:underline"
+                  >
+                    回读
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] text-muted-foreground">
+              {passedIds.size === paper.items.length
+                ? "本轮通过——批改结果照常进掌握度与间隔复习排期。"
+                : "逐题用自己的话复述,AI 批改 70 分过;卡住可先「回读」对应节。"}
+            </p>
+            <div className="flex gap-2">
+              {passedIds.size < paper.items.length && activeIdx === null && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const next = paper.items.findIndex((it) => !passedIds.has(it.page_id));
+                    if (next >= 0) setActiveIdx(next);
+                  }}
+                >
+                  继续作答
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" onClick={closePanel}>
+                收起
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {activeItem && (
+        <CheckpointOverlay
+          question={activeItem.question}
+          hint={activeItem.hint ?? null}
+          courseId={activeItem.course_id}
+          pageId={activeItem.page_id}
+          onPass={() => handleItemPass(activeItem)}
+          onClose={() => setActiveIdx(null)}
+        />
       )}
 
       {detail.source_status === "historical_unrecorded" ? (
