@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from pydantic import ValidationError
@@ -121,6 +122,49 @@ _BLOCK_NAMES = {
 }
 
 
+# 「源[N]」标号簇:方括号形态(源[1]、源[2]和[3]、源[1], [4]),与阅读器 linkifySources
+# 的链接化面一致——前端会链成锚点的标号,这里就必须真实存在;裸数字形态(源 2)不扫,
+# 会误伤「数据源 3」类普通表述(全库扫描确认现存量零裸数字用法)。
+_SOURCE_REF_RE = re.compile(r"源\s*\[\d+\](?:[\s,，、和与及]*\[\d+\])*")
+
+
+def _block_prose(b: Any) -> list[str]:
+    """块内全部散文文本(来源标号闸扫描面):p/callout 正文、题面、表文、图注、闪卡。"""
+    if isinstance(b, (ParagraphBlock, CalloutBlock)):
+        return [b.text]
+    if isinstance(b, QuizBlock):
+        return [t for t in (b.question, b.hint, b.pass_rule) if t]
+    if isinstance(b, TableBlock):
+        texts: list[str] = list(b.header) + [c for row in b.rows for c in row]
+        if b.caption:
+            texts.append(b.caption)
+        return texts
+    if isinstance(b, (DiagramBlock, CodeBlock)):
+        return [b.caption] if b.caption else []
+    if isinstance(b, FlashcardsBlock):
+        return [f"{c.front} {c.back}" for c in b.cards]
+    return []
+
+
+def _check_source_refs(
+    texts: list[str],
+    where: str,
+    source_ids: set[int],
+    n_sources: int,
+    errors: list[str],
+) -> None:
+    """来源标号闸(T1.3):正文「源[N]」必须落在 meta.sources 清单内——悬空标号
+    在阅读器里是死链(锚点无处可跳)。无来源清单的课(老课/复习课)跳过,兼容存量。"""
+    for text in texts:
+        for m in _SOURCE_REF_RE.finditer(text):
+            for num in sorted({int(n) for n in re.findall(r"\d+", m.group(0))}):
+                if num in source_ids:
+                    continue
+                detail = (f"超出来源清单(共{n_sources}条)" if num > n_sources
+                          else f"不在来源清单(共{n_sources}条)中")
+                errors.append(f"{where}「源[{num}]」{detail},删除该引用或补来源")
+
+
 def _validate_v2(d: dict[str, Any], *, check_model_support: bool = True) -> dict[str, Any]:
     try:
         course = CourseV2.model_validate(d)
@@ -195,6 +239,11 @@ def _validate_v2(d: dict[str, Any], *, check_model_support: bool = True) -> dict
                 errors.append(
                     f"{bwhere}: 事实块未关联证据且未申报 exemplary——知识点必须可溯源;"
                     '示例/类比/练习请显式写 "exemplary": true'
+                )
+            # T1.3 来源标号闸:标号悬空 = 阅读器死链(全库扫描零违例,故落 error 硬闸)
+            if course.meta.sources:
+                _check_source_refs(
+                    _block_prose(b), bwhere, source_ids, len(course.meta.sources), errors,
                 )
             if isinstance(b, ParagraphBlock):
                 if not b.text.strip():

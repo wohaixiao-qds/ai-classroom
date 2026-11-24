@@ -37,6 +37,7 @@ from app.core.prompts import (
     DEV_LANDING_RULE,
     OFF_THE_SHELF_RULE,
     PITFALL_RULE,
+    QUIZ_FAIRNESS_RULE,
     STAY_WITHIN_EVIDENCE_RULE,
     TRACEABLE_CLAIM_RULE,
 )
@@ -95,6 +96,8 @@ _SHARED_STYLE = """# 块型菜单(blocks 数组,type 必须精确匹配)
 
 # 文风(书面 prose)
 一段只讲一个论点;术语首现给一句白话解释;类比保留但别滥用。
+先例后抽象:抽象概念/术语首次出现在正文时,同节必须已先给出具体例子或场景;
+例子照常走 exemplary 申报,不借例子引入新的无据事实。
 禁课堂腔(「接下来我们」「好了,以上就是」「让我们」);不写「本课将介绍」,
 第一节直接进主题。每节 2~4 个 p 块,宁短勿凑。
 
@@ -117,7 +120,8 @@ id 固定用「<节id>-cp」。
 
 """ + (
     PITFALL_RULE + "\n\n" + DEV_LANDING_RULE + "\n\n" + OFF_THE_SHELF_RULE
-    + "\n\n" + TRACEABLE_CLAIM_RULE + "\n\n" + STAY_WITHIN_EVIDENCE_RULE + "\n"
+    + "\n\n" + TRACEABLE_CLAIM_RULE + "\n\n" + STAY_WITHIN_EVIDENCE_RULE
+    + "\n\n" + QUIZ_FAIRNESS_RULE + "\n"
 )
 
 
