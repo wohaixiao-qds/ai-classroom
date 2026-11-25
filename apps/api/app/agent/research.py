@@ -752,7 +752,11 @@ def _loop(
         usage["output_tokens"] += getattr(u, "output_tokens", 0) or 0
         update_run(usage=usage)
 
-        if resp.stop_reason != "tool_use":
+        # 收笔判定:last_turn 已撤工具,但兼容端点(智谱)在 tools=[] 时仍可能返回
+        # tool_use 幻觉块(E2E 缺陷#7:补挖最后一轮 756tok tool_use 被照常执行,
+        # 6 轮烧光后 last_err 全空,诊断信息丢失)——last_turn 的 tool_use 一律
+        # 当文本收笔处理,忽略幻觉工具块。
+        if resp.stop_reason != "tool_use" or last_turn:
             text = "".join(b.text for b in resp.content if b.type == "text")
             update_run(last_response={"stop_reason": resp.stop_reason,
                                       "block_types": [b.type for b in resp.content],
