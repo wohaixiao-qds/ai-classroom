@@ -835,6 +835,7 @@ def _build_history_digest(
     successful_fetches: dict[str, dict[str, Any]],
     tool_calls: list[dict[str, Any]],
     phase: str,
+    turns_left: int = 0,
 ) -> str:
     parts = [
         _DIGEST_MARKER
@@ -861,6 +862,16 @@ def _build_history_digest(
             for url, e in successful_fetches.items()
         ]
         parts.append("## 已抓来源(正文在本地快照,历史中已剔除)\n" + "\n".join(lines))
+    n_points = 0
+    draft_any = _latest_draft(middle)
+    if isinstance(draft_any, dict):
+        for g in draft_any.get("groups", []) if isinstance(draft_any.get("groups"), list) else []:
+            n_points += len(g.get("points", []) if isinstance(g, dict) else [])
+    parts.append(
+        f"## 调研进度(程序注入)\n已抓 {len(successful_fetches)} 页 · 候选要点约 {n_points} 条 · "
+        f"**剩余轮次 {turns_left}**——轮次耗尽未交付即整轮失败(已抓正文会存为 draft),"
+        "请尽快整理已收集材料输出完整交付 JSON。"
+    )
     draft = _latest_draft(middle)
     if draft is None:
         parts.append("## 候选要点\n(尚未产出可解析的交付草稿)")
@@ -893,6 +904,7 @@ def _compress_messages(
     successful_fetches: dict[str, dict[str, Any]],
     tool_calls: list[dict[str, Any]],
     phase: str,
+    turns_left: int = 0,
 ) -> list[dict[str, Any]] | None:
     """T2.5:中间历史(messages[1:-2])替换为结构化摘要,保留首条 prompt 与
     最后一轮完整交互。无需压缩(中间历史为空)返回 None。
@@ -915,6 +927,7 @@ def _compress_messages(
         successful_fetches=successful_fetches,
         tool_calls=tool_calls,
         phase=phase,
+        turns_left=turns_left,
     )
     summary = {"role": "user", "content": digest_text}
     return [messages[0], summary, *messages[-2:]]
@@ -964,6 +977,12 @@ def _loop(
         # 结构化摘要(候选要点/引文定位/门禁反馈全保留);已抓正文从历史剔除——
         # 它们持久化在抓取检查点里,模型经 read_snapshot 本地回读。
         # 不触碰收笔判定与传输重试逻辑。
+        turns_left_now = turns_budget - turn - 1
+        if turns_left_now == 4 and turn != turns_budget - 1:
+            messages.append({"role": "user", "content": (
+                f"⚠️ 轮次预算告急:剩余 {turns_left_now} 轮。立即停止新的搜索/抓取,"
+                "把已收集的全部材料整理成完整交付 JSON 输出(不要调用工具)。"
+            )})
         if turn + 1 >= _COMPRESS_MIN_TURN:
             est_before = _estimate_input_tokens(messages)
             if est_before > _COMPRESS_TOKENS_LIMIT:
@@ -973,6 +992,7 @@ def _loop(
                     successful_fetches=successful_fetches,
                     tool_calls=tool_calls,
                     phase=phase,
+                    turns_left=turns_budget - turn - 1,
                 )
                 if compressed is not None:
                     est_after = _estimate_input_tokens(compressed)
