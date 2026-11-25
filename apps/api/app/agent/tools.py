@@ -252,6 +252,58 @@ def read_notes(keyword: str) -> str:
     return "\n\n".join(hits) or f"(知识库中没有找到「{keyword}」相关笔记)"
 
 
+# ---------------------------------------------------------------------------
+# 本地快照回读(T2.6,找资料 agent 专用)
+# 调研历史压缩后(T2.5),已抓网页正文退出对话历史,但全文持久化在抓取检查点
+# 文件里(research._save_fetch_checkpoint)。read_snapshot 从检查点按 offset 读
+# 指定段落——绝不重新联网(AnySearch 提取本就截断 8000 字符,回读上限=已保存正文)。
+# 工具函数本身无状态;检查点路径是模块级「当前调研上下文」,由 research._loop
+# 开工时注入。后台 job 是独立子进程,同一进程内循环串行执行,单值不互踩;
+# 答疑/备课循环不注入,read_snapshot 对它们不可用。
+_snapshot_checkpoint: Path | None = None
+
+
+def set_snapshot_checkpoint(path: Path | str | None) -> None:
+    """注入/清除当前调研的抓取检查点路径(research._loop 每次开工时调用)。"""
+    global _snapshot_checkpoint
+    _snapshot_checkpoint = Path(path) if path else None
+
+
+def read_snapshot(url: str, offset: int = 0, length: int = 4000) -> str:
+    """从当前调研的抓取检查点回读已保存正文[offset, offset+length)段落。
+
+    纯本地文件读,任何路径都不触网;返回带 offset 标头(含总长与指纹前缀),
+    模型逐字引用标头之后的正文段落,仍走既有引文校验链(locate_material 归一
+    空白后逐字定位)。
+    """
+    if _snapshot_checkpoint is None:
+        return "(快照不可用:当前循环未注入抓取检查点——本地回读仅限原料调研循环)"
+    try:
+        cp: Any = json.loads(_snapshot_checkpoint.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return f"(快照读取失败:检查点文件缺失或损坏({_snapshot_checkpoint.name}))"
+    pages = cp.get("pages") if isinstance(cp, dict) else None
+    page = pages.get(url) if isinstance(pages, dict) else None
+    if not isinstance(page, dict) or not str(page.get("body", "")):
+        saved = " ".join(sorted(pages)) if isinstance(pages, dict) else ""
+        return f"(快照中没有该 URL:{url[:120]}。已保存的来源:{saved[:400]})"
+    body = str(page["body"])
+    try:
+        offset = max(0, int(offset))
+        length = max(1, min(int(length), 8000))
+    except (TypeError, ValueError):
+        return "(参数无效:offset/length 必须是整数)"
+    chunk = body[offset:offset + length]
+    if not chunk:
+        return f"(offset {offset} 超出快照正文范围(总长 {len(body)} 字符),请用更小的 offset)"
+    sha = str(page.get("sha256", ""))
+    header = (f"[快照 {url} | 字符 {offset}–{offset + len(chunk)} / 共 {len(body)} "
+              f"| sha256:{sha[:16]}]")
+    tail = "\n(快照未完,可传更大的 offset 继续回读)" \
+        if offset + len(chunk) < len(body) else "\n(快照到此为止)"
+    return f"{header}\n{chunk}{tail}"
+
+
 def fetch_page(url: str) -> str:
     """抓网页正文:优先 AnySearch 提取(干净 Markdown),失败回落本地剥标签(截断防超上下文)。
 

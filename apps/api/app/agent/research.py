@@ -28,6 +28,8 @@ from anthropic._exceptions import RateLimitError
 from app.agent.tools import (  # noqa: F401  # web_search 供 _require_search 探针
     emit_call,
     fetch_page,
+    read_snapshot,
+    set_snapshot_checkpoint,
     web_search,
 )
 from app.core.config import settings
@@ -45,6 +47,13 @@ from app.services.evidence import (
 from app.services.evidence_review import review_claims
 
 MAX_TURNS = 16
+
+# T2.5 历史压缩:输入体积优先(估算超限即压),轮数作辅助条件防早期误压。
+# 系数 0.35:英文正文 ≈4 字符/token,中文 ≈1~1.5 字符/token,调研抓取以英文官方
+# 文档为主——0.35 是偏保守(宁早压勿爆上下文)的折中;阈值 40k 是计划目标带宽上限。
+_COMPRESS_TOKENS_LIMIT = 40_000
+_COMPRESS_MIN_TURN = 4
+_TOKEN_FACTOR = 0.35
 
 RESEARCH_TOOLS = [
     {
@@ -75,6 +84,28 @@ RESEARCH_TOOLS = [
         },
     },
 ]
+
+# T2.6 本地快照回读:已抓网页正文持久化在抓取检查点文件里,对话历史压缩后(T2.5)
+# 正文退出历史——需要重看原文段落时用它本地回读,绝不重新联网(AnySearch 提取本就
+# 截断 8000 字符,回读上限=已保存正文)。仅装配给原料调研(铁律8:工具按 agent
+# 精选装配);框架阶段没有抓取检查点,不给此工具。
+_READ_SNAPSHOT_TOOL = {
+    "name": "read_snapshot",
+    "description": "本地回读已抓网页的正文段落(不联网)。"
+    "正文已退出对话历史(历史只留摘要),需要重看某来源的原文细节时用此工具:"
+    "传此前 fetch_page 成功过的 url,用 offset 翻页;引用回读内容时逐字摘录标头之后的"
+    "正文段落本身。同一 URL 不要重复 fetch_page——内存与本地快照里已有,直接回读。",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "url": {"type": "string", "description": "本轮已成功抓取过的完整 URL"},
+            "offset": {"type": "integer", "description": "起始字符位置(默认 0)"},
+            "length": {"type": "integer", "description": "读取长度(默认 4000,上限 8000)"},
+        },
+        "required": ["url"],
+    },
+}
+MATERIAL_TOOLS = [*RESEARCH_TOOLS, _READ_SNAPSHOT_TOOL]
 
 _FRAMEWORK_PROMPT = """你是课程大纲设计师,为一个**零基础学习者**设计「从入门到精通的完整学习路线」。
 
@@ -613,6 +644,12 @@ def _execute(name: str, args: dict[str, Any]) -> str:
         return web_search_multi(args["query"], args.get("recency"))
     if name == "fetch_page":
         return fetch_page(args["url"])
+    if name == "read_snapshot":
+        return read_snapshot(
+            str(args.get("url", "")),
+            offset=int(args.get("offset") or 0),
+            length=int(args.get("length") or 4000),
+        )
     return f"(未知工具 {name})"
 
 
@@ -691,6 +728,198 @@ def _sleep_backoff(seconds: float) -> None:
     time.sleep(seconds)
 
 
+# ---------- 历史压缩(T2.5):正文退出对话历史,要点/引文/定位进结构化摘要 ----------
+# 摘要保留清单(计划 T2.5):课程 goal/scope/排除项原文(首条 prompt + 摘要双保险)、
+# 最新门禁反馈原文、每条候选要点(text+逐字 quote+source_id+快照定位);网页正文
+# 从历史剔除——它们持久化在抓取检查点里(T2.1),模型经 read_snapshot(T2.6)回读。
+# 「引文已命中快照」(quote_status)与「语义审查 supported」(semantic_review)分开
+# 标记,永不合并为「已确认」。
+
+
+_DIGEST_MARKER = "【调研历史压缩摘要】"
+
+
+def _estimate_input_tokens(messages: list[dict[str, Any]]) -> int:
+    """字符数×系数粗估输入 token(计划认可的做法,不引入 tokenizer 依赖)。"""
+    return int(len(json.dumps(messages, ensure_ascii=False)) * _TOKEN_FACTOR)
+
+
+def _msg_text(msg: dict[str, Any]) -> str:
+    content = msg.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(str(b.get("text", "")) for b in content if isinstance(b, dict))
+    return ""
+
+
+def _latest_draft(middle: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """最近一次可解析的交付草稿——候选要点的权威来源;更早草稿是模型自己淘汰的旧版。"""
+    for msg in reversed(middle):
+        if msg.get("role") != "assistant":
+            continue
+        d = parse_json_reply(_msg_text(msg))
+        if d is not None and (d.get("groups") or d.get("courses")):
+            return d
+    return None
+
+
+def _last_user_feedback(middle: list[dict[str, Any]]) -> str:
+    """最近一条用户文本反馈原文(门禁打回/预算提示);上一轮的压缩摘要不计入。"""
+    for msg in reversed(middle):
+        text = _msg_text(msg) if msg.get("role") == "user" else ""
+        if text.strip() and not text.startswith(_DIGEST_MARKER):
+            return text
+    return ""
+
+
+def _title_of(body: str) -> str:
+    header = re.match(r"^\[([^|\]]+)\|", body.strip())
+    return header.group(1).strip() if header else "(无标题)"
+
+
+def _material_digest(draft: dict[str, Any], pages: dict[str, str]) -> dict[str, Any]:
+    """原料候选要点:quote_status 由程序对本地快照逐字定位重算(与交付时同一套
+    locate_material,确定性,不引入模型意见);semantic_review 恒为 unreviewed——
+    语义审查只在交付校验全过之后独立进行,两个标记绝不合并。"""
+    located, _errs = locate_material(draft, pages)
+    points = []
+    for e in located.get("evidence", []):
+        matched = e.get("quote_status") == "matched"
+        points.append({
+            "id": e.get("id"), "text": e.get("point"), "source_id": e.get("source_id"),
+            "quote": e.get("quote"),
+            "quote_status": "matched" if matched else "unmatched",
+            "quote_start": e.get("quote_start") if matched else None,
+            "quote_end": e.get("quote_end") if matched else None,
+            "snapshot_sha256": e.get("source_hash") if matched else None,
+            "semantic_review": "unreviewed",
+        })
+    return {
+        "note": "quote_status=引文是否逐字命中本地快照(程序重算);semantic_review=语义审查"
+                "状态——两者相互独立,引文命中≠语义审查通过,当前全部未做语义审查",
+        "sources": draft.get("sources", []),
+        "points": points,
+    }
+
+
+def _framework_digest(draft: dict[str, Any], pages: dict[str, str]) -> dict[str, Any]:
+    """大纲候选课:保留 goal/scope/why/prereqs 原文与 source_quotes(逐字)。"""
+    courses = []
+    for c in draft.get("courses", []):
+        if not isinstance(c, dict):
+            continue
+        quotes = []
+        for q in c.get("source_quotes") or []:
+            if not isinstance(q, dict):
+                continue
+            url = str(q.get("url", ""))
+            quote = " ".join(str(q.get("quote", "")).split())
+            body = normalized_body(pages.get(url, "")) if url in pages else ""
+            quotes.append({
+                "url": url, "quote": q.get("quote"),
+                "quote_status": "matched" if len(quote) >= 30 and quote in body
+                else "unmatched",
+            })
+        courses.append({"id": c.get("id"), "title": c.get("title"), "goal": c.get("goal"),
+                        "scope": c.get("scope"), "why": c.get("why"), "part": c.get("part"),
+                        "prereqs": c.get("prereqs"), "source_quotes": quotes})
+    return {"note": "quote_status=引文是否逐字命中本地快照,与语义审查相互独立",
+            "courses": courses}
+
+
+def _build_history_digest(
+    middle: list[dict[str, Any]],
+    *,
+    research_context: dict[str, Any] | None,
+    successful_fetches: dict[str, dict[str, Any]],
+    tool_calls: list[dict[str, Any]],
+    phase: str,
+) -> str:
+    parts = [
+        _DIGEST_MARKER
+        + f"(程序生成:{phase} 阶段此前约 {len(middle)} 条消息已压缩;"
+        "已抓网页正文已存本地快照,并从对话历史剔除——需要重看原文段落时"
+        "用 read_snapshot(url, offset) 本地回读,不要重新联网。)",
+    ]
+    if research_context:
+        # goal/scope/排除项原文进摘要(补挖循环的首条 prompt 只带截断的上下文,
+        # 摘要里带全量原文是双保险;不压缩=逐字保留)。
+        constraint = {
+            "goal": research_context.get("learning_goal", ""),
+            "scope": research_context.get("scope", ""),
+            "learning_barrier": research_context.get("learning_barrier", ""),
+            "prerequisites": research_context.get("prerequisites", []),
+        }
+        parts.append("## 课程约束(程序注入的原文,不得改写)\n"
+                     + json.dumps(constraint, ensure_ascii=False, indent=1))
+    if successful_fetches:
+        lines = [
+            f"- {_title_of(str(e.get('result', '')))} | {url} | "
+            f"sha256:{text_hash(str(e.get('result', '')))[:16]}"
+            f"(全文 {len(str(e.get('result', '')))} 字符,read_snapshot 可回读)"
+            for url, e in successful_fetches.items()
+        ]
+        parts.append("## 已抓来源(正文在本地快照,历史中已剔除)\n" + "\n".join(lines))
+    draft = _latest_draft(middle)
+    if draft is None:
+        parts.append("## 候选要点\n(尚未产出可解析的交付草稿)")
+    else:
+        pages = {url: str(e.get("result", "")) for url, e in successful_fetches.items()}
+        try:
+            if isinstance(draft.get("courses"), list):
+                payload: dict[str, Any] = _framework_digest(draft, pages)
+            else:
+                payload = _material_digest(draft, pages)
+        except Exception:  # noqa: BLE001 压缩绝不打断调研;定位重算失败退回原草稿
+            payload = draft
+        parts.append("## 候选要点(来自最近一次交付草稿,quote/快照定位逐字保留)\n"
+                     + json.dumps(payload, ensure_ascii=False, indent=1))
+    feedback = _last_user_feedback(middle)
+    if feedback:
+        parts.append("## 最近一次校验反馈(原文)\n" + feedback)
+    n_search = sum(1 for t in tool_calls if t["name"] == "web_search")
+    parts.append(
+        f"## 过程概要\nweb_search×{n_search},fetch_page 成功 {len(successful_fetches)} 页。"
+        "本轮继续:按最新反馈修补候选要点或补缺口,然后输出完整交付 JSON。"
+    )
+    return "\n\n".join(parts)
+
+
+def _compress_messages(
+    messages: list[dict[str, Any]],
+    *,
+    research_context: dict[str, Any] | None,
+    successful_fetches: dict[str, dict[str, Any]],
+    tool_calls: list[dict[str, Any]],
+    phase: str,
+) -> list[dict[str, Any]] | None:
+    """T2.5:中间历史(messages[1:-2])替换为结构化摘要,保留首条 prompt 与
+    最后一轮完整交互。无需压缩(中间历史为空)返回 None。
+
+    - 最后一轮「完整交互」= 末尾 assistant+user 两条整体保留:tool_result 必须
+      与它引用的 tool_use 同历史存活,单留一半会被 API 拒(引用缺失)。
+    - 摘要消息用 user 角色——与既有「墙钟超限」提示同模式,连续 user 由端点合并
+      为单轮(官方文档明示 consecutive turns are combined)。
+    - 压缩数据源是循环级记录(successful_fetches/tool_calls/research_context),
+      不是对旧摘要的再摘要——重复压缩不损失信息。
+    """
+    if len(messages) < 5:
+        return None
+    middle = messages[1:-2]
+    if not middle:
+        return None
+    digest_text = _build_history_digest(
+        middle,
+        research_context=research_context,
+        successful_fetches=successful_fetches,
+        tool_calls=tool_calls,
+        phase=phase,
+    )
+    summary = {"role": "user", "content": digest_text}
+    return [messages[0], summary, *messages[-2:]]
+
+
 @observed("research")
 def _loop(
     prompt: str,
@@ -719,13 +948,42 @@ def _loop(
     last_err: list[str] = []
     token_budget = 32768 if phase.startswith("material:") else 16384
     turns_budget = max_turns if max_turns is not None else MAX_TURNS
-    run_context(prompt=prompt, tools=RESEARCH_TOOLS,
+    # T2.6:read_snapshot 仅装配给原料调研(框架阶段无抓取检查点,不给此工具),
+    # 并注入本循环的快照检查点路径作为该工具的本地回读源。
+    tools = MATERIAL_TOOLS if phase.startswith("material:") else RESEARCH_TOOLS
+    set_snapshot_checkpoint(_checkpoint_path(material_filename) if material_filename else None)
+    run_context(prompt=prompt, tools=tools,
                 parameters={"max_tokens": token_budget,
                             "max_turns": turns_budget})
 
     deliver_mode = False  # 墙钟超限后的交付模式:撤工具直到交付(第一批②)
     for turn in range(turns_budget):
         update_run(turns=turn + 1)
+        # T2.5 历史压缩:输入体积优先(估算超 40k token 即压),轮数 ≥4 辅助条件。
+        # 只动消息装配层:首条 prompt 与最后一轮完整交互原样保留,中间历史替换为
+        # 结构化摘要(候选要点/引文定位/门禁反馈全保留);已抓正文从历史剔除——
+        # 它们持久化在抓取检查点里,模型经 read_snapshot 本地回读。
+        # 不触碰收笔判定与传输重试逻辑。
+        if turn + 1 >= _COMPRESS_MIN_TURN:
+            est_before = _estimate_input_tokens(messages)
+            if est_before > _COMPRESS_TOKENS_LIMIT:
+                compressed = _compress_messages(
+                    messages,
+                    research_context=research_context,
+                    successful_fetches=successful_fetches,
+                    tool_calls=tool_calls,
+                    phase=phase,
+                )
+                if compressed is not None:
+                    est_after = _estimate_input_tokens(compressed)
+                    print(f"📦 历史压缩:输入估算 {est_before // 1000}k → "
+                          f"{est_after // 1000}k token"
+                          "(正文退出历史,要点/引文/定位保留,原文用 read_snapshot 回读)",
+                          flush=True)
+                    update_run(history_compressed={"turn": turn + 1,
+                                                   "est_tokens_before": est_before,
+                                                   "est_tokens_after": est_after})
+                    messages = compressed
         last_turn = turn == turns_budget - 1
         model_started = time.perf_counter()
         # 第一批边界控制:独立客户端 max_retries=0(SDK 3×240s 的长尾由应用层接管),
@@ -741,7 +999,7 @@ def _loop(
                     model=settings.llm_model,
                     max_tokens=token_budget,
                     messages=messages,
-                    tools=[] if (last_turn or deliver_mode) else RESEARCH_TOOLS,
+                    tools=[] if (last_turn or deliver_mode) else tools,
                     timeout=deliver_timeout,
                 )
                 break
