@@ -15,9 +15,8 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.core.trace import digest
 from app.services.csl_validator import validate_course
-from app.services.evidence import course_evidence_report
+from app.services.evidence import course_evidence_report, human_review_hash
 from app.services.evidence_review import review_claims
 
 
@@ -25,7 +24,8 @@ def audit(
     course: dict[str, Any], *, use_model: bool = False,
     human_reviews: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    validation = validate_course(course)
+    # 本工具用于人工复核；不应因为已有模型语义信号而阻止人查看原文。
+    validation = validate_course(course, check_model_support=False)
     if not validation["ok"]:
         return {"course_id": course.get("id"), "errors": validation["errors"], "blocks": [],
                 "semantic_status": "unreviewed"}
@@ -50,7 +50,7 @@ def audit(
             report["errors"].append(f"人工审查指向不存在的块:{rid}")
     by_id = {r.get("id"): r for r in human_reviews or []}
     for block in blocks:
-        fingerprint = digest({"text": block["text"], "evidence": block["evidence"]})
+        fingerprint = human_review_hash(block)
         block["review_template"] = {
             "id": block["id"], "reviewer": "", "input_hash": fingerprint,
             "verdict": "unreviewed", "reason": "",
@@ -58,26 +58,34 @@ def audit(
         if label := by_id.get(block["id"]):
             if (label.get("input_hash") != fingerprint
                 or not isinstance(label.get("reviewer"), str) or not label["reviewer"].strip()
-                or label.get("verdict") not in ("supported", "unsupported", "not_applicable")
+                or label.get("verdict") not in (
+                    "supported", "unsupported", "uncertain", "not_applicable"
+                )
                 or not isinstance(label.get("reason"), str) or not label["reason"].strip()):
                 report["errors"].append(f"{block['id']} 人工标签缺项或已因内容变化失效")
             else:
                 block.update(support=label["verdict"], reason=label["reason"],
                              reviewer=label["reviewer"])
     report["semantic_status"] = (
-        "human_reviewed" if blocks and all(b["support"] in ("supported", "not_applicable")
-                                           for b in blocks) else "unreviewed"
+        "human_reviewed"
+        if blocks and all(b.get("reviewer") and b["support"] in (
+            "supported", "unsupported", "uncertain", "not_applicable"
+        ) for b in blocks)
+        else "unreviewed"
     )
     return report
 
 
 def exit_code(report: dict[str, Any]) -> int:
     if report["errors"] or any(
-        b.get("support") == "unsupported" or b.get("model_support") == "unsupported"
+        b.get("support") == "unsupported"
+        or (not b.get("reviewer") and b.get("model_support") == "unsupported")
         for b in report["blocks"]
     ):
         return 1
-    return 0 if report["semantic_status"] == "human_reviewed" else 2
+    if report["semantic_status"] != "human_reviewed":
+        return 2
+    return 2 if any(b.get("support") == "uncertain" for b in report["blocks"]) else 0
 
 
 def main() -> int:

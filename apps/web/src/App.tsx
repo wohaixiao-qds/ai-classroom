@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom"
 import { MotionConfig } from "motion/react";
 import { Shell } from "./app/Shell";
 import { EvalPage } from "./features/eval/EvalPage";
+import { EvidenceReviewPage } from "./features/evidence-review/EvidenceReviewPage";
 import { ReaderPage } from "./features/reader/ReaderPage";
 import { BookPage, CourseDetailPage, LibraryPage } from "./features/library";
 import { StudioPage } from "./features/studio/StudioPage";
@@ -20,6 +21,7 @@ const router = createBrowserRouter([
       { path: "courses/:courseId", element: <CourseDetailPage /> },
       { path: "studio", element: <StudioPage /> },
       { path: "eval", element: <EvalPage /> },
+      { path: "evidence-review", element: <EvidenceReviewPage /> },
     ],
   },
   { path: "/read/:courseId", element: <ReaderPage /> },

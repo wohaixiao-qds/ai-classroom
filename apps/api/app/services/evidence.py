@@ -14,6 +14,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from app.core.trace import digest
 from app.schemas.csl import EvidenceItem
 
 
@@ -155,6 +156,11 @@ def block_text(block: dict[str, Any]) -> str:
                          for c in block.get("cards", []))
     return "\n".join(str(block[k]) for k in ("text", "code", "caption", "question", "pass_rule")
                      if block.get(k))
+
+
+def human_review_hash(block: dict[str, Any]) -> str:
+    """把人工标签绑定到课件块文本及完整关联证据。"""
+    return digest({"text": block["text"], "evidence": block["evidence"]})
 
 
 def course_evidence_report(

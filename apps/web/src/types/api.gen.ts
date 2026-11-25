@@ -258,6 +258,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/evidence-review/courses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Review Courses */
+        get: operations["review_courses_api_v1_evidence_review_courses_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evidence-review/{course_id}/translate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Translate Evidence */
+        post: operations["translate_evidence_api_v1_evidence_review__course_id__translate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evidence-review/{course_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Review Course */
+        get: operations["review_course_api_v1_evidence_review__course_id__get"];
+        /** Save Review */
+        put: operations["save_review_api_v1_evidence_review__course_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/catalog": {
         parameters: {
             query?: never;
@@ -1045,6 +1097,174 @@ export interface components {
             research: components["schemas"]["TraceRecord"][];
             /** Prep */
             prep: components["schemas"]["TraceRecord"][];
+        };
+        /** EvidenceReviewBlock */
+        EvidenceReviewBlock: {
+            /** Id */
+            id: string;
+            /** Section */
+            section: string;
+            /** Text */
+            text: string;
+            /** Evidence Ids */
+            evidence_ids: string[];
+            /** Evidence */
+            evidence: components["schemas"]["EvidenceReviewEvidence"][];
+            /** Sources */
+            sources: components["schemas"]["EvidenceReviewSource"][];
+            /** Input Hash */
+            input_hash: string;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "unreviewed" | "supported" | "unsupported" | "uncertain";
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /**
+             * Reviewer
+             * @default
+             */
+            reviewer: string;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+        };
+        /** EvidenceReviewCourse */
+        EvidenceReviewCourse: {
+            /** Course Id */
+            course_id: string;
+            /** Title */
+            title: string;
+            /** Total Blocks */
+            total_blocks: number;
+            /** Reviewed Blocks */
+            reviewed_blocks: number;
+            /** Supported */
+            supported: number;
+            /** Unsupported */
+            unsupported: number;
+            /** Uncertain */
+            uncertain: number;
+        };
+        /** EvidenceReviewCourses */
+        EvidenceReviewCourses: {
+            /** Courses */
+            courses: components["schemas"]["EvidenceReviewCourse"][];
+        };
+        /** EvidenceReviewDetail */
+        EvidenceReviewDetail: {
+            /** Course Id */
+            course_id: string;
+            /** Title */
+            title: string;
+            /** Offset */
+            offset: number;
+            /** Limit */
+            limit: number;
+            /** Total Blocks */
+            total_blocks: number;
+            /** Reviewed Blocks */
+            reviewed_blocks: number;
+            /** Supported */
+            supported: number;
+            /** Unsupported */
+            unsupported: number;
+            /** Uncertain */
+            uncertain: number;
+            /** Evidence Errors */
+            evidence_errors?: string[];
+            /** Blocks */
+            blocks: components["schemas"]["EvidenceReviewBlock"][];
+        };
+        /**
+         * EvidenceReviewEvidence
+         * @description 只提供人工核对所需的原文，不把模型已有结论展示给审阅者。
+         */
+        EvidenceReviewEvidence: {
+            /** Id */
+            id: string;
+            /** Point */
+            point: string;
+            /** Source Id */
+            source_id?: number | null;
+            /** Quote */
+            quote?: string | null;
+            /** Context */
+            context?: string | null;
+            /**
+             * Quote Status
+             * @enum {string}
+             */
+            quote_status: "matched" | "missing";
+        };
+        /** EvidenceReviewSave */
+        EvidenceReviewSave: {
+            /** Block Id */
+            block_id: string;
+            /** Reviewer */
+            reviewer: string;
+            /** Input Hash */
+            input_hash: string;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "supported" | "unsupported" | "uncertain";
+            /** Reason */
+            reason: string;
+        };
+        /** EvidenceReviewSaved */
+        EvidenceReviewSaved: {
+            /** Block Id */
+            block_id: string;
+            /** Reviewer */
+            reviewer: string;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "supported" | "unsupported" | "uncertain";
+            /** Reason */
+            reason: string;
+            /** Reviewed At */
+            reviewed_at: string;
+            /** Reviewed Blocks */
+            reviewed_blocks: number;
+            /** Total Blocks */
+            total_blocks: number;
+        };
+        /** EvidenceReviewSource */
+        EvidenceReviewSource: {
+            /** Id */
+            id?: number | null;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /** EvidenceReviewTranslate */
+        EvidenceReviewTranslate: {
+            /** Block Id */
+            block_id: string;
+            /** Evidence Id */
+            evidence_id: string;
+            /** Input Hash */
+            input_hash: string;
+        };
+        /** EvidenceReviewTranslation */
+        EvidenceReviewTranslation: {
+            /** Evidence Id */
+            evidence_id: string;
+            /** Quote Translation */
+            quote_translation?: string | null;
+            /** Context Translation */
+            context_translation?: string | null;
         };
         /**
          * FlashReportRequest
@@ -2491,6 +2711,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LegacyCourseDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_courses_api_v1_evidence_review_courses_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceReviewCourses"];
+                };
+            };
+        };
+    };
+    translate_evidence_api_v1_evidence_review__course_id__translate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvidenceReviewTranslate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceReviewTranslation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_course_api_v1_evidence_review__course_id__get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceReviewDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_review_api_v1_evidence_review__course_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvidenceReviewSave"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceReviewSaved"];
                 };
             };
             /** @description Validation Error */

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 
 import { Collapse } from "../../components/Collapse";
 import { EmptyState, PageError, PageLoading } from "../../components/PageState";
@@ -128,6 +129,9 @@ export function EvalPage() {
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <Button asChild variant="secondary" className="min-h-11">
+            <Link to="/evidence-review">人工抽查课件</Link>
+          </Button>
           <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
             <input type="checkbox" checked={includeTest} onChange={(e) => {
               setLoading(true);
