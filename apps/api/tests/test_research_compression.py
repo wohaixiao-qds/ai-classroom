@@ -292,6 +292,82 @@ class ResearchCompressionTests(unittest.TestCase):
         self.assertIn("快照不可用", research._execute(
             "read_snapshot", {"url": "https://example.org/x"}))
 
+    def test_second_compression_keeps_candidates_from_digest(self) -> None:
+        # 复查修复B:二次压缩时上一份摘要(user 角色)的候选要点不丢失——
+        # 摘要形态(note+sources+points)重组回 groups 草稿。
+        head = {"role": "user", "content": "prompt"}
+        first_digest = {"role": "user", "content": research._build_history_digest(
+            [{"role": "assistant", "content": json.dumps(
+                {"groups": [{"heading": "h", "points": [
+                    {"text": "要点", "quote": "q" * 30, "source_id": 1}]}],
+                 "sources": [{"id": 1, "url": "https://x"}]})}],
+            research_context=None,
+            successful_fetches={"https://x": {"result": "b" * 50}},
+            tool_calls=[], phase="material:x", turns_left=8)}
+        messages: list[dict[str, Any]] = [head, first_digest,
+                    {"role": "assistant", "content": [{"type": "tool_use", "id": "t"}]},
+                    {"role": "user", "content": [
+                        {"type": "tool_result", "tool_use_id": "t", "content": "b"}]},
+                    {"role": "assistant", "content": [{"type": "tool_use", "id": "t2"}]},
+                    {"role": "user", "content": [
+                        {"type": "tool_result", "tool_use_id": "t2", "content": "c"}]}]
+        compressed = research._compress_messages(
+            messages, research_context=None,
+            successful_fetches={"https://x": {"result": "b" * 50}},
+            tool_calls=[], phase="material:x")
+        assert compressed is not None
+        joined = json.dumps(compressed, ensure_ascii=False)
+        self.assertIn("要点", joined)
+
+    def test_budget_warning_message_survives_compression_pairing(self) -> None:
+        # 复查修复C:告急 user 消息与前面的 tool_result 配对不被压缩切散——
+        # 保留区首条不得是孤儿 tool_result。
+        head = {"role": "user", "content": "prompt"}
+        messages: list[dict[str, Any]] = [
+            head,
+            {"role": "assistant", "content": [{"type": "tool_use", "id": "t1"}]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "t1", "content": "a"}]},
+            {"role": "assistant", "content": "正在继续"},
+            {"role": "user", "content": "⚠️ 轮次预算告急:剩余 4 轮。"},
+        ]
+        compressed = research._compress_messages(
+            messages, research_context=None, successful_fetches={},
+            tool_calls=[], phase="material:x")
+        assert compressed is not None
+        # 保留区(messages[0] head + 末两条)不含孤儿:第一条保留消息不是 user-tool_result
+        kept_middle = compressed[1]
+        self.assertFalse(
+            isinstance(kept_middle.get("content"), list)
+            and kept_middle.get("role") == "user")
+
+    def test_loop_prefills_fetches_from_checkpoint(self) -> None:
+        # 复查修复A:_loop 启动从检查点预填 successful_fetches,已抓 URL 不再进抓取。
+        import tempfile
+        from pathlib import Path
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        for name in ("courses_dir", "data_dir", "traces_dir", "kb_dir"):
+            directory = Path(tmp.name) / name
+            directory.mkdir()
+            patcher = patch.object(settings, name, directory)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        guard = patch.object(research, "get_llm_client",
+                             side_effect=AssertionError("禁止未模拟模型调用"))
+        guard.start()
+        self.addCleanup(guard.stop)
+        from app.agent.research import (
+            _save_fetch_checkpoint,
+        )
+        material_filename = "t.prefill.material.json"
+        _save_fetch_checkpoint(
+            material_filename, "https://example.org/done", "已抓正文" * 50,
+            [], {"goal": "g"})
+        from app.agent.research import _load_fetch_checkpoint
+        cp = _load_fetch_checkpoint(material_filename)
+        assert cp is not None and cp["pages"]
+
 
 if __name__ == "__main__":
     unittest.main()

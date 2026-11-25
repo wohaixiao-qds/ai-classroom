@@ -754,13 +754,32 @@ def _msg_text(msg: dict[str, Any]) -> str:
 
 
 def _latest_draft(middle: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """最近一次可解析的交付草稿——候选要点的权威来源;更早草稿是模型自己淘汰的旧版。"""
+    """最近一次可解析的交付草稿——候选要点的权威来源;更早草稿是模型自己淘汰的旧版。
+
+    复查修复B:压缩摘要本身是 user 角色(内嵌候选要点 JSON),二次压缩时若只扫
+    assistant,上一份摘要的候选要点会丢失——摘要在场时也纳入扫描(取其内嵌 JSON)。
+    """
     for msg in reversed(middle):
-        if msg.get("role") != "assistant":
-            continue
-        d = parse_json_reply(_msg_text(msg))
-        if d is not None and (d.get("groups") or d.get("courses")):
-            return d
+        role = msg.get("role")
+        text = _msg_text(msg)
+        if role == "assistant":
+            d = parse_json_reply(text)
+            if d is not None and (d.get("groups") or d.get("courses")):
+                return d
+        elif role == "user" and text.startswith(_DIGEST_MARKER):
+            d = parse_json_reply(text)
+            if d is None:
+                continue
+            if d.get("groups") or d.get("courses"):
+                return d
+            # 摘要形态(_material_digest 产物: note+sources+points):重组回 groups
+            # 草稿,二次压缩时候选要点(含 quote/定位/语义标记)不丢失。
+            if d.get("points"):
+                return {
+                    "groups": [{"heading": "压缩前候选要点",
+                                "points": d["points"]}],
+                    "sources": d.get("sources", []),
+                }
     return None
 
 
@@ -918,7 +937,18 @@ def _compress_messages(
     """
     if len(messages) < 5:
         return None
-    middle = messages[1:-2]
+    # 复查修复C:固定切片 [1:-2] 会产生孤儿 tool_result——若末尾是「告急 user」
+    # 等追加消息,tool_use(assistant)被切走而它的 tool_result(user)留在保留区,
+    # 端点拒收引用缺失。从尾部回溯:切片终点必须在 tool_result 消息之后(即
+    # assistant/tool_use 轮的边界),保证保留区首条不是无配对的 tool_result。
+    end = len(messages) - 2
+    # 只前移「user 携带 tool_result 列表」的消息;assistant 轮(content list 含
+    # tool_use+text)有文本,不会被误移。
+    while end > 1 and messages[end].get("role") == "user" and isinstance(
+        messages[end].get("content"), list
+    ):
+        end -= 1
+    middle = messages[1:end]
     if not middle:
         return None
     digest_text = _build_history_digest(
@@ -952,6 +982,19 @@ def _loop(
     messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
     tool_calls: list[dict[str, Any]] = []
     successful_fetches: dict[str, dict[str, Any]] = {}
+    # 中断恢复(复查修复A):从抓取检查点预填已抓正文——同 URL 不再进抓取执行;
+    # 检查点缺失/损坏为 None 时走全新调研(与 _load_fetch_checkpoint 防御一致)。
+    if material_filename:
+        recovered = _load_fetch_checkpoint(material_filename) or {}
+        for r_url, page in (recovered.get("pages") or {}).items():
+            if isinstance(page, dict) and page.get("body"):
+                successful_fetches[r_url] = {
+                    "result": str(page["body"]),
+                    "call_index": -1,  # 恢复项:非本轮调用,仅作去重与快照来源
+                }
+        if recovered:
+            print(f"📦 从抓取检查点恢复 {len(successful_fetches)} 页已抓正文(不重复请求)",
+                  flush=True)
     usage = {"input_tokens": 0, "output_tokens": 0}
     review_usage: dict[str, int] = {}
     review_s = 0.0
