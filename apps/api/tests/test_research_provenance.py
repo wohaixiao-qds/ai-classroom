@@ -114,6 +114,46 @@ class ResearchProvenanceTests(unittest.TestCase):
         self.assertEqual(context["prerequisites"][0]["goal"], "画出系统边界")
         self.assertEqual(context["following_courses"][0]["goal"], "建立回归门")
 
+    def test_fetch_checkpoint_roundtrip_and_draft_gate(self) -> None:
+        # T2.1/T2.2/T2.3:抓取检查点原子写→读回;draft 落盘且不进 cached_material。
+        from app.agent.research import (
+            _checkpoint_path,
+            _load_fetch_checkpoint,
+            _save_draft_from_checkpoint,
+            _save_fetch_checkpoint,
+        )
+
+        material_filename = "t.checkpoint-test.material.json"
+        _save_fetch_checkpoint(
+            material_filename, "https://example.org/a", "正文 A" * 100,
+            [], {"goal": "g"},
+        )
+        _save_fetch_checkpoint(
+            material_filename, "https://example.org/b", "正文 B" * 100,
+            [], {"goal": "g"},
+        )
+        cp = _load_fetch_checkpoint(material_filename)
+        assert cp is not None
+        self.assertEqual(cp["fetched_count"], 2)
+        from app.services.evidence import text_hash
+        self.assertEqual(cp["pages"]["https://example.org/a"]["sha256"],
+                         text_hash("正文 A" * 100))
+        # draft 落盘:状态标记 draft,gaps 保留
+        draft_path = _save_draft_from_checkpoint(
+            material_filename, ["材料覆盖缺口:超时轨迹签名"], {"goal": "g"})
+        assert draft_path is not None
+        draft = json.loads(open(draft_path, encoding="utf-8").read())
+        self.assertEqual(draft["state"], "draft")
+        self.assertEqual(draft["fetched_count"], 2)
+        self.assertTrue(any("超时轨迹签名" in g for g in draft["unresolved_gaps"]))
+        # cached_material 只认正式后缀——draft 不可被备课消费
+        from app.agent.research import cached_material
+        self.assertIsNone(cached_material("t", "checkpoint-test"))
+        # 损坏检查点不阻塞(返回 None 走全新调研)
+        cp_path = _checkpoint_path(material_filename)
+        cp_path.write_text("{ broken", encoding="utf-8")
+        self.assertIsNone(_load_fetch_checkpoint(material_filename))
+
     def test_material_cache_with_stale_goal_context_is_not_reused(self) -> None:
         path = self.data_dir / "research" / "eval.course.material.json"
         path.parent.mkdir(parents=True)

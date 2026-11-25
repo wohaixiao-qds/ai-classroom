@@ -910,6 +910,12 @@ def _loop(
                 url = str(b.input.get("url", ""))
                 if url not in successful_fetches:
                     successful_fetches[url] = {"result": out, "call_index": len(tool_calls) - 1}
+                    # T2.1 抓取级持久检查点:每成功抓一页即原子落盘(临时+replace),
+                    # kill -9 级中断也能恢复——已抓正文不重复请求。
+                    if material_filename:
+                        _save_fetch_checkpoint(
+                            material_filename, url, out, tool_calls, research_context,
+                        )
                 emit_progress("material" if phase.startswith("material:") else "research",
                               "running", f"已读取来源正文：{url}",
                               current=len(successful_fetches))
@@ -950,6 +956,95 @@ def _loop(
 
 def _slug(s: str) -> str:
     return re.sub(r"[^\w-]+", "-", s).strip("-")[:40] or "topic"
+
+
+def _checkpoint_path(material_filename: str) -> Path:
+    """T2.1 抓取级检查点路径(与 publication 审查 checkpoint 无关,勿混淆):
+    `{slug}.material.checkpoint.json`——kill -9 级中断的可恢复现场。"""
+    base = material_filename[:-5] if material_filename.endswith(".json") else material_filename
+    return settings.data_dir / "research" / f"{base}.checkpoint.json"
+
+
+def _save_fetch_checkpoint(
+    material_filename: str, url: str, body: str,
+    tool_calls: list[dict[str, Any]], research_context: dict[str, Any] | None,
+) -> None:
+    """每成功抓取一页即增量更新检查点(原子写):已抓正文+哈希+候选材料+缺口+约束哈希+阶段。
+    读取方按 T2.2 状态语义恢复;任何一步损坏按 RevisionBlocked 式防御忽略整个检查点。"""
+    path = _checkpoint_path(material_filename)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing: dict[str, Any] = {}
+    if path.exists():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                existing = loaded
+        except (OSError, ValueError):
+            existing = {}  # 损坏检查点不阻塞调研,重写即可
+    pages = existing.get("pages") or {}
+    pages[url] = {
+        "body": body,
+        "sha256": text_hash(body),
+        "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    cp: dict[str, Any] = {
+        "version": 1,
+        "pages": pages,
+        "fetched_count": len(pages),
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    if research_context is not None:
+        cp["research_context_hash"] = digest(research_context)
+    tmp = path.with_suffix(f".{uuid4().hex}.tmp")
+    try:
+        tmp.write_text(json.dumps(cp, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def _load_fetch_checkpoint(material_filename: str) -> dict[str, Any] | None:
+    """读抓取检查点;损坏/缺失返回 None(调用方走全新调研)。"""
+    path = _checkpoint_path(material_filename)
+    if not path.exists():
+        return None
+    try:
+        cp = json.loads(path.read_text(encoding="utf-8"))
+        return cp if isinstance(cp, dict) and cp.get("pages") else None
+    except (OSError, ValueError):
+        return None
+
+
+def _save_draft_from_checkpoint(
+    material_filename: str, gaps: list[str],
+    research_context: dict[str, Any] | None,
+) -> str | None:
+    """T2.3:把抓取检查点升级为 draft 文件(有网页正文,未过覆盖闸)。
+    draft 不可被备课消费(cached_material 只认正式后缀);返回 draft 路径或 None。"""
+    cp = _load_fetch_checkpoint(material_filename)
+    if not cp or not cp.get("pages"):
+        return None
+    draft_path = Path(
+        settings.data_dir / "research"
+        / (material_filename.replace(".json", "") + ".draft.json")
+    )
+    draft = {
+        "version": 1,
+        "state": "draft",  # 状态标记:draft 不得进入备课缓存
+        "pages": cp.get("pages", {}),
+        "fetched_count": cp.get("fetched_count", 0),
+        "unresolved_gaps": gaps[:6],
+        "research_context_hash": digest(research_context) if research_context else None,
+        "saved_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    tmp = draft_path.with_suffix(f".{uuid4().hex}.tmp")
+    try:
+        tmp.write_text(json.dumps(draft, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(draft_path)
+        print(f"已保存调研 draft({draft['fetched_count']} 页正文): {draft_path.name}", flush=True)
+        return str(draft_path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def _save(d: dict[str, Any], filename: str) -> None:
@@ -1172,7 +1267,11 @@ def research_material(
             raise
         last_errors = [seg.strip() for seg in
                        msg.split("最后问题:")[1].strip("]'").split(";") if seg.strip()]
-        print(f"首轮调研耗尽,进覆盖缺口补挖循环({len(last_errors)} 个缺口)", flush=True)
+        # T2.3:覆盖闸打回即落 draft(有网页+候选材料,未过覆盖闸)——已抓正文不丢,
+        # 下次点单可从 draft 续(draft 不可被备课消费,cached_material 只认正式后缀)。
+        _save_draft_from_checkpoint(path, last_errors, context)
+        print(f"首轮调研耗尽,已落 draft;进覆盖缺口补挖循环({len(last_errors)} 个缺口)",
+              flush=True)
     else:
         d.pop("_usage", None)
         d["_material_path"] = str(settings.data_dir / "research" / path)
@@ -1211,7 +1310,9 @@ def research_material(
         d["_material_path"] = str(settings.data_dir / "research" / path)
         return d
     raise TimeoutError(
-        f"覆盖闸缺口经 2 轮补挖仍未补齐: {last_errors[:2]};请人工审阅该课 goal/scope 或手动补料"
+        f"覆盖闸缺口经 2 轮补挖仍未补齐: {last_errors[:2]};"
+        f"draft 已保存于 {path.replace('.json', '.draft.json')},"
+        "请人工审阅该课 goal/scope 或从 draft 续挖"
     )
 
 
