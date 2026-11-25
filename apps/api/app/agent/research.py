@@ -718,6 +718,7 @@ def _loop(
                 parameters={"max_tokens": token_budget,
                             "max_turns": turns_budget})
 
+    consecutive_failures = 0  # 退避按连续失败计数,成功归零(按绝对轮次会让后期恢复越来越慢)
     for turn in range(turns_budget):
         update_run(turns=turn + 1)
         last_turn = turn == turns_budget - 1
@@ -730,15 +731,20 @@ def _loop(
                 messages=messages,
                 tools=[] if last_turn else RESEARCH_TOOLS,
             )
+            consecutive_failures = 0
         except Exception as exc:  # noqa: BLE001 单轮网络/中转故障打回重试,不炸整条管线
             transient = isinstance(exc, (TimeoutError, ConnectionError)) or (
                 type(exc).__name__ in ("APIConnectionError", "APITimeoutError",
                                        "InternalServerError", "OverloadedError"))
             if not transient or last_turn:
                 raise
+            consecutive_failures += 1
             update_run(validation_errors=[f"模型调用 {type(exc).__name__},重试"])
-            print(f"⚠️ 模型调用 {type(exc).__name__}(turn {turn + 1}),重试", flush=True)
-            _sleep_backoff(20.0 * (turn + 1))  # 递增退避:给拥堵的中转降温(测试可注入零等待)
+            print(f"⚠️ 模型调用 {type(exc).__name__}(turn {turn + 1},"
+                  f"连续第 {consecutive_failures} 次),重试", flush=True)
+            # 退避 = min(连续失败 × 20s, 120s 封顶),成功归零——按绝对轮次会让
+            # 后期恢复越来越慢(turn 11 退避 220s,抖动天恶性循环,E2E 实测)
+            _sleep_backoff(min(20.0 * consecutive_failures, 120.0))
             continue
         model_s += time.perf_counter() - model_started
         u = resp.usage
