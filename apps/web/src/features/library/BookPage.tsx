@@ -362,9 +362,15 @@ export function BookPage() {
       {groups.map((g) => (
         <section key={g.part} className="mb-8">
           {g.part !== "正文" && (
-            <h2 className="mb-3 border-b border-border pb-1.5 font-mono text-[11px] tracking-widest text-primary">
-              ◆ {g.part}
-            </h2>
+            <div className="mb-3 flex items-center gap-2.5">
+              <span className="font-mono text-[10.5px] tracking-[0.2em] text-muted-foreground">
+                {g.part}
+              </span>
+              <span
+                aria-hidden="true"
+                className="h-px flex-1 bg-gradient-to-r from-border to-transparent"
+              />
+            </div>
           )}
           <div className="space-y-3">
             {g.items.map(({ c, i }) => {
@@ -392,7 +398,9 @@ export function BookPage() {
                         <LoaderCircle size={14} className="animate-spin text-warning" />
                       </span>
                     ) : isCursor ? (
-                      <Play size={14} className="anim-pop shrink-0 text-primary" />
+                      <span className="anim-pop inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-primary)_14%,transparent)]">
+                        <Play size={10} fill="currentColor" />
+                      </span>
                     ) : (
                       <span className="w-[14px] shrink-0" />
                     )}

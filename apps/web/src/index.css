@@ -97,6 +97,8 @@
   --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
   /* 阅读正文(P6):霞鹜文楷,书页阅读器的长文阅读字体 */
   --font-reading: "LXGW WenKai", "Noto Sans SC Variable", "PingFang SC", sans-serif;
+  /* 书封书名衬线栈(两区制规范 §三;Noto Serif SC 未自托管,macOS 落 Songti SC,其余落 serif) */
+  --font-display: "Noto Serif SC", "Songti SC", "LXGW WenKai", Georgia, serif;
 
   --color-background: var(--bg);
   --color-foreground: var(--text);
@@ -357,8 +359,44 @@
   }
   .library-book-card:hover .library-book-card__surface,
   .library-book-card:focus-within .library-book-card__surface {
-    transform: translateY(-6px);
-    box-shadow: 0 18px 34px -24px rgb(0 0 0 / 0.9);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-2);
+  }
+  /* 立体书封(两区制规范 §5.1,library.html v2):布面渐变由内联样式给,这里管形态 */
+  .book-cover {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: none;
+    border-radius: 4px 10px 10px 4px;
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.08),
+      0 1px 2px rgb(20 20 30 / 0.25),
+      0 10px 22px rgb(20 20 30 / 0.22);
+    transition: transform var(--dur-med) var(--ease-out);
+  }
+  /* 书脊折痕高光 + 顶部光泽,一次画完 */
+  .book-cover::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background:
+      linear-gradient(90deg, rgb(0 0 0 / 0.28) 0%, transparent 9%, rgb(255 255 255 / 0.14) 15%, transparent 26%),
+      linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(0 0 0 / 0.08));
+    pointer-events: none;
+  }
+  .library-book-card:hover .book-cover {
+    transform: perspective(700px) rotateY(-5deg);
+  }
+  .book-cover--mini {
+    width: 42px;
+    height: 58px;
+    border-radius: 4px 7px 7px 4px;
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.08),
+      0 1px 2px rgb(20 20 30 / 0.2),
+      0 4px 10px rgb(20 20 30 / 0.18);
   }
   .desktop-book-enter {
     animation: fade-up var(--dur-med) var(--ease-out) both;
@@ -430,6 +468,9 @@
   .library-book-card:focus-within .library-book-card__surface {
     transform: none;
     box-shadow: none;
+  }
+  .library-book-card:hover .book-cover {
+    transform: none;
   }
 }
 

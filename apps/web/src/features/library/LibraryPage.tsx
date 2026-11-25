@@ -3,7 +3,7 @@
  *  旧「一页平铺所有大纲卡」换成了真实书架隐喻——目录细节下沉到书页层。 */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowUpRight, BookOpen, CircleCheck, LibraryBig, LoaderCircle, Play, RotateCcw, Route, SquarePen } from "lucide-react";
+import { BookOpen, CircleCheck, LibraryBig, LoaderCircle, Play, RotateCcw, Route, SquarePen } from "lucide-react";
 
 import { KindIcon } from "../../components/KindIcon";
 import { PageError, PageLoading } from "../../components/PageState";
@@ -65,13 +65,20 @@ interface ShelfBook {
   }[];
 }
 
-/** 封面色板(低饱和,与三主题和谐):按书名哈希取,同书恒色 */
-const COVERS = [
-  "from-primary/25 via-card to-secondary",
-  "from-blue-500/20 via-card to-secondary",
-  "from-amber-500/15 via-card to-secondary",
-  "from-emerald-500/15 via-card to-secondary",
+/** 立体书封布面渐变(两区制规范 §5.1,library.html v2):亮→深两档,按名字哈希取,同书恒色 */
+const COVER_GRADS = [
+  ["#5462dd", "#2b3588"],
+  ["#3e8f76", "#1e5c4a"],
+  ["#b9792e", "#7a4a16"],
+  ["#7d8394", "#474b5e"],
 ];
+
+function coverGrad(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  const [a, b] = COVER_GRADS[h % COVER_GRADS.length]!;
+  return `linear-gradient(160deg, ${a} 0%, ${b} 100%)`;
+}
 
 export function LibraryPage() {
   const { cat } = useCatalog();
@@ -143,21 +150,29 @@ export function LibraryPage() {
 
       {/* 今日横条:断点继续学 + 到期复习(原学习台独有职责,合一后置顶常驻) */}
       {(continuing.length > 0 || (due && due.items.length > 0)) && (
-        <section aria-label="今日学习" className="mb-8 grid grid-cols-1 gap-3 sm:grid-flow-col sm:auto-cols-fr sm:grid-cols-none">
+        <section aria-label="今日学习" className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-[1.5fr_1fr]">
           {continuing.length > 0 &&
             (() => {
               const c = continuing[0];
               return (
-                <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
-                  <div className="min-w-0">
-                    <p className="mb-0.5 flex items-center gap-1 font-mono text-xs text-primary">
-                      <Play size={11} />
-                      继续学{continuing.length > 1 ? ` · ${continuing.length} 门进行中` : ""}
-                    </p>
-                    <p className="truncate text-sm font-medium">{c.title}</p>
-                    <p className="font-mono text-xs text-muted-foreground">
-                      上次读到第 {(c.prog!.sec ?? 0) + 1} 节
-                    </p>
+                <div className="flex min-w-0 items-center justify-between gap-4 rounded-2xl border border-border bg-card p-4 shadow-(--shadow-1)">
+                  <div className="flex min-w-0 items-center gap-4">
+                    {/* 迷你书封(library.html .mini):竖排书名,布面渐变按课名哈希 */}
+                    <div className="book-cover book-cover--mini p-1.5" style={{ background: coverGrad(c.title) }}>
+                      <i className="mx-auto max-h-full overflow-hidden font-display text-[9px] leading-[1.3] tracking-wide text-white/90 [writing-mode:vertical-rl]">
+                        {c.title}
+                      </i>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="mb-1 flex items-center gap-1 font-mono text-[11px] tracking-[0.14em] text-muted-foreground">
+                        <Play size={11} />
+                        继续读{continuing.length > 1 ? ` · ${continuing.length} 门进行中` : ""}
+                      </p>
+                      <p className="truncate text-[15px] font-semibold">{c.title}</p>
+                      <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                        上次读到第 {(c.prog!.sec ?? 0) + 1} 节
+                      </p>
+                    </div>
                   </div>
                   <Button size="sm" asChild className="shrink-0">
                     <Link to={`/read/${c.id}?section=${(c.prog!.sec ?? 0) + 1}`} viewTransition>
@@ -168,42 +183,51 @@ export function LibraryPage() {
               );
             })()}
           {due && due.items.length > 0 && (
-            <div className="min-w-0 rounded-xl border border-border bg-card p-4">
-              <p className="mb-2 flex items-center gap-1 font-mono text-xs text-primary">
-                <RotateCcw size={11} /> 今日复习 · {due.items.length} 张到期
-              </p>
-              {/* 到期多时限高滚动(滚动条占宽,右侧留呼吸位),别把书架顶出屏 */}
-              <ul className="max-h-56 space-y-1 overflow-y-auto pr-2">
-                {due.items.map((r) => (
-                  <li key={`${r.course_id}/${r.page_id}`}>
-                    <Link
-                      to={`/read/${r.course_id}?section=${r.page_no}`}
-                      viewTransition
-                      className="flex items-center justify-between gap-2 rounded-lg px-2 py-1 text-sm transition-colors hover:bg-secondary"
-                    >
-                      <span className="min-w-0 truncate text-muted-foreground">
-                        {r.course_title} · {r.page_title}
-                        {r.overdue_days > 0 && ` · 逾期 ${r.overdue_days} 天`}
-                      </span>
-                      <Badge
-                        variant={r.mastery >= 0.9 ? "success" : "warning"}
-                        className="shrink-0 font-mono text-[10px]"
+            <div className="flex min-w-0 items-start gap-4 rounded-2xl border border-border bg-card p-4 shadow-(--shadow-1)">
+              {/* 到期数 mono 大数字做视觉锚(library.html .bignum) */}
+              <div className="w-11 shrink-0 text-center font-mono text-[30px] font-semibold leading-none text-warning">
+                {due.items.length}
+                <span className="mt-1.5 block font-sans text-[10px] font-normal tracking-[0.08em] text-muted-foreground">
+                  到期
+                </span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="mb-2 flex items-center gap-1 font-mono text-[11px] tracking-[0.14em] text-muted-foreground">
+                  <RotateCcw size={11} /> 今日复习
+                </p>
+                {/* 到期多时限高滚动(滚动条占宽,右侧留呼吸位),别把书架顶出屏 */}
+                <ul className="max-h-48 space-y-1 overflow-y-auto pr-2">
+                  {due.items.map((r) => (
+                    <li key={`${r.course_id}/${r.page_id}`}>
+                      <Link
+                        to={`/read/${r.course_id}?section=${r.page_no}`}
+                        viewTransition
+                        className="flex items-center justify-between gap-2 rounded-lg px-2 py-1 text-sm transition-colors hover:bg-secondary"
                       >
-                        {Math.round(r.mastery * 100)}%
-                      </Badge>
-                    </Link>
-                    {/* 上次漏了(T2 错因结构化):带着旧缺口去复测,每条一句 */}
-                    {r.gaps.length > 0 && (
-                      <p
-                        className="truncate px-2 pt-0.5 text-[12px] leading-5 text-warning/90"
-                        title={r.gaps.join("；")}
-                      >
-                        上次漏了: {r.gaps.join("；")}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
+                        <span className="min-w-0 truncate text-muted-foreground">
+                          {r.course_title} · {r.page_title}
+                          {r.overdue_days > 0 && ` · 逾期 ${r.overdue_days} 天`}
+                        </span>
+                        <Badge
+                          variant={r.mastery >= 0.9 ? "success" : "warning"}
+                          className="shrink-0 font-mono text-[10px]"
+                        >
+                          {Math.round(r.mastery * 100)}%
+                        </Badge>
+                      </Link>
+                      {/* 上次漏了(T2 错因结构化):带着旧缺口去复测,每条一句 */}
+                      {r.gaps.length > 0 && (
+                        <p
+                          className="truncate px-2 pt-0.5 text-[12px] leading-5 text-warning/90"
+                          title={r.gaps.join("；")}
+                        >
+                          上次漏了: {r.gaps.join("；")}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           )}
         </section>
@@ -218,7 +242,7 @@ export function LibraryPage() {
             <Button asChild size="sm"><Link to="/studio">去生成中心</Link></Button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
             {books.map((b, idx) => {
               // 行级语义同书页(2026-11-17 拍板 A):全片读完才算行✓;游标=行内第一个未读片
               const rowComplete = (c: ShelfBook["courses"][number]) =>
@@ -231,78 +255,142 @@ export function LibraryPage() {
               const cursorFile =
                 cursor?.course_file_ids?.find((r) => !readyById.get(r)) ??
                 (cursor?.course_file_ids ?? [])[0];
-              const parts = new Set(b.courses.map((c) => c.part?.trim() || "正文"));
               const busy = b.courses.some(
                 (c) => c.prep_status === "queued" || c.prep_status === "running",
               );
               const allDone = b.courses.length > 0 && done === b.courses.length;
+              const fileCount = b.courses.filter(
+                (c) => (c.course_file_ids ?? []).length > 0,
+              ).length;
+              // 分篇分段进度(library.html v2 .bar):段=篇,段内填充=该篇已学比例,按首次出现保序
+              const partList: { name: string; done: number; total: number }[] = [];
+              for (const c of b.courses) {
+                const name = c.part?.trim() || "正文";
+                const last = partList[partList.length - 1];
+                if (last && last.name === name) {
+                  last.total += 1;
+                  if (rowComplete(c)) last.done += 1;
+                } else {
+                  partList.push({ name, total: 1, done: rowComplete(c) ? 1 : 0 });
+                }
+              }
               return (
                 <div
                   key={b.topic}
-                  className="library-book-card desktop-book-enter relative min-h-48 sm:aspect-[3/4]"
+                  className="library-book-card desktop-book-enter"
                   style={{ animationDelay: `${Math.min(idx, 6) * 35}ms` }}
                 >
                   <div
                     className={cn(
-                      "library-book-card__surface relative flex min-h-48 flex-col overflow-hidden rounded-xl border border-border bg-gradient-to-br sm:aspect-[3/4]",
-                      "hover:border-primary/55 focus-within:border-primary/60",
-                      COVERS[Math.abs(b.topic.length * 7 + idx) % COVERS.length],
+                      "library-book-card__surface flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-(--shadow-1)",
+                      "hover:border-primary/40 focus-within:border-primary/50",
                     )}
                   >
-                    {/* 书名区:整块可点,进书页目录 */}
-                    <Link
-                      to={`/books/${encodeURIComponent(b.topic)}`}
-                      viewTransition
-                      className="group/cover flex min-h-0 flex-1 flex-col outline-none focus-visible:ring-[3px] focus-visible:ring-ring/70 focus-visible:ring-inset"
-                      title={`打开《${b.topic}》目录`}
-                    >
-                      <span className="flex items-center gap-1 px-3 pt-3 font-mono text-[10px] tracking-widest text-muted-foreground">
-                        <BookOpen size={10} className="text-primary" />
-                        {b.domain || "书"}
-                        <ArrowUpRight
-                          aria-hidden="true"
-                          size={14}
-                          className="ml-auto hidden shrink-0 text-primary opacity-0 transition-[opacity,translate] duration-(--dur-fast) ease-out group-hover/cover:opacity-100 group-focus-visible/cover:opacity-100 motion-safe:-translate-x-1 motion-safe:group-hover/cover:translate-x-0 motion-safe:group-focus-visible/cover:translate-x-0 lg:block"
-                        />
-                      </span>
-                      <span className="mt-2 mb-3 line-clamp-3 px-3 break-words text-[15px] font-semibold leading-snug">
-                        {b.topic}
-                      </span>
-                      <span className="mt-auto px-3 pb-1">
-                        <span className="block font-mono text-[10px] text-muted-foreground">
-                          {parts.size} 篇 · {b.courses.length} 课
+                    <div className="flex min-h-0 flex-1 gap-4 p-4">
+                      {/* 立体书封:整块可点进书页目录;布面渐变按书名哈希恒色 */}
+                      <Link
+                        to={`/books/${encodeURIComponent(b.topic)}`}
+                        viewTransition
+                        className="book-cover h-[140px] w-[104px] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/60"
+                        style={{ background: coverGrad(b.topic) }}
+                        title={`打开《${b.topic}》目录`}
+                      >
+                        <span className="relative z-[1] flex min-h-0 flex-1 flex-col p-2.5">
+                          <span className="flex items-center gap-1 font-mono text-[8.5px] tracking-[0.22em] text-white/70">
+                            <BookOpen size={9} />
+                            {b.domain || "书"}
+                          </span>
+                          <span className="mt-1.5 line-clamp-3 font-display text-[17px] font-bold leading-[1.45] tracking-wide text-white/95 [text-shadow:0_1px_3px_rgb(0_0_0/0.25)]">
+                            {b.topic}
+                          </span>
+                          <span className="mt-auto flex items-center justify-between font-mono text-[9px] text-white/60">
+                            <span className="tabular-nums">
+                              {partList.length} 篇 · {b.courses.length} 课
+                            </span>
+                            <span aria-hidden="true" className="h-px w-5 bg-white/35" />
+                          </span>
+                        </span>
+                        {busy && (
+                          <LoaderCircle
+                            aria-hidden="true"
+                            size={14}
+                            className="absolute right-2 top-2 z-[1] animate-spin text-white/80"
+                          />
+                        )}
+                      </Link>
+                      {/* 信息区:状态 chips + 分篇分段进度条 + mono 计数 */}
+                      <div className="flex min-w-0 flex-1 flex-col pt-1">
+                        <h3 className="truncate text-[15px] font-bold tracking-tight">{b.topic}</h3>
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px]",
+                              fileCount > 0
+                                ? "border-transparent bg-success/10 text-success"
+                                : "border-border text-muted-foreground",
+                            )}
+                          >
+                            <i className="size-1 rounded-full bg-current" />
+                            已出 {fileCount} / {b.courses.length}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-0.5 text-[11px] text-muted-foreground">
+                            <i className="size-1 rounded-full bg-current" />
+                            已学 {done}
+                          </span>
                           {busy && (
-                            <span className="ml-1 inline-flex translate-y-0.5 align-middle text-warning">
-                              <LoaderCircle size={10} className="animate-spin" />
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-warning/10 px-2.5 py-0.5 text-[11px] text-warning">
+                              <i className="size-1 rounded-full bg-current" />
+                              备课中
                             </span>
                           )}
-                        </span>
-                        <span className="mb-2 mt-1.5 block h-1 overflow-hidden rounded-full bg-foreground/10">
-                          <span
-                            className="block h-full rounded-full bg-primary transition-all"
-                            style={{
-                              width: `${b.courses.length ? Math.round((100 * done) / b.courses.length) : 0}%`,
-                            }}
-                          />
-                        </span>
-                      </span>
-                    </Link>
+                        </div>
+                        <div className="mt-auto">
+                          <div className="flex gap-1">
+                            {partList.map((seg) => (
+                              <span
+                                key={seg.name}
+                                title={`${seg.name} · 已学 ${seg.done}/${seg.total}`}
+                                className="h-[5px] flex-1 overflow-hidden rounded-full bg-secondary"
+                              >
+                                <span
+                                  className="block h-full rounded-full bg-primary transition-all"
+                                  style={{
+                                    width: `${seg.total ? Math.round((100 * seg.done) / seg.total) : 0}%`,
+                                  }}
+                                />
+                              </span>
+                            ))}
+                          </div>
+                          <div className="mt-2 flex items-baseline justify-between">
+                            <span className="text-[11px] tracking-[0.06em] text-muted-foreground">
+                              学习进度 · 按篇
+                            </span>
+                            <span className="font-mono text-xs font-semibold tabular-nums">
+                              {done} / {b.courses.length}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                     {/* 底条:当前课 + 继续读直达(书架一步进阅读器,不必先进书页) */}
-                    <span className="flex items-center justify-between gap-2 px-3 pb-3">
-                      <span className="min-w-0 truncate text-[11px]">
+                    <span className="flex items-center justify-between gap-2 border-t border-border/60 bg-secondary/40 px-4 py-2.5">
+                      <span className="min-w-0 truncate text-xs">
                         {allDone ? (
                           <span className="text-success">✓ 全书读完</span>
                         ) : cursor ? (
-                          <span className="text-muted-foreground">▶ {cursor.title}</span>
+                          <span className="text-muted-foreground">
+                            <span className="mr-1.5 text-primary">▶</span>
+                            {cursor.title}
+                          </span>
                         ) : (
-                          <span className="text-muted-foreground/70">未开课</span>
+                          <span className="text-muted-foreground/70">未开课 · 去书页点单备课</span>
                         )}
                       </span>
                       {cursor && cursorFile && (
                         <Link
                           to={`/read/${cursorFile}`}
                           viewTransition
-                          className="flex min-h-8 shrink-0 items-center rounded-md bg-primary/15 px-2 text-xs font-medium text-primary transition-colors hover:bg-primary/25"
+                          className="shrink-0 rounded-lg border border-primary/35 bg-card px-3 py-1 text-xs font-semibold text-primary shadow-(--shadow-1) transition-colors hover:bg-primary/10"
                           title={`继续读《${cursor.title}》`}
                         >
                           继续读
