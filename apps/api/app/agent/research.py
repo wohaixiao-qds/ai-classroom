@@ -752,17 +752,23 @@ def _loop(
         usage["output_tokens"] += getattr(u, "output_tokens", 0) or 0
         update_run(usage=usage)
 
-        # 收笔判定:last_turn 已撤工具,但兼容端点(智谱)在 tools=[] 时仍可能返回
-        # tool_use 幻觉块(E2E 缺陷#7:补挖最后一轮 756tok tool_use 被照常执行,
-        # 6 轮烧光后 last_err 全空,诊断信息丢失)——last_turn 的 tool_use 一律
-        # 当文本收笔处理,忽略幻觉工具块。
-        if resp.stop_reason != "tool_use" or last_turn:
-            text = "".join(b.text for b in resp.content if b.type == "text")
+        # 缺陷#8:兼容端点常把「文本(可能是交付 JSON)+幻觉 tool_use」混排,
+        # stop=tool_use 时文本被整个丢弃——#14 实测 15.2k 输出疑似完整交付被浪费。
+        # 先尝试解析文本中的 JSON,解析成功即走交付/校验流程(幻觉工具不执行);
+        # 失败且非 last_turn 才继续工具轮。
+        delivery_text = ""
+        if resp.stop_reason == "tool_use":
+            candidate = "".join(b.text for b in resp.content if b.type == "text")
+            if len(candidate) > 500 and parse_json_reply(candidate) is not None:
+                delivery_text = candidate
+        if resp.stop_reason != "tool_use" or last_turn or delivery_text:
+            text = delivery_text or "".join(b.text for b in resp.content if b.type == "text")
             update_run(last_response={"stop_reason": resp.stop_reason,
                                       "block_types": [b.type for b in resp.content],
                                       "text_length": len(text), "max_tokens": token_budget})
             draft = {"role": "assistant", "content": text or "（未返回可用正文）"}
-            d = None if resp.stop_reason == "max_tokens" else parse_json_reply(text)
+            d = None if resp.stop_reason == "max_tokens" and not delivery_text \
+                else parse_json_reply(text)
             if d is None:
                 # 保留模型的原始候选,让下一轮能针对截断/字段错误修复,而不是把
                 # assistant 内容替换成省略号后丢失诊断上下文。
