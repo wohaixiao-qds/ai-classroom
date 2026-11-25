@@ -651,19 +651,15 @@ def _report_review(material: dict[str, Any]) -> None:
 
 def _require_search() -> None:
     """fail-fast + 真探针:不止查 key 在不在,还真搜一次——把「余额不足/key 无效/网络不通」
-    这类真相在开工前报出来,不让模型带着坏工具在循环里挣扎(2026-08-24 实测踩过)。"""
-    from app.agent.tools import search_provider
-
-    p = search_provider()
-    if not p:
-        msg = (
-            "无可用搜索 provider:请在 config/secrets.env 配 SEARCH_API_KEY(博查)"
-            "或 TAVILY_API_KEY;AnySearch 匿名亦可,请检查网络"
-        )
-        raise RuntimeError(msg)
+    这类真相在开工前报出来,不让模型带着坏工具在循环里挣扎(2026-08-24 实测踩过)。
+    探针走 web_search 的全引擎 failover(缺陷#5):某引擎 403/欠费自动换下一个,
+    全部失败才拦。"""
     probe = web_search("connectivity probe")
     if probe.startswith("(搜索失败") or probe.startswith("(搜索不可用"):
-        raise RuntimeError(f"搜索探针失败({p}):{probe[:150]}")
+        raise RuntimeError(
+            "所有搜索引擎均不可用(逐个探测):"
+            f"{probe[:200]}。请检查 config/secrets.env 的搜索 key 或网络"
+        )
 
 
 def _user_seed(topic: str) -> str:

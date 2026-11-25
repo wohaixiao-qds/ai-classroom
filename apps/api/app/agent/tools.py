@@ -150,16 +150,22 @@ def search_provider() -> str | None:
 
 
 def web_search(query: str, recency: str | None = None) -> str:
-    """联网搜索(主 provider),返回 top 结果的标题/链接/摘要文本。答疑用。"""
-    p = search_provider()
+    """联网搜索:按优先级逐引擎尝试,某引擎失败(余额耗尽/网络/配额)自动换下一个。
+    E2E 缺陷#5:博查 403 余额耗尽时探针/单引擎直接死,而 AnySearch(匿名)/
+    Tavily 明明可用——配了多引擎就该用尽。"""
+    last_error = ""
     for name, fn, has_key in _ENGINES:
-        if p == name and has_key():
-            try:
-                return str(fn(query, recency))
-            except urllib.error.HTTPError as e:
-                body = e.read().decode()[:200]
-                return f"(搜索失败 HTTP {e.code}:{body}——基于已有知识回答并注明未经核实)"
-    return "(搜索不可用:未配置任何搜索 key。请基于已有知识回答,并注明未经联网核实)"
+        if not has_key():
+            continue
+        try:
+            return str(_net_retry(fn, query, recency))
+        except urllib.error.HTTPError as e:
+            last_error = f"{name} HTTP {e.code}"
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+            last_error = f"{name} {type(e).__name__}"
+    return (f"(搜索失败:{last_error}——基于已有知识回答并注明未经联网核实)"
+            if last_error else
+            "(搜索不可用:未配置任何搜索 key。请基于已有知识回答,并注明未经联网核实)")
 
 
 def web_search_multi(query: str, recency: str | None = None) -> str:
