@@ -137,30 +137,56 @@ _ENGINES: list[tuple[str, Any, Any]] = [
     ("tavily", _tavily_search, lambda: settings.tavily_api_key),
 ]
 
+# 引擎熔断(第一批⑤):认证/额度类 403 短期内不会恢复,每次探测浪费一次请求;
+# 进程内 TTL 状态(后台 job 是独立子进程,作用域=单任务)。策略类 403(临时风控)
+# 与配额 403 不区分——TTL 到期自然重探,误熔断代价低。
+_ENGINE_BAN: dict[str, float] = {}
+_ENGINE_BAN_TTL = 600.0  # 10 分钟
+
+# query 缓存(第一批⑤):同 query 短 TTL 内直接复用成功结果,省重复请求与等待。
+_QUERY_CACHE: dict[str, tuple[float, str]] = {}
+_QUERY_CACHE_TTL = 900.0  # 15 分钟
 
 
+def _engine_available(name: str) -> bool:
+    until = _ENGINE_BAN.get(name)
+    return until is None or time.time() >= until
+
+
+def _ban_engine(name: str) -> None:
+    _ENGINE_BAN[name] = time.time() + _ENGINE_BAN_TTL
+    print(f"⛔ 搜索引擎 {name} 熔断 {_ENGINE_BAN_TTL / 60:.0f} 分钟(认证/额度类失败)", flush=True)
 
 
 def search_provider() -> str | None:
-    """主 provider(单引擎调用,答疑用):博查 → AnySearch → Tavily。"""
+    """主 provider(单引擎调用,答疑用):博查 → AnySearch → Tavily(跳过熔断中引擎)。"""
     for name, _fn, has_key in _ENGINES:
-        if has_key():
+        if has_key() and _engine_available(name):
             return name
     return None
 
 
 def web_search(query: str, recency: str | None = None) -> str:
-    """联网搜索:按优先级逐引擎尝试,某引擎失败(余额耗尽/网络/配额)自动换下一个。
+    """联网搜索:按优先级逐引擎尝试,某引擎失败(余额耗尽/网络/配额)自动换下一个;
+    认证/额度类 403 触发 TTL 熔断(期间跳过该引擎);query 结果短 TTL 缓存。
     E2E 缺陷#5:博查 403 余额耗尽时探针/单引擎直接死,而 AnySearch(匿名)/
     Tavily 明明可用——配了多引擎就该用尽。"""
+    cache_key = f"{query}|{recency or ''}"
+    cached = _QUERY_CACHE.get(cache_key)
+    if cached and time.time() - cached[0] < _QUERY_CACHE_TTL:
+        return cached[1]
     last_error = ""
     for name, fn, has_key in _ENGINES:
-        if not has_key():
+        if not has_key() or not _engine_available(name):
             continue
         try:
-            return str(_net_retry(fn, query, recency))
+            result = str(_net_retry(fn, query, recency))
+            _QUERY_CACHE[cache_key] = (time.time(), result)
+            return result
         except urllib.error.HTTPError as e:
             last_error = f"{name} HTTP {e.code}"
+            if e.code in (401, 403):
+                _ban_engine(name)  # 认证/额度类:熔断,期间跳过
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
             last_error = f"{name} {type(e).__name__}"
     return (f"(搜索失败:{last_error}——基于已有知识回答并注明未经联网核实)"
@@ -171,18 +197,28 @@ def web_search(query: str, recency: str | None = None) -> str:
 def web_search_multi(query: str, recency: str | None = None) -> str:
     """多引擎合并观测(找资料 agent 用):博查中文生态 + AnySearch/Tavily 官方英文互补;
     单引擎失败不拖垮整体——把「社区视角」和「官方最新视角」都摆给模型。
-    网络类失败每引擎自动重试 3 次(_net_retry)。"""
+    网络类失败每引擎自动重试 3 次(_net_retry);认证/额度 403 触发 TTL 熔断;
+    provider 级计时埋点(第一批⑥):分项耗时供并发化决策。"""
     parts: list[str] = []
+    timings: list[str] = []
     for name, fn, has_key in _ENGINES:
-        if not has_key():
+        if not has_key() or not _engine_available(name):
             continue
+        t0 = time.time()
         try:
             r = _net_retry(fn, query, recency)
+            timings.append(f"{name} {time.time() - t0:.1f}s")
         except urllib.error.HTTPError as e:
+            timings.append(f"{name} {time.time() - t0:.1f}s(HTTP{e.code})")
+            if e.code in (401, 403):
+                _ban_engine(name)
             r = f"(该引擎失败 HTTP {e.code},忽略)"
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+            timings.append(f"{name} {time.time() - t0:.1f}s({type(e).__name__})")
             r = f"(该引擎网络失败 {type(e).__name__},已重试仍失败,忽略)"
         parts.append(f"## 搜索引擎 {name}\n{r}")
+    if timings:
+        print(f"  ⏱ 搜索分项: {' | '.join(timings)}", flush=True)
     return "\n\n".join(parts) if parts else web_search(query, recency)
 
 

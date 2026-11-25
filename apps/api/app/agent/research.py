@@ -15,12 +15,15 @@
 from __future__ import annotations
 
 import json
+import random
 import re
 import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
+
+from anthropic._exceptions import RateLimitError
 
 from app.agent.tools import (  # noqa: F401  # web_search 供 _require_search 探针
     emit_call,
@@ -701,7 +704,9 @@ def _loop(
 ) -> dict[str, Any]:
     """调研循环:工具轮 → 最终交付 JSON → 校验,不过则反馈重交。校验通过才返回。"""
     # 离线批量循环放宽单次超时(与 prep.py 同因:长交付在中转慢速时 60s 不够)
-    client = get_llm_client().with_options(timeout=240.0)
+    # 第一批边界控制:独立客户端 max_retries=0——SDK 自动重试(3×timeout≈720s 长尾)
+    # 由应用层接管(transport_attempt 循环),超时/重试/终止策略统一在循环内决定。
+    client = get_llm_client().with_options(timeout=300.0, max_retries=0)
     messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
     tool_calls: list[dict[str, Any]] = []
     successful_fetches: dict[str, dict[str, Any]] = {}
@@ -718,34 +723,39 @@ def _loop(
                 parameters={"max_tokens": token_budget,
                             "max_turns": turns_budget})
 
-    consecutive_failures = 0  # 退避按连续失败计数,成功归零(按绝对轮次会让后期恢复越来越慢)
+    deliver_mode = False  # 墙钟超限后的交付模式:撤工具直到交付(第一批②)
     for turn in range(turns_budget):
         update_run(turns=turn + 1)
         last_turn = turn == turns_budget - 1
         model_started = time.perf_counter()
-        try:
-            resp = client.messages.create(
-                model=settings.llm_model,
-                max_tokens=token_budget,  # 带原文摘录的原料用32K,避免思考+完整JSON连续撞16K
-                # 观测客户端返回 Any,dict messages 直传不再需要 ignore(历史上 SDK TypedDict 拒 dict)
-                messages=messages,
-                tools=[] if last_turn else RESEARCH_TOOLS,
-            )
-            consecutive_failures = 0
-        except Exception as exc:  # noqa: BLE001 单轮网络/中转故障打回重试,不炸整条管线
-            transient = isinstance(exc, (TimeoutError, ConnectionError)) or (
-                type(exc).__name__ in ("APIConnectionError", "APITimeoutError",
-                                       "InternalServerError", "OverloadedError"))
-            if not transient or last_turn:
-                raise
-            consecutive_failures += 1
-            update_run(validation_errors=[f"模型调用 {type(exc).__name__},重试"])
-            print(f"⚠️ 模型调用 {type(exc).__name__}(turn {turn + 1},"
-                  f"连续第 {consecutive_failures} 次),重试", flush=True)
-            # 退避 = min(连续失败 × 20s, 120s 封顶),成功归零——按绝对轮次会让
-            # 后期恢复越来越慢(turn 11 退避 220s,抖动天恶性循环,E2E 实测)
-            _sleep_backoff(min(20.0 * consecutive_failures, 120.0))
-            continue
+        # 第一批边界控制:独立客户端 max_retries=0(SDK 3×240s 的长尾由应用层接管),
+        # 搜索轮 110s/交付轮(last_turn)300s——交付 JSON 是重活,单独放宽。
+        resp = None
+        for transport_attempt in (1, 2):  # 应用层只重试 1 次,总等待 ≈2×timeout
+            try:
+                resp = client.messages.create(
+                    model=settings.llm_model,
+                    max_tokens=token_budget,
+                    messages=messages,
+                    tools=[] if (last_turn or deliver_mode) else RESEARCH_TOOLS,
+                    timeout=300.0 if (last_turn or deliver_mode) else 110.0,
+                )
+                break
+            except RateLimitError:
+                raise  # 429 走 key 守卫与独立策略,不在调研循环里吞
+            except Exception as exc:  # noqa: BLE001 传输类失败按下面 transient 策略处理
+                if transport_attempt == 2:
+                    raise
+                transient = isinstance(exc, (TimeoutError, ConnectionError)) or (
+                    type(exc).__name__ in ("APIConnectionError", "APITimeoutError",
+                                           "InternalServerError", "OverloadedError"))
+                if not transient:
+                    raise
+                print(f"⚠️ 模型调用传输失败({type(exc).__name__}),"
+                      f"5~15s 后重试 1/1", flush=True)
+                _sleep_backoff(5.0 + random.uniform(0, 10.0))
+        if resp is None:
+            raise RuntimeError("模型调用未返回")  # 防御:循环两轮都没赋值
         model_s += time.perf_counter() - model_started
         u = resp.usage
         usage["input_tokens"] += getattr(u, "input_tokens", 0) or 0
@@ -900,6 +910,24 @@ def _loop(
             results.append({"type": "tool_result", "tool_use_id": b.id, "content": out,
                             "is_error": bool(err)})
         messages.append({"role": "user", "content": results})
+        # 整轮墙钟预算(第一批②):模型调用+工具执行合计超 6 分钟,强制收敛交付——
+        # 单轮 ≠ 只有模型时间,fetch_page/web_search 也占墙钟;预算是软顶(下一轮收笔)。
+        if not last_turn and (time.perf_counter() - model_started) > 360.0:
+            print(f"⚠️ 第 {turn + 1} 轮墙钟超 360s,下一轮进入交付模式", flush=True)
+            messages.append({"role": "user", "content": (
+                "本轮耗时过长。立即停止搜索/抓取,基于已收集的全部材料输出完整交付 JSON,"
+                "不要再调用任何工具。"
+            )})
+            deliver_mode = True  # 撤工具直到交付完成(交付重试也不带工具)
+        # 整轮墙钟预算(第一批②):模型调用+工具执行合计超 6 分钟,强制收敛交付——
+        # 单轮 ≠ 只有模型时间,fetch_page/web_search 也占墙钟;预算是软顶(下一轮收笔)。
+        if not last_turn and (time.perf_counter() - model_started) > 360.0:
+            print(f"⚠️ 第 {turn + 1} 轮墙钟超 360s,下一轮进入交付模式", flush=True)
+            messages.append({"role": "user", "content": (
+                "本轮耗时过长。立即停止搜索/抓取,基于已收集的全部材料输出完整交付 JSON,"
+                "不要再调用任何工具。"
+            )})
+            # 从下一轮起进入交付模式:撤工具直到交付完成(交付可能需要多轮重试)
 
     update_run(research_cost={
         "generation_s": round(model_s, 3),

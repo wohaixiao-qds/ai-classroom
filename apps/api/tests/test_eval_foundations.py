@@ -180,9 +180,9 @@ class EvalTests(unittest.TestCase):
                 prep.run_prep({"topic": "topic", "subtopic": "sub", "groups": []})
         for stage in ("research", "prep"):
             row = trace.read_traces(f"{stage}.jsonl")[0]
-            # research 侧重试守卫耗尽 MAX_TURNS 才抛(turns=16);prep 侧无 retry,首轮抛(turns=1)。
-            expected_turns = research.MAX_TURNS if stage == "research" else 1
-            self.assertEqual((row["status"], row["turns"]), ("failed", expected_turns))
+            # 边界控制后:research 非末轮传输失败重试 1 次即抛(turns=1,快速明确失败);
+            # prep 无传输重试,首轮抛(turns=1)。
+            self.assertEqual((row["status"], row["turns"]), ("failed", 1))
             self.assertIn("context_hash", row["versions"])
 
     def test_legacy_unknown_and_abandoned_process_interrupted(self) -> None:
