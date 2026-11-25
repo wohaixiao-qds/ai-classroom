@@ -73,7 +73,7 @@ export function StudioPage() {
         </div>
       </header>
 
-      <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-(--shadow-1) sm:p-6">
         <SectionHeader icon={Sprout} title="新建学习主题" hint="开始生成后，先调研学习路线，再生成领域大纲与第一门样课。" />
         <form onSubmit={(event) => { event.preventDefault(); void submit("generate"); }} className="mt-4 flex max-w-3xl flex-wrap gap-2">
           <Input

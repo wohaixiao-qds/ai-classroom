@@ -32,7 +32,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 function TrustEvidence({ report }: { report: Trust }) {
   const { checks = [], sources = [], mappings = [], reviews = [], limitations = [] } = report;
   return (
-    <div className="space-y-5 rounded-lg border border-border bg-background/50 p-4">
+    <div className="space-y-5 rounded-xl border border-border bg-background/50 p-4">
       <div>
         <h4 className="flex items-center gap-2 font-medium"><ShieldCheck size={16} />可核查依据</h4>
         <p className="mt-1 text-sm text-muted-foreground">不提供可信度总分。程序检查与模型意见分别展示；未记录人工审核。</p>
@@ -139,7 +139,7 @@ function JobProgress({ job, onChanged }: { job: Job; onChanged: () => void }) {
     {error && <p role="alert" className="break-words text-sm text-destructive">{error}</p>}
     {!detail && !error && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle size={14} className="motion-safe:animate-spin" />正在读取流程记录…</p>}
     {detail && <>
-      <p className="text-xs text-muted-foreground">执行尝试 {detail.attempts} 次 · {detail.history_recorded ? "以下节点来自已保存的执行事件" : "历史任务未记录完整流程，不补造进度"}</p>
+      <p className="text-xs text-muted-foreground tabular-nums">执行尝试 {detail.attempts} 次 · {detail.history_recorded ? "以下节点来自已保存的执行事件" : "历史任务未记录完整流程，不补造进度"}</p>
       {currentJob.detail && <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{currentJob.detail}</p>}
       <ol className="ml-2 border-l border-border">
         {STAGES.map(([stage, label]) => {
@@ -150,7 +150,7 @@ function JobProgress({ job, onChanged }: { job: Job; onChanged: () => void }) {
           const Icon = state === "completed" ? CircleCheck : state === "failed" ? CircleX : state === "running" ? LoaderCircle : CircleDashed;
           return <li key={stage} className="relative pb-5 pl-6 last:pb-0">
             <Icon aria-hidden="true" size={17} className={`absolute -left-[9px] top-0.5 bg-card ${state === "completed" ? "text-success" : state === "failed" ? "text-destructive" : activelyRunning ? "text-primary motion-safe:animate-spin" : "text-muted-foreground"}`} />
-            <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium">{label}</span><span className="text-xs text-muted-foreground">{state === "completed" ? "完成" : state === "failed" ? "需要处理" : state === "running" ? activelyRunning ? "进行中" : currentJob.status === "stopping" ? "正在停止，保留进度" : "已中断，保留进度" : state === "skipped" ? "不适用" : detail.history_recorded ? "尚无执行记录" : "历史未记录"}</span>{latest?.total != null && latest.current != null && <span className="font-mono text-xs text-muted-foreground">{latest.current}/{latest.total}</span>}</div>
+            <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium">{label}</span><span className="text-xs text-muted-foreground">{state === "completed" ? "完成" : state === "failed" ? "需要处理" : state === "running" ? activelyRunning ? "进行中" : currentJob.status === "stopping" ? "正在停止，保留进度" : "已中断，保留进度" : state === "skipped" ? "不适用" : detail.history_recorded ? "尚无执行记录" : "历史未记录"}</span>{latest?.total != null && latest.current != null && <span className="font-mono text-xs text-muted-foreground tabular-nums">{latest.current}/{latest.total}</span>}</div>
             {latest && <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">{latest.detail}</p>}
             {events.length > 1 && <details className="mt-2 text-xs text-muted-foreground"><summary className="cursor-pointer">查看本节点 {events.length} 条记录</summary><ul className="mt-2 space-y-2">{events.map((event) => <li key={event.id} className="break-words"><time>{event.created_at}</time> · 执行记录 #{event.action_id}<br />{event.detail}</li>)}</ul></details>}
           </li>;
@@ -225,10 +225,10 @@ export function GenerationTasks({ refreshKey, focusJob }: {
   const history = jobs.filter((job) => !["running", "queued", "stopping"].includes(job.status));
   const renderJob = (job: Job) => {
     const key = keyOf(job); const open = selected === key;
-    return <article id={`generation-job-${job.id}`} key={key} className={`scroll-mt-6 overflow-hidden rounded-xl border bg-card ${["running", "queued", "stopping"].includes(job.status) ? "border-primary/40" : "border-border"}`}>
+    return <article id={`generation-job-${job.id}`} key={key} className={`scroll-mt-6 overflow-hidden rounded-2xl border bg-card shadow-(--shadow-1) ${open ? "" : "card-lift"} ${["running", "queued", "stopping"].includes(job.status) ? "border-primary/40" : "border-border"}`}>
       <button type="button" aria-expanded={open} aria-controls={`generation-${job.id}`} onClick={() => setSelected(open ? null : key)} className="flex min-h-11 w-full items-start gap-3 p-4 text-left sm:p-5">
         <div className="min-w-0 flex-1"><p className="break-words font-medium">{job.label || job.target}</p><p className="mt-1 text-sm text-muted-foreground">{job.kind === "request_research" ? "主题调研与首课" : job.kind === "outline_prep" ? "大纲逐课备课" : "笔记备课"} · {job.created_at}</p></div>
-        <Badge variant={job.status === "done" ? "success" : job.status === "failed" ? "destructive" : ["running", "queued", "stopping"].includes(job.status) ? "warning" : "secondary"}>{STATUS[job.status] || job.status}</Badge>
+        <Badge variant={job.status === "done" ? "success" : job.status === "failed" ? "destructive" : ["running", "queued", "stopping"].includes(job.status) ? "warning" : "secondary"} className="rounded-full px-2.5"><i aria-hidden="true" className="size-1 rounded-full bg-current" />{STATUS[job.status] || job.status}</Badge>
         {open ? <ChevronUp size={16} className="mt-1 shrink-0" /> : <ChevronDown size={16} className="mt-1 shrink-0" />}
       </button>
       {open && <div id={`generation-${job.id}`}><JobProgress job={job} onChanged={() => void load()} /></div>}
@@ -238,10 +238,10 @@ export function GenerationTasks({ refreshKey, focusJob }: {
     <SectionHeader icon={ListChecks} title="生成任务" count={jobs.length} hint="查看真实节点与验收依据；进行中的任务优先展示。" />
     {error && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">{error}<Button variant="outline" size="sm" onClick={() => void load()}>重新加载</Button></div>}
     {loading && <p role="status" className="text-sm text-muted-foreground">正在读取任务…</p>}
-    {!loading && !error && !jobs.length && <p className="rounded-lg border border-dashed border-border p-5 text-sm text-muted-foreground">输入想学的主题后，调研、大纲、备课和验收进展会逐步出现在这里。</p>}
+    {!loading && !error && !jobs.length && <p className="rounded-xl border border-dashed border-border p-5 text-sm text-muted-foreground">输入想学的主题后，调研、大纲、备课和验收进展会逐步出现在这里。</p>}
     {active.map(renderJob)}
     {!loading && jobs.length > 0 && active.length === 0 && <p className="text-sm text-muted-foreground">当前没有正在生成的任务。</p>}
-    {history.length > 0 && <details open={historyOpen} onToggle={(event) => { if (event.target === event.currentTarget) setHistoryOpen(event.currentTarget.open); }} className="rounded-xl border border-border p-4">
+    {history.length > 0 && <details open={historyOpen} onToggle={(event) => { if (event.target === event.currentTarget) setHistoryOpen(event.currentTarget.open); }} className="rounded-2xl border border-border bg-card p-4 shadow-(--shadow-1)">
       <summary className="min-h-11 cursor-pointer content-center text-sm font-medium">历史任务（{history.length}）</summary>
       {historyOpen && <div className="mt-3 space-y-3">{history.map(renderJob)}</div>}
     </details>}

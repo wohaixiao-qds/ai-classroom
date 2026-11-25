@@ -85,7 +85,7 @@ export function NotePicker({ open, onOpenChange, notes, onFocusJob, returnFocus 
         {filtered.map((note) => {
           const job = jobs?.find((item) => item.kind === "request_prep" && item.target === note.path);
           const resumable = !!job && job.can_resume;
-          return <li key={note.path} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4">
+          return <li key={note.path} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-4">
             <div className="min-w-0 flex-[1_1_14rem]">
               <p className="break-words font-medium">{note.title}</p>
               <p className="mt-1 break-all text-sm text-muted-foreground">{note.path}</p>

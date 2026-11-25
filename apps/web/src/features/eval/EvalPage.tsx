@@ -119,11 +119,11 @@ export function EvalPage() {
   const q = data?.summary.quality;
   const c = data?.summary.cost;
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="workspace-page">
+      <header className="workspace-header flex-col items-start sm:flex-row">
         <div>
-          <h1 className="text-2xl font-bold">Eval 观测</h1>
-          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+          <h1 className="workspace-title">Eval 观测</h1>
+          <p className="workspace-description">
             看执行是否完成、规则是否遵守、证据是否支撑回答。模型审查结果需结合原文复核。
           </p>
         </div>
@@ -154,7 +154,7 @@ export function EvalPage() {
             <Metric label="预算收尾 / 截断" value={`${q.soft_landed} / ${q.truncated}`} />
             <Metric label="缺证据 / 部分缺证据" value={`${q.assessment_counts.unsupported ?? 0} / ${q.assessment_counts.partial ?? 0}`} hint="证据不足不能直接判定事实编造" />
           </div>
-          <div className="mt-3 space-y-1 text-sm leading-relaxed text-muted-foreground">
+          <div className="mt-3 space-y-1 text-sm leading-relaxed text-muted-foreground tabular-nums">
             <p>未评原因：{countText(q.skip_reasons, SKIP) || "无"}。高风险全评，其余固定 20% 抽样。</p>
             <p>执行均耗时 {c.avg_elapsed_s}s · 已知用量 in {c.in_tokens} / out {c.out_tokens} tokens · {c.unknown_usage} 次缺用量。</p>
             <p>裁判另计 in {c.judge_in_tokens} / out {c.judge_out_tokens} tokens · 累计 {c.judge_elapsed_s}s。答疑与裁判共用模型，结果有同源偏差。</p>
@@ -170,7 +170,7 @@ export function EvalPage() {
             {Object.entries(STAGES).map(([key, name]) => {
               const metrics = data.summary.stages[key];
               return <Button key={key} variant={stage === key ? "default" : "outline"}
-                className="h-auto min-h-11 flex-col items-start gap-1 whitespace-normal p-3 text-left"
+                className="h-auto min-h-11 flex-col items-start gap-1 whitespace-normal p-3 text-left shadow-(--shadow-1)"
                 aria-pressed={stage === key} onClick={() => setStage(key as keyof typeof STAGES)}>
                 <span>{name} · {metrics?.total ?? 0}</span>
                 <span className="text-xs font-normal leading-relaxed">{countText(metrics?.statuses ?? {}, STATUS) || "暂无执行"}</span>
@@ -189,9 +189,10 @@ export function EvalPage() {
           {reviewError && <p className="mb-3 text-sm text-destructive" role="alert">{reviewError}</p>}
           <div className="space-y-3">
             {data.lessons.lessons.length ? data.lessons.lessons.map((lesson) => (
-              <Card key={lesson.id} className="space-y-3 p-4">
+              <Card key={lesson.id} className="space-y-3 rounded-2xl p-4 shadow-(--shadow-1)">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={lesson.status === "approved" ? "success" : "secondary"}>
+                  <Badge variant={lesson.status === "approved" ? "success" : "secondary"} className="rounded-full px-2.5">
+                    <i aria-hidden="true" className="size-1 rounded-full bg-current" />
                     {{ pending: "待审核·未生效", approved: "已确认·已生效", rejected: "已拒绝·未生效" }[lesson.status]}
                   </Badge>
                   <span className="min-w-0 break-all font-mono text-xs text-muted-foreground">{lesson.run_id ?? "旧账本导入"}</span>
@@ -220,7 +221,7 @@ export function EvalPage() {
           <SectionHeader icon={Repeat} title="同问题历史" count={data.repeats.count} hint="按课程和当前节分组;上下文变化时仅供浏览" />
           <div className="space-y-2">
             {data.repeats.repeats.length ? data.repeats.repeats.map((group, i) => (
-              <details key={i} className="rounded-lg border border-border bg-card p-4">
+              <details key={i} className="rounded-xl border border-border bg-card p-4 shadow-(--shadow-1)">
                 <summary className="min-h-11 cursor-pointer text-sm leading-relaxed">
                   {group.question} · {group.course_id} · {group.count} 次
                   <span className="mt-1 block text-muted-foreground">{group.comparable ? "初始上下文与模型一致,仍需人工判断质量变化" : "上下文或版本不同/缺失,不能直接据此判定回归"}</span>
@@ -234,7 +235,7 @@ export function EvalPage() {
         <section>
           <SectionHeader icon={Compass} title="待复核线索" count={data.gaps.count} hint="查询、重复或未通过都只是线索,不自动判定为课程缺口" />
           <ul className="space-y-2">{data.gaps.gaps.slice(0, 50).map((g, i) => (
-            <li key={i} className="rounded-lg border border-border bg-card p-4 text-sm">
+            <li key={i} className="rounded-xl border border-border bg-card p-4 text-sm">
               <p className="break-words">{g.question}</p>
               <p className="mt-1 leading-relaxed text-muted-foreground">{g.course_id} · {g.detail}</p>
             </li>
@@ -249,12 +250,12 @@ export function EvalPage() {
 
 function TraceRow({ trace: t }: { trace: Trace }) {
   const [open, setOpen] = useState(false);
-  return <Card className="overflow-hidden">
+  return <Card className="overflow-hidden rounded-2xl shadow-(--shadow-1)">
     <button className="flex min-h-11 w-full items-start gap-3 p-4 text-left text-sm hover:bg-accent/50"
       aria-expanded={open} onClick={() => setOpen((v) => !v)}>
       <span className="min-w-0 flex-1">
         <span className="block break-words">{t.question || t.subtopic || t.topic || `${t.course_id} · ${t.page_id ?? ""}`}</span>
-        <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{t.ts} · {STATUS[t.status ?? "unknown"] ?? t.status} · {t.elapsed_s}s · 循环 {t.turns ?? "未知"} 次</span>
+        <span className="mt-1 block text-xs leading-relaxed text-muted-foreground tabular-nums">{t.ts} · {STATUS[t.status ?? "unknown"] ?? t.status} · {t.elapsed_s}s · 循环 {t.turns ?? "未知"} 次</span>
       </span>
       <ChevronDown size={16} className={cn("mt-1 shrink-0 transition-transform", open && "rotate-180")} />
     </button>
@@ -336,9 +337,9 @@ function ResearchSection({ traces }: { traces: Trace[] }) {
 }
 
 function Metric({ label, value, hint, warn }: { label: string; value: ReactNode; hint?: string; warn?: boolean }) {
-  return <Card className={cn("min-w-0 p-4", warn && "border-warning/40 bg-warning/5")}>
+  return <Card className={cn("min-w-0 rounded-2xl p-4 shadow-(--shadow-1)", warn && "border-warning/40 bg-warning/5")}>
     <p className="text-sm text-muted-foreground">{label}</p>
-    <p className={cn("mt-1 break-words font-mono text-xl font-bold", warn && "text-warning")}>{value}</p>
+    <p className={cn("mt-1 break-words font-mono text-xl font-bold tabular-nums", warn && "text-warning")}>{value}</p>
     {hint && <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{hint}</p>}
   </Card>;
 }

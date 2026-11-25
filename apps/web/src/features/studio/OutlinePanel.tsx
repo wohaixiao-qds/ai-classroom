@@ -171,10 +171,10 @@ export function OutlinePanel() {
                 key={o.topic}
                 type="button"
                 onClick={() => void open(o.topic)}
-                className={`relative rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                className={`relative rounded-full border px-3 py-1.5 text-xs transition-colors tabular-nums ${
                   openTopic === o.topic
-                    ? "border-primary font-medium text-primary"
-                    : "border-border bg-background hover:border-primary/40"
+                    ? "border-primary bg-card font-medium text-primary shadow-(--shadow-1)"
+                    : "border-border bg-card hover:border-primary/40"
                 }`}
               >
                 {/* 选中底色滑动:motion layoutId,切大纲时平滑迁移 */}
@@ -198,7 +198,7 @@ export function OutlinePanel() {
           </div>
 
           {detail && (
-            <Card className="p-4">
+            <Card className="rounded-2xl p-4 shadow-(--shadow-1)">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-sm font-medium">
                   {detail.domain && `${detail.domain} · `}
@@ -247,8 +247,8 @@ export function OutlinePanel() {
                 return groups.map((g) => (
                   <div key={g.part || "__none"} className="mb-3">
                     {g.part && (
-                      <p className="mb-1.5 border-b border-border pb-1 font-mono text-[11px] tracking-widest text-primary">
-                        ◆ {g.part}
+                      <p className="mb-1.5 border-b border-border pb-1 font-mono text-[10.5px] tracking-[0.2em] text-muted-foreground">
+                        {g.part}
                       </p>
                     )}
                     <ol className="space-y-2">
@@ -260,7 +260,7 @@ export function OutlinePanel() {
                       layout
                       key={c.id}
                       transition={{ duration: 0.3, ease: [0.22, 0.9, 0.3, 1] }}
-                      className="flex flex-col gap-1.5 rounded-lg border border-border bg-background/50 px-3 py-2"
+                      className="flex flex-col gap-1.5 rounded-xl border border-border bg-card px-3 py-2"
                     >
                       <div className="flex items-start gap-3">
                         <span className="mt-0.5 font-mono text-xs text-muted-foreground">{i + 1}</span>
@@ -268,14 +268,14 @@ export function OutlinePanel() {
                         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
                           {c.title}
                           {c.course_file_id ? (
-                            <Badge variant="success" className="anim-pop">已出课</Badge>
+                            <Badge variant="success" className="anim-pop rounded-full px-2.5"><i aria-hidden="true" className="size-1 rounded-full bg-current" />已出课</Badge>
                           ) : busy ? (
-                            <Badge variant="warning" className="anim-pop">
+                            <Badge variant="warning" className="anim-pop rounded-full px-2.5">
                               <LoaderCircle size={10} className="mr-0.5 inline animate-spin" />
                               {c.prep_status === "running" ? "备课中" : "排队中"}
                             </Badge>
                           ) : c.prep_status === "failed" ? (
-                            <Badge variant="destructive" className="anim-pop">上次失败,可重试</Badge>
+                            <Badge variant="destructive" className="anim-pop rounded-full px-2.5"><i aria-hidden="true" className="size-1 rounded-full bg-current" />上次失败,可重试</Badge>
                           ) : null}
                         </p>
                         {c.goal && (
@@ -343,7 +343,7 @@ export function OutlinePanel() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
+                          className="h-7 w-7 hover:text-primary"
                           onClick={() => move(i, -1)}
                           disabled={i === 0}
                           title="上移"
@@ -353,7 +353,7 @@ export function OutlinePanel() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
+                          className="h-7 w-7 hover:text-primary"
                           onClick={() => move(i, 1)}
                           disabled={i === detail.courses.length - 1}
                           title="下移"
@@ -363,7 +363,7 @@ export function OutlinePanel() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7"
+                          className="h-7 w-7 hover:text-destructive"
                           onClick={() => remove(i)}
                           title="从大纲移除"
                         >

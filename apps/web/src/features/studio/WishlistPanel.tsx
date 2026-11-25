@@ -85,9 +85,9 @@ export function WishlistPanel({ refreshKey, onFocusJob }: {
     if (event.target !== event.currentTarget) return;
     const expanded = event.currentTarget.open;
     if (expanded !== open) { setLoading(true); setError(""); setOpen(expanded); }
-  }} className="min-w-0 rounded-xl border border-border bg-card">
+  }} className="min-w-0 rounded-2xl border border-border bg-card shadow-(--shadow-1)">
     <summary className="min-h-11 cursor-pointer px-4 py-4 sm:px-6">
-      <span className="inline-flex flex-wrap items-center gap-2 font-medium"><ListTodo size={18} aria-hidden="true" />待学清单<Badge variant="secondary">{data ? `${data.pending_count} 条待学` : error ? "读取失败" : "待读取"}</Badge></span>
+      <span className="inline-flex flex-wrap items-center gap-2 font-medium"><ListTodo size={18} aria-hidden="true" />待学清单<Badge variant="secondary" className="rounded-full px-2.5 tabular-nums"><i aria-hidden="true" className="size-1 rounded-full bg-current" />{data ? `${data.pending_count} 条待学` : error ? "读取失败" : "待读取"}</Badge></span>
       <span className="mt-1 block text-sm text-muted-foreground">先收集想学的内容，需要时再开始生成。</span>
     </summary>
     <div className="space-y-4 border-t border-border p-4 sm:p-6">
@@ -101,7 +101,7 @@ export function WishlistPanel({ refreshKey, onFocusJob }: {
       {notice && <p role="status" className="break-words text-sm text-primary">{notice}</p>}
       {!loading && !error && !items.length && <p className="py-3 text-sm text-muted-foreground">{query.trim() ? "没有匹配的条目。" : filter === "pending" ? "还没有待学内容，可以在上方输入主题并先存起来。" : filter === "started" ? "还没有从清单发起的任务。" : "暂无已移除条目。"}</p>}
       <ul className="space-y-3">
-        {items.map((item) => <li key={item.id} className="min-w-0 rounded-lg border border-border p-4">
+        {items.map((item) => <li key={item.id} className="min-w-0 rounded-xl border border-border p-4">
           <p className="break-words font-medium">{item.title}</p>
           <ul className="mt-2 space-y-1 text-sm text-muted-foreground">{item.sources.map((source) => <li key={`${source.kind}:${source.id}`} className="break-words">{SOURCE_LABELS[source.kind]} · {source.label}{source.course_id && <Link className="ml-2 text-primary underline underline-offset-4" to={`/read/${encodeURIComponent(source.course_id)}`}>查看来源课程</Link>}</li>)}</ul>
           <div className="mt-3 flex flex-wrap gap-2">
