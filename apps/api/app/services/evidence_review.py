@@ -78,7 +78,9 @@ def review_claims(
         try:
             response = (
                 get_llm_client()
-                .with_options(timeout=240.0)
+                # 审查链长尾收口(第一批遗留项):max_retries=0 关 SDK 自动重试,
+                # 240s 单次封顶——审查失败由 run_batch 的 3 次重试兜底,不叠 SDK 长尾。
+                .with_options(timeout=240.0, max_retries=0)
                 .messages.create(
                     model=model,
                     max_tokens=16384,

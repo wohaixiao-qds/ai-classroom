@@ -198,7 +198,13 @@ def web_search_multi(query: str, recency: str | None = None) -> str:
     """多引擎合并观测(找资料 agent 用):博查中文生态 + AnySearch/Tavily 官方英文互补;
     单引擎失败不拖垮整体——把「社区视角」和「官方最新视角」都摆给模型。
     网络类失败每引擎自动重试 3 次(_net_retry);认证/额度 403 触发 TTL 熔断;
-    provider 级计时埋点(第一批⑥):分项耗时供并发化决策。"""
+    provider 级计时埋点(第一批⑥):分项耗时供并发化决策。
+    P2 修正:multi 路径接入与 web_search 同构的 query 缓存(此前缓存只在单引擎
+    路径,调研主路径实际调 multi,同 query 仍重复请求)。"""
+    cache_key = f"multi|{query}|{recency or ''}"
+    cached = _QUERY_CACHE.get(cache_key)
+    if cached and time.time() - cached[0] < _QUERY_CACHE_TTL:
+        return cached[1]
     parts: list[str] = []
     timings: list[str] = []
     for name, fn, has_key in _ENGINES:
@@ -219,7 +225,9 @@ def web_search_multi(query: str, recency: str | None = None) -> str:
         parts.append(f"## 搜索引擎 {name}\n{r}")
     if timings:
         print(f"  ⏱ 搜索分项: {' | '.join(timings)}", flush=True)
-    return "\n\n".join(parts) if parts else web_search(query, recency)
+    result = "\n\n".join(parts) if parts else web_search(query, recency)
+    _QUERY_CACHE[cache_key] = (time.time(), result)
+    return result
 
 
 def read_notes(keyword: str) -> str:

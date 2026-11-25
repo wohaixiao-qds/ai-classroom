@@ -729,8 +729,12 @@ def _loop(
         last_turn = turn == turns_budget - 1
         model_started = time.perf_counter()
         # 第一批边界控制:独立客户端 max_retries=0(SDK 3×240s 的长尾由应用层接管),
-        # 搜索轮 110s/交付轮(last_turn)300s——交付 JSON 是重活,单独放宽。
+        # 搜索轮 110s/交付轮 300s——交付 JSON 是重活,单独放宽。
+        # P1 修正:模型可在任意普通轮输出完整交付,110s 会截断它(实测交付 226s)。
+        # 重试时若上一轮 110s 超时且输出接近预算上限,升级为 300s 交付超时再试;
+        # 交付模式/last_turn 直接用 300s。
         resp = None
+        deliver_timeout = 300.0 if (last_turn or deliver_mode) else 110.0
         for transport_attempt in (1, 2):  # 应用层只重试 1 次,总等待 ≈2×timeout
             try:
                 resp = client.messages.create(
@@ -738,7 +742,7 @@ def _loop(
                     max_tokens=token_budget,
                     messages=messages,
                     tools=[] if (last_turn or deliver_mode) else RESEARCH_TOOLS,
-                    timeout=300.0 if (last_turn or deliver_mode) else 110.0,
+                    timeout=deliver_timeout,
                 )
                 break
             except RateLimitError:
@@ -751,8 +755,11 @@ def _loop(
                                            "InternalServerError", "OverloadedError"))
                 if not transient:
                     raise
+                # 110s 截断的大输出 = 可能是交付被截断,重试用 300s 交付超时
+                if deliver_timeout < 300.0:
+                    deliver_timeout = 300.0
                 print(f"⚠️ 模型调用传输失败({type(exc).__name__}),"
-                      f"5~15s 后重试 1/1", flush=True)
+                      f"以 {deliver_timeout:.0f}s 交付超时重试 1/1", flush=True)
                 _sleep_backoff(5.0 + random.uniform(0, 10.0))
         if resp is None:
             raise RuntimeError("模型调用未返回")  # 防御:循环两轮都没赋值
@@ -771,7 +778,7 @@ def _loop(
             candidate = "".join(b.text for b in resp.content if b.type == "text")
             if len(candidate) > 500 and parse_json_reply(candidate) is not None:
                 delivery_text = candidate
-        if resp.stop_reason != "tool_use" or last_turn or delivery_text:
+        if resp.stop_reason != "tool_use" or last_turn or deliver_mode or delivery_text:
             text = delivery_text or "".join(b.text for b in resp.content if b.type == "text")
             update_run(last_response={"stop_reason": resp.stop_reason,
                                       "block_types": [b.type for b in resp.content],
@@ -919,15 +926,6 @@ def _loop(
                 "不要再调用任何工具。"
             )})
             deliver_mode = True  # 撤工具直到交付完成(交付重试也不带工具)
-        # 整轮墙钟预算(第一批②):模型调用+工具执行合计超 6 分钟,强制收敛交付——
-        # 单轮 ≠ 只有模型时间,fetch_page/web_search 也占墙钟;预算是软顶(下一轮收笔)。
-        if not last_turn and (time.perf_counter() - model_started) > 360.0:
-            print(f"⚠️ 第 {turn + 1} 轮墙钟超 360s,下一轮进入交付模式", flush=True)
-            messages.append({"role": "user", "content": (
-                "本轮耗时过长。立即停止搜索/抓取,基于已收集的全部材料输出完整交付 JSON,"
-                "不要再调用任何工具。"
-            )})
-            # 从下一轮起进入交付模式:撤工具直到交付完成(交付可能需要多轮重试)
 
     update_run(research_cost={
         "generation_s": round(model_s, 3),
