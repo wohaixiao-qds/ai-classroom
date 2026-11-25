@@ -767,7 +767,14 @@ def _latest_draft(middle: list[dict[str, Any]]) -> dict[str, Any] | None:
             if d is not None and (d.get("groups") or d.get("courses")):
                 return d
         elif role == "user" and text.startswith(_DIGEST_MARKER):
-            d = parse_json_reply(text)
+            # 复查修复B:摘要含多个 JSON(课程约束+候选材料),整段 parse 会把
+            # 两个对象拼一起而失败——从「候选要点」段头精准截取该段 JSON。
+            marker = "## 候选要点(来自最近一次交付草稿,quote/快照定位逐字保留)\n"
+            start = text.find(marker)
+            if start < 0:
+                continue
+            seg = text[start + len(marker):]
+            d = parse_json_reply(seg)
             if d is None:
                 continue
             if d.get("groups") or d.get("courses"):
@@ -960,7 +967,9 @@ def _compress_messages(
         turns_left=turns_left,
     )
     summary = {"role": "user", "content": digest_text}
-    return [messages[0], summary, *messages[-2:]]
+    # 保留区用同一边界 end:移出摘要区的轮次必须整体进入保留区,
+    # 否则孤儿 tool_result 留在保留区而引用的 tool_use 被压缩(复查问题C)。
+    return [messages[0], summary, *messages[end:]]
 
 
 @observed("research")
@@ -1123,6 +1132,10 @@ def _loop(
                 for t in tool_calls
                 if t["name"] == "fetch_page" and not t.get("error")
             }
+            # 复查修复A:恢复来源同样可信(检查点写入时已带正文哈希)——
+            # 模型经 read_snapshot 回读后交付,不再被拒为「未经 fetch_page 抓取」。
+            fetched.update(url for url in successful_fetches
+                           if successful_fetches[url].get("call_index") == -1)
             # 不信模型自报的抓取/验证状态,只用本轮实际工具返回构造快照。
             if phase.startswith("material:"):
                 for key in ("evidence_version", "evidence", "source_snapshots", "evidence_review"):
@@ -1145,6 +1158,9 @@ def _loop(
             if not errs and phase.startswith("material:"):
                 pages = {str(t["args"].get("url")): str(t["result"])
                          for t in tool_calls if t["name"] == "fetch_page" and not t.get("error")}
+                for r_url, entry in successful_fetches.items():
+                    if entry.get("call_index") == -1 and r_url not in pages:
+                        pages[r_url] = str(entry["result"])  # 历史恢复正文参与引文定位
                 d, errs = locate_material(d, pages)
                 if not errs:
                     if research_context is not None:

@@ -312,12 +312,20 @@ class ResearchCompressionTests(unittest.TestCase):
                     {"role": "user", "content": [
                         {"type": "tool_result", "tool_use_id": "t2", "content": "c"}]}]
         compressed = research._compress_messages(
-            messages, research_context=None,
+            messages, research_context={"goal": "g"},
             successful_fetches={"https://x": {"result": "b" * 50}},
             tool_calls=[], phase="material:x")
         assert compressed is not None
-        joined = json.dumps(compressed, ensure_ascii=False)
-        self.assertIn("要点", joined)
+        # 二次压缩后再走 _latest_draft(模拟第三次压缩的候选提取):具体候选必须还原,
+        # 通用词"要点"不足以证明——断言具体 text 与 source_id。
+        recovered = research._latest_draft(
+            [msg for msg in compressed if msg.get("role") == "user"
+             and str(msg.get("content", "")).startswith(research._DIGEST_MARKER)])
+        assert recovered is not None
+        pts = recovered["groups"][0]["points"]
+        self.assertTrue(any(p.get("text") == "要点" and p.get("source_id") == 1
+                            and p.get("quote") for p in pts),
+                        f"具体候选丢失: {pts}")
 
     def test_budget_warning_message_survives_compression_pairing(self) -> None:
         # 复查修复C:告急 user 消息与前面的 tool_result 配对不被压缩切散——
@@ -335,11 +343,20 @@ class ResearchCompressionTests(unittest.TestCase):
             messages, research_context=None, successful_fetches={},
             tool_calls=[], phase="material:x")
         assert compressed is not None
-        # 保留区(messages[0] head + 末两条)不含孤儿:第一条保留消息不是 user-tool_result
-        kept_middle = compressed[1]
-        self.assertFalse(
-            isinstance(kept_middle.get("content"), list)
-            and kept_middle.get("role") == "user")
+        # 复查问题C核心断言:压缩结果中每个 tool_result 的 tool_use_id 都必须有
+        # 同消息历史的 assistant tool_use 配对(不允许孤儿)。
+        tool_use_ids = set()
+        for m in compressed:
+            if m.get("role") == "assistant" and isinstance(m.get("content"), list):
+                for blk in m["content"]:
+                    if isinstance(blk, dict) and blk.get("type") == "tool_use":
+                        tool_use_ids.add(blk.get("id"))
+        for m in compressed:
+            if m.get("role") == "user" and isinstance(m.get("content"), list):
+                for blk in m["content"]:
+                    if isinstance(blk, dict) and blk.get("type") == "tool_result":
+                        self.assertIn(blk.get("tool_use_id"), tool_use_ids,
+                                      f"孤儿 tool_result: {blk.get('tool_use_id')}")
 
     def test_loop_prefills_fetches_from_checkpoint(self) -> None:
         # 复查修复A:_loop 启动从检查点预填 successful_fetches,已抓 URL 不再进抓取。

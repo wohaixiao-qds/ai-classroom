@@ -154,6 +154,46 @@ class ResearchProvenanceTests(unittest.TestCase):
         cp_path.write_text("{ broken", encoding="utf-8")
         self.assertIsNone(_load_fetch_checkpoint(material_filename))
 
+    def test_loop_recovery_urls_enter_fetched_set(self) -> None:
+        # 复查问题A核心断言:_loop 启动预填检查点恢复项后,validator 收到的
+        # fetched 集合必须包含恢复 URL(否则交付被拒为「未经 fetch_page 抓取」)。
+        from app.agent import research
+        from app.agent.research import _save_fetch_checkpoint
+        material_filename = "t.prefill.material.json"
+        _save_fetch_checkpoint(
+            material_filename, "https://example.org/done", "已抓正文" * 50,
+            [], {"goal": "g"})
+        captured: set[str] = set()
+        client = MagicMock()
+        client.with_options.return_value = client
+        # 备两个响应:首轮交付(空 groups 会被密度闸打回→打回消息),次轮再交付
+        # ——断言点在第 1 轮 validator 收到的 fetched 集合。
+        client.messages.create.side_effect = [
+            SimpleNamespace(
+                content=[SimpleNamespace(type="text", text=json.dumps(
+                    {"groups": [], "sources": []}))],
+                stop_reason="end_turn",
+                usage=SimpleNamespace(input_tokens=1, output_tokens=1)),
+            SimpleNamespace(
+                content=[SimpleNamespace(type="text", text=json.dumps(
+                    {"groups": [], "sources": []}))],
+                stop_reason="end_turn",
+                usage=SimpleNamespace(input_tokens=1, output_tokens=1))]
+        with (patch.object(research, "get_llm_client", return_value=client),
+              patch.object(research, "_require_search", lambda: None),
+              patch.object(research, "_sleep_backoff", lambda _s: None)):
+            def capture(d: dict[str, Any], fetched: set[str] | None) -> list[str]:
+                if fetched:
+                    captured.update(fetched)
+                return []  # 交付成功——单响应桩即够;断言点在 fetched 集合。
+
+            research._loop("prompt", capture,
+                           "t", "material:prefill", source="test",
+                           material_filename=material_filename)
+            # validator 返回 [](交付成功)——单响应桩即够;断言点在 fetched 集合。
+        self.assertIn("https://example.org/done", captured,
+                      "恢复 URL 未进 fetched 集合——恢复来源未接入校验(复查问题A)")
+
     def test_material_cache_with_stale_goal_context_is_not_reused(self) -> None:
         path = self.data_dir / "research" / "eval.course.material.json"
         path.parent.mkdir(parents=True)
